@@ -344,6 +344,83 @@ function listTriageEndpoint(res, route) {
   logLine(`GET ${route} -> 200`);
 }
 
+async function ingestTriageItem(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const itemId = typeof body.item_id === "string" ? body.item_id.trim() : "";
+  const sourceType = typeof body.source_type === "string" ? body.source_type.trim() : "";
+  const sourceRef = typeof body.source_ref === "string" ? body.source_ref.trim() : "";
+  const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+  const suggestedDealId =
+    typeof body.suggested_deal_id === "string" ? body.suggested_deal_id.trim() : "";
+  const suggestedTaskId =
+    typeof body.suggested_task_id === "string" ? body.suggested_task_id.trim() : "";
+
+  if (!itemId || !isSlugSafe(itemId)) {
+    sendJson(res, 400, { error: "invalid_item_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!sourceType) {
+    sendJson(res, 400, { error: "invalid_source_type" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!sourceRef) {
+    sendJson(res, 400, { error: "invalid_source_ref" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!summary) {
+    sendJson(res, 400, { error: "invalid_summary" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (suggestedDealId && !isSlugSafe(suggestedDealId)) {
+    sendJson(res, 400, { error: "invalid_suggested_deal_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (suggestedTaskId && !isSlugSafe(suggestedTaskId)) {
+    sendJson(res, 400, { error: "invalid_suggested_task_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const state = triageStateFromLines(readTriageLines());
+  if (state.open.has(itemId)) {
+    sendJson(res, 409, { error: "ALREADY_EXISTS", item_id: itemId });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  const createdAt = new Date().toISOString();
+  appendTriageLine({
+    kind: "triage_item",
+    item_id: itemId,
+    source_type: sourceType,
+    source_ref: sourceRef,
+    summary,
+    suggested_deal_id: suggestedDealId || undefined,
+    suggested_task_id: suggestedTaskId || undefined,
+    status: "OPEN",
+    created_at: createdAt,
+  });
+  appendTriageLine({
+    kind: "audit",
+    action: "TRIAGE_INGEST",
+    at: createdAt,
+    item_id: itemId,
+  });
+  sendJson(res, 201, { ingested: true, item_id: itemId, status: "OPEN" });
+  logLine(`POST ${route} -> 201`);
+}
+
 async function linkTriageItem(itemId, req, res, route) {
   if (!itemId || !isSlugSafe(itemId)) {
     sendJson(res, 400, { error: "invalid_item_id" });
@@ -949,6 +1026,11 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "GET" && route === "/triage/list") {
     listTriageEndpoint(res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/triage/ingest") {
+    await ingestTriageItem(req, res, route);
     return;
   }
 
