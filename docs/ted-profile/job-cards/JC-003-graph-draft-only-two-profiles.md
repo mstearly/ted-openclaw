@@ -169,3 +169,28 @@ This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisit
 ### Notes
 
 - Proof currently validates the fail-closed behavior without requiring tenant auth.
+
+---
+
+## Proof Evidence (Increment 5 — Auth failure diagnostics classifier)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc003.sh
+- Result: PASS
+
+### What was proven
+
+- Sidecar exposes POST /graph/diagnostics/classify
+- Classifier returns stable categories and next-actions for common blockers:
+  - USER_NOT_IN_TENANT
+  - CONDITIONAL_ACCESS_BLOCK
+  - AUTH_PENDING
+  - MISSING_SCOPES
+  - TOKEN_EXPIRED_OR_REVOKED
+  - UNKNOWN
+- No secrets are processed or logged; this is pure text classification.
+- Proof harness validates classifier behavior end-to-end.
+
+### Notes
+
+This endpoint converts real-world tenant/auth failures into admin-ready guidance while keeping the system fail-closed.
