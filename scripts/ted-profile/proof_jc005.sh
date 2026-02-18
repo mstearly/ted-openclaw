@@ -2,23 +2,53 @@
 set -euo pipefail
 
 BASE_URL="${TED_SIDECAR_URL:-http://127.0.0.1:48080}"
-echo "JC-005 proof (proof-first): filing suggestions queue"
+echo "JC-005 proof: filing suggestions queue"
+SUGGESTION_TEST_ID="jc005_$(date +%s)_$RANDOM"
 
 # Precondition: sidecar must be running
 curl -fsS "$BASE_URL/status" >/dev/null
 
-# Must exist after implementation
+echo "1) Propose a filing suggestion..."
+PROPOSE_CODE="$(curl -sS -o /tmp/jc005_propose.out -w "%{http_code}" \
+  -X POST "$BASE_URL/filing/suggestions/propose" \
+  -H "Content-Type: application/json" \
+  -d "{\"source_type\":\"email\",\"source_ref\":\"message:$SUGGESTION_TEST_ID\",\"triage_item_id\":\"ti_$SUGGESTION_TEST_ID\",\"suggested_path\":\"/Deals/Proof/$SUGGESTION_TEST_ID\",\"rationale\":\"proof jc005\"}" || true)"
+[ "$PROPOSE_CODE" = "201" ] || { echo "FAIL: expected 201 from propose, got $PROPOSE_CODE"; cat /tmp/jc005_propose.out; exit 1; }
+SUGGESTION_ID="$(python3 -c 'import json,sys; print(json.load(open("/tmp/jc005_propose.out")).get("suggestion_id",""))' 2>/dev/null || true)"
+[ -n "$SUGGESTION_ID" ] || { echo "FAIL: missing suggestion_id in propose response"; cat /tmp/jc005_propose.out; exit 1; }
+echo "OK: proposed $SUGGESTION_ID"
+
+echo "2) Verify it appears in default list as PROPOSED..."
 LIST_CODE="$(curl -sS -o /tmp/jc005_list.out -w "%{http_code}" "$BASE_URL/filing/suggestions/list" || true)"
-if [ "$LIST_CODE" = "404" ]; then
-  echo "EXPECTED_FAIL_UNTIL_JC005_IMPLEMENTED: missing /filing/suggestions/list"
-  cat /tmp/jc005_list.out || true
+[ "$LIST_CODE" = "200" ] || { echo "FAIL: expected 200 from list, got $LIST_CODE"; cat /tmp/jc005_list.out; exit 1; }
+grep -q "\"suggestion_id\":\"$SUGGESTION_ID\"" /tmp/jc005_list.out || { echo "FAIL: suggestion missing in default list"; cat /tmp/jc005_list.out; exit 1; }
+grep -q "\"status\":\"PROPOSED\"" /tmp/jc005_list.out || { echo "FAIL: expected PROPOSED status in default list"; cat /tmp/jc005_list.out; exit 1; }
+echo "OK: default list shows PROPOSED suggestion"
+
+echo "3) Approve the suggestion..."
+APPROVE_CODE="$(curl -sS -o /tmp/jc005_approve.out -w "%{http_code}" \
+  -X POST "$BASE_URL/filing/suggestions/$SUGGESTION_ID/approve" \
+  -H "Content-Type: application/json" \
+  -d '{"approved_by":"proof_jc005"}' || true)"
+[ "$APPROVE_CODE" = "200" ] || { echo "FAIL: expected 200 from approve, got $APPROVE_CODE"; cat /tmp/jc005_approve.out; exit 1; }
+grep -q "\"status\":\"APPROVED\"" /tmp/jc005_approve.out || { echo "FAIL: approve response missing APPROVED status"; cat /tmp/jc005_approve.out; exit 1; }
+echo "OK: suggestion approved"
+
+echo "4) Default list should hide approved suggestions..."
+LIST_AFTER_CODE="$(curl -sS -o /tmp/jc005_list_after.out -w "%{http_code}" "$BASE_URL/filing/suggestions/list" || true)"
+[ "$LIST_AFTER_CODE" = "200" ] || { echo "FAIL: list after approve returned $LIST_AFTER_CODE"; cat /tmp/jc005_list_after.out; exit 1; }
+if grep -q "\"suggestion_id\":\"$SUGGESTION_ID\"" /tmp/jc005_list_after.out; then
+  echo "FAIL: approved suggestion should not be in default list"
+  cat /tmp/jc005_list_after.out
   exit 1
 fi
+echo "OK: default list excludes approved suggestion"
 
-if [ "$LIST_CODE" != "200" ]; then
-  echo "FAIL: expected 200 from list, got $LIST_CODE"
-  cat /tmp/jc005_list.out || true
-  exit 1
-fi
+echo "5) include_approved=true should show APPROVED suggestion..."
+LIST_ALL_CODE="$(curl -sS -o /tmp/jc005_list_all.out -w "%{http_code}" "$BASE_URL/filing/suggestions/list?include_approved=true" || true)"
+[ "$LIST_ALL_CODE" = "200" ] || { echo "FAIL: include_approved list returned $LIST_ALL_CODE"; cat /tmp/jc005_list_all.out; exit 1; }
+grep -q "\"suggestion_id\":\"$SUGGESTION_ID\"" /tmp/jc005_list_all.out || { echo "FAIL: approved suggestion missing from include_approved list"; cat /tmp/jc005_list_all.out; exit 1; }
+grep -q "\"status\":\"APPROVED\"" /tmp/jc005_list_all.out || { echo "FAIL: include_approved list missing APPROVED status"; cat /tmp/jc005_list_all.out; exit 1; }
+echo "OK: include_approved list shows approved suggestion"
 
-echo "OK: /filing/suggestions/list exists (next: functional proof after implementation)"
+echo "JC-005 proof completed successfully."

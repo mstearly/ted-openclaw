@@ -32,6 +32,8 @@ const triageDir = path.join(artifactsDir, "triage");
 const triageLedgerPath = path.join(triageDir, "triage.jsonl");
 const patternsDir = path.join(artifactsDir, "patterns");
 const patternsLedgerPath = path.join(patternsDir, "patterns.jsonl");
+const filingDir = path.join(artifactsDir, "filing");
+const filingSuggestionsPath = path.join(filingDir, "suggestions.jsonl");
 const graphProfilesConfigPath = path.join(__dirname, "config", "graph.profiles.json");
 const graphLastErrorByProfile = new Map();
 
@@ -276,6 +278,11 @@ function appendPatternEvent(event) {
   fs.appendFileSync(patternsLedgerPath, `${JSON.stringify(event)}\n`, "utf8");
 }
 
+function appendFilingSuggestionEvent(event) {
+  ensureDirectory(filingDir);
+  fs.appendFileSync(filingSuggestionsPath, `${JSON.stringify(event)}\n`, "utf8");
+}
+
 function readPatternEvents() {
   try {
     if (!fs.existsSync(patternsLedgerPath)) {
@@ -303,6 +310,189 @@ function readPatternEvents() {
   } catch {
     return [];
   }
+}
+
+function readFilingSuggestionEvents() {
+  try {
+    if (!fs.existsSync(filingSuggestionsPath)) {
+      return [];
+    }
+    const raw = fs.readFileSync(filingSuggestionsPath, "utf8");
+    if (!raw.trim()) {
+      return [];
+    }
+    const out = [];
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(line);
+        if (parsed && typeof parsed === "object") {
+          out.push(parsed);
+        }
+      } catch {
+        // Skip malformed lines.
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function buildFilingSuggestionState() {
+  const state = new Map();
+  for (const event of readFilingSuggestionEvents()) {
+    const suggestionId = typeof event.suggestion_id === "string" ? event.suggestion_id.trim() : "";
+    if (!suggestionId) {
+      continue;
+    }
+    if (event.kind === "filing_suggestion_proposed") {
+      state.set(suggestionId, {
+        suggestion_id: suggestionId,
+        status: "PROPOSED",
+        deal_id: typeof event.deal_id === "string" ? event.deal_id : undefined,
+        triage_item_id: typeof event.triage_item_id === "string" ? event.triage_item_id : undefined,
+        source_type: typeof event.source_type === "string" ? event.source_type : "",
+        source_ref: typeof event.source_ref === "string" ? event.source_ref : "",
+        suggested_path: typeof event.suggested_path === "string" ? event.suggested_path : "",
+        rationale: typeof event.rationale === "string" ? event.rationale : undefined,
+        created_at: typeof event.at === "string" ? event.at : null,
+      });
+      continue;
+    }
+    if (event.kind === "filing_suggestion_approved") {
+      const existing = state.get(suggestionId);
+      if (!existing) {
+        continue;
+      }
+      state.set(suggestionId, {
+        ...existing,
+        status: "APPROVED",
+        approved_at: typeof event.at === "string" ? event.at : null,
+        approved_by: typeof event.approved_by === "string" ? event.approved_by : "",
+      });
+    }
+  }
+  return [...state.values()];
+}
+
+function listFilingSuggestions(parsedUrl, res, route) {
+  const includeApproved = parsedUrl.searchParams.get("include_approved") === "true";
+  const all = buildFilingSuggestionState();
+  const suggestions = includeApproved ? all : all.filter((s) => s.status === "PROPOSED");
+  sendJson(res, 200, { suggestions });
+  logLine(`GET ${route} -> 200`);
+}
+
+async function proposeFilingSuggestion(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const sourceType = typeof body.source_type === "string" ? body.source_type.trim() : "";
+  const sourceRef = typeof body.source_ref === "string" ? body.source_ref.trim() : "";
+  const dealId = typeof body.deal_id === "string" ? body.deal_id.trim() : "";
+  const triageItemId = typeof body.triage_item_id === "string" ? body.triage_item_id.trim() : "";
+  const suggestedPath = typeof body.suggested_path === "string" ? body.suggested_path.trim() : "";
+  const rationale = typeof body.rationale === "string" ? body.rationale.trim() : "";
+
+  if (!sourceType) {
+    sendJson(res, 400, { error: "invalid_source_type" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!sourceRef) {
+    sendJson(res, 400, { error: "invalid_source_ref" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!suggestedPath) {
+    sendJson(res, 400, { error: "invalid_suggested_path" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (!dealId && !triageItemId) {
+    sendJson(res, 400, { error: "deal_id_or_triage_item_id_required" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (dealId && !isSlugSafe(dealId)) {
+    sendJson(res, 400, { error: "invalid_deal_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (triageItemId && !isSlugSafe(triageItemId)) {
+    sendJson(res, 400, { error: "invalid_triage_item_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const rand = Math.random().toString(36).slice(2, 8);
+  const suggestionId = `fs-${Date.now()}-${rand}`;
+  appendFilingSuggestionEvent({
+    kind: "filing_suggestion_proposed",
+    suggestion_id: suggestionId,
+    source_type: sourceType,
+    source_ref: sourceRef,
+    deal_id: dealId || undefined,
+    triage_item_id: triageItemId || undefined,
+    suggested_path: suggestedPath,
+    rationale: rationale || undefined,
+    at: now,
+  });
+  appendAudit("FILING_SUGGESTION_PROPOSE", {
+    suggestion_id: suggestionId,
+    deal_id: dealId || undefined,
+    triage_item_id: triageItemId || undefined,
+  });
+  sendJson(res, 201, { proposed: true, suggestion_id: suggestionId, status: "PROPOSED" });
+  logLine(`POST ${route} -> 201`);
+}
+
+async function approveFilingSuggestion(suggestionId, req, res, route) {
+  if (!suggestionId || !isSlugSafe(suggestionId)) {
+    sendJson(res, 400, { error: "invalid_suggestion_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const body = await readJsonBody(req).catch(() => null);
+  const approvedBy = typeof body?.approved_by === "string" ? body.approved_by.trim() : "";
+  if (!approvedBy) {
+    sendJson(res, 400, { error: "invalid_approved_by" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const all = buildFilingSuggestionState();
+  const existing = all.find((s) => s.suggestion_id === suggestionId);
+  if (!existing || existing.status !== "PROPOSED") {
+    sendJson(res, 404, {
+      error: "suggestion_not_found_or_not_proposed",
+      suggestion_id: suggestionId,
+    });
+    logLine(`POST ${route} -> 404`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  appendFilingSuggestionEvent({
+    kind: "filing_suggestion_approved",
+    suggestion_id: suggestionId,
+    approved_by: approvedBy,
+    at: now,
+  });
+  appendAudit("FILING_SUGGESTION_APPROVE", {
+    suggestion_id: suggestionId,
+    approved_by: approvedBy,
+  });
+  sendJson(res, 200, { approved: true, suggestion_id: suggestionId, status: "APPROVED" });
+  logLine(`POST ${route} -> 200`);
 }
 
 function buildPatternState() {
@@ -1234,6 +1424,23 @@ const server = http.createServer(async (req, res) => {
 
   if (method === "POST" && route === "/triage/ingest") {
     await ingestTriageItem(req, res, route);
+    return;
+  }
+
+  if (method === "POST" && route === "/filing/suggestions/propose") {
+    await proposeFilingSuggestion(req, res, route);
+    return;
+  }
+
+  if (method === "GET" && route === "/filing/suggestions/list") {
+    listFilingSuggestions(parsed, res, route);
+    return;
+  }
+
+  const filingSuggestionApproveMatch = route.match(/^\/filing\/suggestions\/([^/]+)\/approve$/);
+  if (method === "POST" && filingSuggestionApproveMatch) {
+    const suggestionId = decodeURIComponent(filingSuggestionApproveMatch[1] || "").trim();
+    await approveFilingSuggestion(suggestionId, req, res, route);
     return;
   }
 
