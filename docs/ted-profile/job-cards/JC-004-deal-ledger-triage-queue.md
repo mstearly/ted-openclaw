@@ -83,3 +83,25 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 ### Notes
 
 - docs/ted-profile/planning/ is local scratch and intentionally not committed in this increment.
+
+---
+
+## Proof Evidence (Increment 3 — Pattern learning scaffold)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc004.sh
+- Result: PASS
+
+### What was proven
+
+- Append-only patterns event ledger created (patterns.jsonl) with:
+  - pattern_proposed and pattern_approved events
+- Endpoints function and are approval-gated:
+  - GET /triage/patterns returns { active, proposed } via event replay
+  - POST /triage/patterns/propose validates inputs and returns pattern_id
+  - POST /triage/patterns/:pattern_id/approve requires approved_by and proposed existence
+- No auto-linking behavior was introduced in this increment.
+
+### Notes
+
+- docs/ted-profile/planning/ remains local scratch and is intentionally not committed.
