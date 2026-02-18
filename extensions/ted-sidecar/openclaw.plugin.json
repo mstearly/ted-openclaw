@@ -1,0 +1,27 @@
+{
+  "id": "ted-sidecar",
+  "name": "Ted Sidecar",
+  "description": "Registers /ted commands that call the local Ted Engine sidecar with strict loopback and path allowlist guards.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string"
+      },
+      "timeoutMs": {
+        "type": "number"
+      }
+    }
+  },
+  "uiHints": {
+    "baseUrl": {
+      "label": "Ted Sidecar Base URL",
+      "help": "Loopback-only base URL for Ted sidecar (default: http://127.0.0.1:48080)."
+    },
+    "timeoutMs": {
+      "label": "Timeout (ms)",
+      "help": "HTTP timeout for /ted doctor and /ted status requests."
+    }
+  }
+}
