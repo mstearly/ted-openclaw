@@ -243,7 +243,13 @@ function triageStateFromLines(lines) {
       item_id: itemId,
       created_at: typeof line.created_at === "string" ? line.created_at : null,
       source: typeof line.source === "string" ? line.source : null,
+      source_type: typeof line.source_type === "string" ? line.source_type : null,
+      source_ref: typeof line.source_ref === "string" ? line.source_ref : null,
       summary: typeof line.summary === "string" ? line.summary : null,
+      suggested_deal_id:
+        typeof line.suggested_deal_id === "string" ? line.suggested_deal_id : undefined,
+      suggested_task_id:
+        typeof line.suggested_task_id === "string" ? line.suggested_task_id : undefined,
       payload: line.payload && typeof line.payload === "object" ? line.payload : undefined,
     });
   }
@@ -335,6 +341,41 @@ function buildPatternState() {
     active: [...active.values()],
     proposed: [...proposed.values()],
   };
+}
+
+function extractEmailDomainFromSourceRef(sourceRef) {
+  if (typeof sourceRef !== "string") {
+    return "";
+  }
+  const match = sourceRef.match(/[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/);
+  return (match?.[1] || "").toLowerCase();
+}
+
+function suggestFromActivePatterns(sourceRef) {
+  const domain = extractEmailDomainFromSourceRef(sourceRef);
+  if (!domain) {
+    return {};
+  }
+  const activePatterns = buildPatternState().active;
+  for (const pattern of activePatterns) {
+    if (pattern.pattern_type !== "SENDER_DOMAIN_TO_DEAL") {
+      continue;
+    }
+    const patternDomain =
+      typeof pattern?.match?.domain === "string" ? pattern.match.domain.toLowerCase() : "";
+    if (!patternDomain || patternDomain !== domain) {
+      continue;
+    }
+    const suggestedDealId =
+      typeof pattern?.suggest?.deal_id === "string" ? pattern.suggest.deal_id : "";
+    const suggestedTaskId =
+      typeof pattern?.suggest?.task_id === "string" ? pattern.suggest.task_id : "";
+    return {
+      suggested_deal_id: suggestedDealId || undefined,
+      suggested_task_id: suggestedTaskId || undefined,
+    };
+  }
+  return {};
 }
 
 function listPatternsEndpoint(res, route) {
@@ -505,9 +546,9 @@ async function ingestTriageItem(req, res, route) {
   const sourceType = typeof body.source_type === "string" ? body.source_type.trim() : "";
   const sourceRef = typeof body.source_ref === "string" ? body.source_ref.trim() : "";
   const summary = typeof body.summary === "string" ? body.summary.trim() : "";
-  const suggestedDealId =
+  const inputSuggestedDealId =
     typeof body.suggested_deal_id === "string" ? body.suggested_deal_id.trim() : "";
-  const suggestedTaskId =
+  const inputSuggestedTaskId =
     typeof body.suggested_task_id === "string" ? body.suggested_task_id.trim() : "";
 
   if (!itemId || !isSlugSafe(itemId)) {
@@ -530,12 +571,12 @@ async function ingestTriageItem(req, res, route) {
     logLine(`POST ${route} -> 400`);
     return;
   }
-  if (suggestedDealId && !isSlugSafe(suggestedDealId)) {
+  if (inputSuggestedDealId && !isSlugSafe(inputSuggestedDealId)) {
     sendJson(res, 400, { error: "invalid_suggested_deal_id" });
     logLine(`POST ${route} -> 400`);
     return;
   }
-  if (suggestedTaskId && !isSlugSafe(suggestedTaskId)) {
+  if (inputSuggestedTaskId && !isSlugSafe(inputSuggestedTaskId)) {
     sendJson(res, 400, { error: "invalid_suggested_task_id" });
     logLine(`POST ${route} -> 400`);
     return;
@@ -548,15 +589,20 @@ async function ingestTriageItem(req, res, route) {
     return;
   }
 
+  const patternSuggestion = suggestFromActivePatterns(sourceRef);
   const createdAt = new Date().toISOString();
+  const finalSuggestedDealId =
+    patternSuggestion.suggested_deal_id || inputSuggestedDealId || undefined;
+  const finalSuggestedTaskId =
+    patternSuggestion.suggested_task_id || inputSuggestedTaskId || undefined;
   appendTriageLine({
     kind: "triage_item",
     item_id: itemId,
     source_type: sourceType,
     source_ref: sourceRef,
     summary,
-    suggested_deal_id: suggestedDealId || undefined,
-    suggested_task_id: suggestedTaskId || undefined,
+    suggested_deal_id: finalSuggestedDealId,
+    suggested_task_id: finalSuggestedTaskId,
     status: "OPEN",
     created_at: createdAt,
   });
@@ -565,8 +611,16 @@ async function ingestTriageItem(req, res, route) {
     action: "TRIAGE_INGEST",
     at: createdAt,
     item_id: itemId,
+    suggested_deal_id: finalSuggestedDealId,
+    suggested_task_id: finalSuggestedTaskId,
   });
-  sendJson(res, 201, { ingested: true, item_id: itemId, status: "OPEN" });
+  sendJson(res, 201, {
+    ingested: true,
+    item_id: itemId,
+    status: "OPEN",
+    suggested_deal_id: finalSuggestedDealId,
+    suggested_task_id: finalSuggestedTaskId,
+  });
   logLine(`POST ${route} -> 201`);
 }
 
