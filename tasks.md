@@ -26,3 +26,6 @@ Roadmap reference:
 
 - JC-004 — Deal Ledger + Triage Queue (Governed system of record)
   - File: docs/ted-profile/job-cards/JC-004-deal-ledger-triage-queue.md
+
+- JC-005 — Filing Suggestions Queue (approval-gated)
+  - File: docs/ted-profile/job-cards/JC-005-filing-suggestions-queue.md
