@@ -64,3 +64,41 @@ Record key decisions so the project stays aligned.
 - No plaintext token/refresh-token artifacts
 - Revoke clears local auth material and forces re-auth on next use
 - Doctor reports Graph connectivity per profile (healthy/degraded) with clear fix steps
+
+---
+
+## ADR-0004 — Microsoft Graph auth model + minimum scopes (Draft-only, two profiles)
+
+**Status:** Accepted  
+**Applies to:** JC-003 (Draft-only Microsoft Graph, two profiles)  
+**Canonical spec:** docs/ted-profile/sdd-pack/07_M365_GRAPH_SPEC.md
+
+### Context
+
+We need Microsoft Graph integration that supports two distinct profiles (`profile_id`, `tenant_id`, `client_id`) while enforcing:
+
+- Draft-only email behavior (never send)
+- Calendar read for briefing/conflict detection (no auto-invite sending)
+- No plaintext token storage
+- Fail-closed on missing consent/scopes/expired tokens, with reauth via device-code flow
+
+### Decision
+
+1. **Auth model:** Delegated user auth **only** (Device Code flow).
+2. **Profile model:** Two explicit profiles; no inferred context switching.
+3. **Minimum scopes (Phase 1 / auth + connectivity):**
+   - `User.Read`
+   - `offline_access`
+   - (mail/calendar scopes introduced in later increment once auth is stable)
+4. **Draft-only boundary enforcement (defense in depth):**
+   - Never request `Mail.Send`
+   - Draft creation is a later increment; must remain draft-only by scope + code
+5. **Token/secret storage:**
+   - No plaintext storage.
+   - Use macOS Keychain when available; memory-only fallback is allowed (status must show `auth_store`).
+6. **Revoke behavior:**
+   - Local revoke deletes stored tokens for the profile_id and forces reauth.
+
+### Consequences
+
+- Completing Graph features (draft creation, calendar holds) are separate increments with explicit scope additions and new proofs.
