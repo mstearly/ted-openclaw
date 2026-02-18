@@ -286,6 +286,85 @@ async function createGraphDraft(profileId, req, res, route) {
   }
 }
 
+async function listGraphCalendar(profileId, parsedUrl, res, route) {
+  const cfg = getGraphProfileConfig(profileId);
+  if (!cfg.ok) {
+    setGraphLastError(profileId, cfg.error);
+    sendJson(res, cfg.status, { profile_id: profileId, error: cfg.error });
+    logLine(`GET ${route} -> ${cfg.status}`);
+    return;
+  }
+
+  const tokenRecord = getTokenRecord(profileId);
+  if (!hasUsableAccessToken(tokenRecord)) {
+    setGraphLastError(profileId, "NOT_AUTHENTICATED");
+    sendJson(res, 409, { error: "NOT_AUTHENTICATED", next_action: "RUN_DEVICE_CODE_AUTH" });
+    logLine(`GET ${route} -> 409`);
+    return;
+  }
+
+  const accessToken = getTokenAccessToken(tokenRecord);
+  const daysRaw = Number.parseInt(parsedUrl.searchParams.get("days") || "7", 10);
+  const days = Number.isFinite(daysRaw) && daysRaw > 0 && daysRaw <= 30 ? daysRaw : 7;
+  const startDate = new Date();
+  const endDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
+
+  const endpoint = new URL("https://graph.microsoft.com/v1.0/me/calendarview");
+  endpoint.searchParams.set("startDateTime", startDate.toISOString());
+  endpoint.searchParams.set("endDateTime", endDate.toISOString());
+  endpoint.searchParams.set("$select", "id,subject,start,end,location");
+  endpoint.searchParams.set("$top", "200");
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        accept: "application/json",
+      },
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (response.status === 401 || response.status === 403) {
+      setGraphLastError(profileId, "NOT_AUTHENTICATED");
+      sendJson(res, 409, { error: "NOT_AUTHENTICATED", next_action: "RUN_DEVICE_CODE_AUTH" });
+      logLine(`GET ${route} -> 409`);
+      return;
+    }
+
+    if (!response.ok) {
+      const code =
+        typeof payload?.error?.code === "string" ? payload.error.code : "calendar_list_failed";
+      setGraphLastError(profileId, code);
+      sendJson(res, 502, { profile_id: profileId, error: code });
+      logLine(`GET ${route} -> 502`);
+      return;
+    }
+
+    const rawEvents = Array.isArray(payload.value) ? payload.value : [];
+    const events = rawEvents.map((event) => ({
+      id: typeof event?.id === "string" ? event.id : null,
+      subject: typeof event?.subject === "string" ? event.subject : "",
+      start: event?.start || null,
+      end: event?.end || null,
+      location:
+        typeof event?.location?.displayName === "string" ? event.location.displayName : null,
+    }));
+    clearGraphLastError(profileId);
+    sendJson(res, 200, {
+      profile_id: profileId,
+      read_only: true,
+      days,
+      events,
+    });
+    logLine(`GET ${route} -> 200`);
+  } catch {
+    setGraphLastError(profileId, "calendar_list_network_error");
+    sendJson(res, 502, { profile_id: profileId, error: "calendar_list_network_error" });
+    logLine(`GET ${route} -> 502`);
+  }
+}
+
 async function readJsonBody(req) {
   const chunks = [];
   for await (const chunk of req) {
@@ -508,6 +587,13 @@ const server = http.createServer(async (req, res) => {
     }
     sendJson(res, 200, buildGraphStatusPayload(profileId));
     logLine(`${method} ${route} -> 200`);
+    return;
+  }
+
+  const graphCalendarListMatch = route.match(/^\/graph\/([^/]+)\/calendar\/list$/);
+  if (method === "GET" && graphCalendarListMatch) {
+    const profileId = decodeURIComponent(graphCalendarListMatch[1] || "").trim();
+    await listGraphCalendar(profileId, parsed, res, route);
     return;
   }
 
