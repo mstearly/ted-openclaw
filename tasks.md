@@ -23,3 +23,6 @@ Roadmap reference:
 ## Proof Scripts
 
 - scripts/ted-profile/proof_jc003.sh (JC-003)
+
+- JC-004 — Deal Ledger + Triage Queue (Governed system of record)
+  - File: docs/ted-profile/job-cards/JC-004-deal-ledger-triage-queue.md
