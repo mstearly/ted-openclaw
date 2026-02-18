@@ -34,3 +34,27 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 - Create a deal -> deal file exists -> GET returns it
 - Add a triage item (unlinked) -> appears in triage list
 - Link triage item to deal_id -> removed from triage list and recorded in audit trail
+
+---
+
+## Proof Evidence (Increment 1 — Deals + Triage + Link)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc004.sh
+- Result: PASS
+
+### What was proven
+
+- Deal ledger storage created under artifacts/deals/<deal_id>.json
+- Endpoints function:
+  - POST /deals/create (slug-safe validation; 409 on existing)
+  - GET /deals/:deal_id
+  - GET /deals/list
+  - GET /triage/list (open items only)
+  - POST /triage/:item_id/link (requires deal_id or task_id; append-only resolution)
+- Triage uses append-only JSONL with audit entries (create/link) and resolved items no longer appear in open list
+- Doctor/status surfaces report deals_count and triage_open_count
+
+### Notes
+
+- sidecars/ted-engine/artifacts/ is runtime data and is intentionally ignored by git.
