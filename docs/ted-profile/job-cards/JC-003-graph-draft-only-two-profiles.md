@@ -55,3 +55,23 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 - Confirm calendar is not modified without explicit approval flow
 - Confirm tokens/secret material are not stored in plaintext
 - Confirm revoke works (subsequent calls fail closed)
+
+---
+
+## Proof Evidence (Increment 1 — Profile config + /status endpoint)
+
+- Date: 2026-02-18
+- Proof Script: scripts/ted-profile/proof_jc003.sh
+- Result: PASS
+
+### What was proven
+
+- Two profiles are addressable by profile_id (olumie, everest)
+- No-secret config template exists (graph.profiles.example.json)
+- Runtime config is ignored (graph.profiles.json)
+- Sidecar exposes /graph/:profile_id/status with fail-closed DISCONNECTED auth_state
+- Proof harness validates schema and exits successfully
+
+### Notes
+
+- Auth is intentionally not implemented yet (next_action: RUN_DEVICE_CODE_AUTH)
