@@ -26,6 +26,10 @@ const logsDir = path.join(__dirname, "logs");
 fs.mkdirSync(logsDir, { recursive: true });
 const logFile = path.join(logsDir, "ted-engine.log");
 const logStream = fs.createWriteStream(logFile, { flags: "a" });
+const artifactsDir = path.join(__dirname, "artifacts");
+const dealsDir = path.join(artifactsDir, "deals");
+const triageDir = path.join(artifactsDir, "triage");
+const triageLedgerPath = path.join(triageDir, "triage.jsonl");
 const graphProfilesConfigPath = path.join(__dirname, "config", "graph.profiles.json");
 const graphLastErrorByProfile = new Map();
 
@@ -39,6 +43,8 @@ function buildPayload() {
     version: VERSION,
     uptime: Math.floor((Date.now() - STARTED_AT_MS) / 1000),
     profiles_count: PROFILES_COUNT,
+    deals_count: listDeals().length,
+    triage_open_count: listOpenTriageItems().length,
   };
 }
 
@@ -133,6 +139,282 @@ function classifyGraphErrorText(errorText) {
       "Retry auth flow and reclassify with updated error text",
     ],
   };
+}
+
+function ensureDirectory(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function isSlugSafe(value) {
+  return /^[A-Za-z0-9_-]+$/.test(value);
+}
+
+function getDealPath(dealId) {
+  return path.join(dealsDir, `${dealId}.json`);
+}
+
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function listDeals() {
+  try {
+    if (!fs.existsSync(dealsDir)) {
+      return [];
+    }
+    const files = fs
+      .readdirSync(dealsDir)
+      .filter((name) => name.endsWith(".json"))
+      .toSorted();
+    const deals = [];
+    for (const fileName of files) {
+      const fullPath = path.join(dealsDir, fileName);
+      const payload = readJsonFile(fullPath);
+      if (!payload || typeof payload !== "object") {
+        continue;
+      }
+      deals.push(payload);
+    }
+    return deals;
+  } catch {
+    return [];
+  }
+}
+
+function appendTriageLine(record) {
+  ensureDirectory(triageDir);
+  fs.appendFileSync(triageLedgerPath, `${JSON.stringify(record)}\n`, "utf8");
+}
+
+function readTriageLines() {
+  try {
+    if (!fs.existsSync(triageLedgerPath)) {
+      return [];
+    }
+    const raw = fs.readFileSync(triageLedgerPath, "utf8");
+    if (!raw.trim()) {
+      return [];
+    }
+    const out = [];
+    for (const line of raw.split("\n")) {
+      if (!line.trim()) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(line);
+        if (parsed && typeof parsed === "object") {
+          out.push(parsed);
+        }
+      } catch {
+        // Skip malformed lines to keep the sidecar fail-closed and resilient.
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function triageStateFromLines(lines) {
+  const all = new Map();
+  const open = new Map();
+  for (const line of lines) {
+    const itemId = typeof line.item_id === "string" ? line.item_id.trim() : "";
+    if (!itemId) {
+      continue;
+    }
+    all.set(itemId, line);
+    const resolved =
+      line.kind === "TRIAGE_LINK" ||
+      line.kind === "TRIAGE_RESOLVED" ||
+      line.resolved === true ||
+      typeof line.resolved_at === "string";
+    if (resolved) {
+      open.delete(itemId);
+      continue;
+    }
+    open.set(itemId, {
+      item_id: itemId,
+      created_at: typeof line.created_at === "string" ? line.created_at : null,
+      source: typeof line.source === "string" ? line.source : null,
+      summary: typeof line.summary === "string" ? line.summary : null,
+      payload: line.payload && typeof line.payload === "object" ? line.payload : undefined,
+    });
+  }
+  return { all, open };
+}
+
+function listOpenTriageItems() {
+  const lines = readTriageLines();
+  const state = triageStateFromLines(lines);
+  return [...state.open.values()];
+}
+
+function appendAudit(action, details) {
+  appendTriageLine({
+    kind: "AUDIT",
+    action,
+    at: new Date().toISOString(),
+    details,
+  });
+}
+
+async function createDeal(req, res, route) {
+  const body = await readJsonBody(req).catch(() => null);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const dealId = typeof body.deal_id === "string" ? body.deal_id.trim() : "";
+  if (!dealId || !isSlugSafe(dealId)) {
+    sendJson(res, 400, { error: "invalid_deal_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  ensureDirectory(dealsDir);
+  const filePath = getDealPath(dealId);
+  if (fs.existsSync(filePath)) {
+    sendJson(res, 409, { error: "deal_exists", deal_id: dealId });
+    logLine(`POST ${route} -> 409`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const deal = {
+    deal_id: dealId,
+    deal_name: typeof body.deal_name === "string" ? body.deal_name : undefined,
+    entity: typeof body.entity === "string" ? body.entity : undefined,
+    phase: typeof body.phase === "string" ? body.phase : undefined,
+    status: typeof body.status === "string" ? body.status : undefined,
+    created_at: now,
+    updated_at: now,
+  };
+  fs.writeFileSync(filePath, `${JSON.stringify(deal, null, 2)}\n`, "utf8");
+  appendAudit("DEAL_CREATE", { deal_id: dealId });
+  sendJson(res, 200, { created: true, deal_id: dealId });
+  logLine(`POST ${route} -> 200`);
+}
+
+function getDeal(dealId, res, route) {
+  if (!dealId || !isSlugSafe(dealId)) {
+    sendJson(res, 400, { error: "invalid_deal_id" });
+    logLine(`GET ${route} -> 400`);
+    return;
+  }
+  const filePath = getDealPath(dealId);
+  if (!fs.existsSync(filePath)) {
+    sendJson(res, 404, { error: "deal_not_found", deal_id: dealId });
+    logLine(`GET ${route} -> 404`);
+    return;
+  }
+  const deal = readJsonFile(filePath);
+  if (!deal || typeof deal !== "object") {
+    sendJson(res, 404, { error: "deal_not_found", deal_id: dealId });
+    logLine(`GET ${route} -> 404`);
+    return;
+  }
+  sendJson(res, 200, deal);
+  logLine(`GET ${route} -> 200`);
+}
+
+function listDealsEndpoint(res, route) {
+  const deals = listDeals()
+    .map((deal) => ({
+      deal_id: typeof deal.deal_id === "string" ? deal.deal_id : null,
+      deal_name: typeof deal.deal_name === "string" ? deal.deal_name : undefined,
+      status: typeof deal.status === "string" ? deal.status : undefined,
+      phase: typeof deal.phase === "string" ? deal.phase : undefined,
+      entity: typeof deal.entity === "string" ? deal.entity : undefined,
+      updated_at: typeof deal.updated_at === "string" ? deal.updated_at : undefined,
+    }))
+    .filter((deal) => typeof deal.deal_id === "string");
+  sendJson(res, 200, { deals });
+  logLine(`GET ${route} -> 200`);
+}
+
+function listTriageEndpoint(res, route) {
+  sendJson(res, 200, { items: listOpenTriageItems() });
+  logLine(`GET ${route} -> 200`);
+}
+
+async function linkTriageItem(itemId, req, res, route) {
+  if (!itemId || !isSlugSafe(itemId)) {
+    sendJson(res, 400, { error: "invalid_item_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  const body = await readJsonBody(req).catch(() => null);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+
+  const dealId = typeof body.deal_id === "string" ? body.deal_id.trim() : "";
+  const taskId = typeof body.task_id === "string" ? body.task_id.trim() : "";
+  if (!dealId && !taskId) {
+    sendJson(res, 400, { error: "deal_id_or_task_id_required" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (dealId && !isSlugSafe(dealId)) {
+    sendJson(res, 400, { error: "invalid_deal_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (taskId && !isSlugSafe(taskId)) {
+    sendJson(res, 400, { error: "invalid_task_id" });
+    logLine(`POST ${route} -> 400`);
+    return;
+  }
+  if (dealId && !fs.existsSync(getDealPath(dealId))) {
+    sendJson(res, 404, { error: "deal_not_found", deal_id: dealId });
+    logLine(`POST ${route} -> 404`);
+    return;
+  }
+
+  const state = triageStateFromLines(readTriageLines());
+  if (!state.open.has(itemId)) {
+    if (state.all.has(itemId)) {
+      sendJson(res, 409, { error: "triage_item_already_resolved", item_id: itemId });
+      logLine(`POST ${route} -> 409`);
+      return;
+    }
+    sendJson(res, 404, { error: "triage_item_not_found", item_id: itemId });
+    logLine(`POST ${route} -> 404`);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const linkedTo = {
+    deal_id: dealId || undefined,
+    task_id: taskId || undefined,
+  };
+  appendTriageLine({
+    kind: "TRIAGE_LINK",
+    item_id: itemId,
+    resolved: true,
+    resolved_at: now,
+    linked_to: linkedTo,
+  });
+  appendAudit("TRIAGE_LINK", {
+    item_id: itemId,
+    linked_to: linkedTo,
+  });
+  sendJson(res, 200, {
+    linked: true,
+    item_id: itemId,
+    deal_id: dealId || undefined,
+    task_id: taskId || undefined,
+  });
+  logLine(`POST ${route} -> 200`);
 }
 
 function readGraphProfilesConfig() {
@@ -647,6 +929,35 @@ const server = http.createServer(async (req, res) => {
   const method = (req.method || "").toUpperCase();
   const parsed = new URL(req.url || "/", `http://${HOST}:${PORT}`);
   const route = parsed.pathname;
+
+  if (method === "POST" && route === "/deals/create") {
+    await createDeal(req, res, route);
+    return;
+  }
+
+  if (method === "GET" && route === "/deals/list") {
+    listDealsEndpoint(res, route);
+    return;
+  }
+
+  const dealByIdMatch = route.match(/^\/deals\/([^/]+)$/);
+  if (method === "GET" && dealByIdMatch) {
+    const dealId = decodeURIComponent(dealByIdMatch[1] || "").trim();
+    getDeal(dealId, res, route);
+    return;
+  }
+
+  if (method === "GET" && route === "/triage/list") {
+    listTriageEndpoint(res, route);
+    return;
+  }
+
+  const triageLinkMatch = route.match(/^\/triage\/([^/]+)\/link$/);
+  if (method === "POST" && triageLinkMatch) {
+    const itemId = decodeURIComponent(triageLinkMatch[1] || "").trim();
+    await linkTriageItem(itemId, req, res, route);
+    return;
+  }
 
   if (method === "GET" && (route === "/status" || route === "/doctor")) {
     const payload = buildPayload();

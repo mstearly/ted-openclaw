@@ -102,3 +102,6 @@ sidecars/ted-engine/config/graph.profiles.json
 
 # local backups
 *.bak.*
+
+# sidecar runtime artifacts
+sidecars/ted-engine/artifacts/
