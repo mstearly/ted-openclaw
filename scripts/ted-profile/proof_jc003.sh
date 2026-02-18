@@ -148,3 +148,53 @@ else
 fi
 
 echo "JC-003 proof stub completed. Implementation will tighten these checks."
+
+echo
+echo "=== Increment 5: Auth failure diagnosis classifier (proof-first) ==="
+echo "This block will FAIL until /graph/diagnostics/classify is implemented."
+
+DIAG_URL="$BASE_URL/graph/diagnostics/classify"
+
+post_diag () {
+  local text="$1"
+  curl -sS -o /tmp/diag.out -w "%{http_code}" \
+    -X POST "$DIAG_URL" \
+    -H "Content-Type: application/json" \
+    -d "{\"error_text\":\"${text//\"/\\\"}\"}"
+}
+
+expect_category () {
+  local text="$1"
+  local cat="$2"
+  local code
+  code="$(post_diag "$text")" || true
+
+  if [ "$code" = "404" ]; then
+    echo "EXPECTED_FAIL_UNTIL_DIAGNOSTICS_IMPLEMENTED (404 not found)"
+    cat /tmp/diag.out || true
+    exit 1
+  fi
+
+  if [ "$code" != "200" ]; then
+    echo "FAIL: expected 200 from diagnostics classifier, got $code"
+    cat /tmp/diag.out || true
+    exit 1
+  fi
+
+  grep -q "\"category\": \"$cat\"" /tmp/diag.out || {
+    echo "FAIL: expected category=$cat"
+    echo "Response:"
+    cat /tmp/diag.out
+    exit 1
+  }
+  echo "OK: $cat"
+}
+
+# These are the two real-world blockers we saw:
+expect_category "Selected user account does not exist in tenant" "USER_NOT_IN_TENANT"
+expect_category "does not meet the criteria to access this resource" "CONDITIONAL_ACCESS_BLOCK"
+
+# Common Graph/M365 auth/scope conditions:
+expect_category "authorization_pending" "AUTH_PENDING"
+expect_category "insufficient privileges to complete the operation" "MISSING_SCOPES"
+expect_category "invalid_grant" "TOKEN_EXPIRED_OR_REVOKED"
