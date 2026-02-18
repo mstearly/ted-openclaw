@@ -42,7 +42,7 @@ for sp in "${SCAN_PATHS[@]}"; do
   if [ -d "$sp" ]; then
     if grep -RInE "${GREP_EXCLUDES[@]}" "$PATTERN" "$sp" >/dev/null 2>&1; then
       echo "FAIL: token-like strings detected in $sp (scoped)"
-    if grep -RInE "${GREP_EXCLUDES[@]}" "$PATTERN" "$sp" >/dev/null 2>&1; then
+      grep -RInE "${GREP_EXCLUDES[@]}" "$PATTERN" "$sp" | sed -n '1,80p'
       FOUND=1
     fi
   fi
