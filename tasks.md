@@ -19,3 +19,7 @@ Roadmap reference:
 - JC-003 — Draft-only Graph (2 profiles) — inbox read → draft create
   - File: docs/ted-profile/job-cards/JC-003-graph-draft-only-two-profiles.md
   - (create after JC-002 passes)
+
+## Proof Scripts
+
+- scripts/ted-profile/proof_jc003.sh (JC-003)
