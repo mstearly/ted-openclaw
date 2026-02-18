@@ -1,0 +1,81 @@
+{
+  "generated": "2026-02-17",
+  "pack": "openclaw_ted_sdd_pack",
+  "specs": [
+    {
+      "id": "README",
+      "file": "00_README.md",
+      "title": "SDD Pack README"
+    },
+    {
+      "id": "CONTEXT",
+      "file": "01_CONTEXT_PRIMER.md",
+      "title": "Context Primer"
+    },
+    {
+      "id": "PRD",
+      "file": "02_PRODUCT_BRIEF.md",
+      "title": "Product Brief"
+    },
+    {
+      "id": "SCOPE",
+      "file": "03_SCOPE_BOUNDARIES.md",
+      "title": "Scope & Boundaries"
+    },
+    {
+      "id": "ARCH",
+      "file": "04_ARCHITECTURE.md",
+      "title": "Architecture"
+    },
+    {
+      "id": "SEC",
+      "file": "05_SECURITY_GOVERNANCE.md",
+      "title": "Security & Governance"
+    },
+    {
+      "id": "MAC",
+      "file": "06_MAC_INSTALLER_SPEC.md",
+      "title": "macOS Installer Spec"
+    },
+    {
+      "id": "GRAPH",
+      "file": "07_M365_GRAPH_SPEC.md",
+      "title": "Microsoft Graph Spec"
+    },
+    {
+      "id": "TOOLING",
+      "file": "08_OPENCLAW_SIDECAR_TOOLING_SPEC.md",
+      "title": "Sidecar Tooling Spec"
+    },
+    {
+      "id": "QA",
+      "file": "09_TEST_AND_RELEASE_GATES.md",
+      "title": "Test & Release Gates"
+    },
+    {
+      "id": "JOBS",
+      "file": "10_ROADMAP_JOB_BOARD.md",
+      "title": "Roadmap & Job Board"
+    },
+    {
+      "id": "DECISIONS",
+      "file": "11_DECISION_LOG.md",
+      "title": "Decision Log"
+    },
+    {
+      "id": "RISKS",
+      "file": "12_RISK_REGISTER.md",
+      "title": "Risk Register"
+    },
+    {
+      "id": "QUESTIONS",
+      "file": "13_OPEN_QUESTIONS.md",
+      "title": "Open Questions"
+    },
+    {
+      "id": "SOURCES",
+      "file": "APPENDIX_SOURCES.md",
+      "title": "Appendix: Sources"
+    }
+  ]
+}
