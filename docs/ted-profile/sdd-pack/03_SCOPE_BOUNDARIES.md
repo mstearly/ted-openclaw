@@ -7,21 +7,25 @@
 ## In Scope (Phase 1 / Day‑1)
 
 ### Platform
+
 - Fork OpenClaw as the baseline UI/gateway/channels on macOS.
 - Integrate Ted Engine as a localhost sidecar service.
 
 ### Draft-only M365 workflows
+
 - Read email/calendar/task context sufficient to generate drafts.
 - Create email drafts in Outlook Drafts.
 - Create tentative calendar holds (draft-only / no invite send).
 - Optional: read To Do / Planner for task reconciliation (read-only day‑1 unless explicitly gated).
 
 ### Governance
+
 - Audit logs (redacted).
 - Approval gating for risky operations (writes that affect external systems).
 - Evidence linkage (deal_id/task_id when available; else triage).
 
 ### Mac Install
+
 - Packaging (arm64 + intel), install guide, auto-start, upgrade/rollback.
 
 ---
@@ -53,4 +57,3 @@
 - Loopback-only sidecar communication.
 - Single-operator restrictions.
 - Auditable execution with redaction.
-

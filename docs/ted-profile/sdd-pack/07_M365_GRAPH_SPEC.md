@@ -25,13 +25,16 @@
 ## Identity Model
 
 ### Profiles
+
 A profile is a named tenant/app pair:
+
 - `profile_id` (stable string, e.g., `olumie`, `everest`)
 - `tenant_id` (GUID)
 - `client_id` (GUID)
 - delegated scopes list (string list)
 
 ### Always-active
+
 The sidecar may maintain token caches for multiple profiles concurrently.  
 Each request chooses the profile explicitly (`X-Profile-Id`).
 
@@ -40,6 +43,7 @@ Each request chooses the profile explicitly (`X-Profile-Id`).
 ## Minimal Scope Guidance (Start Small)
 
 Day‑1 recommended delegated scopes (exact names depend on tenant policy):
+
 - `User.Read` (identity)
 - `Mail.Read` (to scan inbox)
 - `Mail.ReadWrite` (required to create drafts in many setups)
@@ -54,16 +58,19 @@ Day‑1 recommended delegated scopes (exact names depend on tenant policy):
 ## Operations
 
 ### Read operations (low risk)
+
 - list mail (metadata only; body by exception)
 - fetch specific message (body only when needed)
 - list events (minimal fields)
 - list tasks (minimal fields)
 
 ### Draft-only write operations (risk-gated)
+
 - create email draft
 - create tentative calendar item (no invite send)
 
 ### Filing actions (optional, risk-gated)
+
 - apply categories
 - move message to folder
 
@@ -87,4 +94,3 @@ Day‑1 recommended delegated scopes (exact names depend on tenant policy):
 - Consent blocked → clear message: “IT admin must approve delegated permission.”
 - Token expired → device-code reauth flow; do not degrade into insecure caching.
 - Scope missing → return “missing scope” with suggested scope to add.
-

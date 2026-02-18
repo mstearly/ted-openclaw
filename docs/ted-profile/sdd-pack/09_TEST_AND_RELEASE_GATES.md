@@ -7,6 +7,7 @@
 ## Philosophy
 
 A build is shippable only when:
+
 - deterministic tests pass,
 - security audit gates are GREEN,
 - installer artifacts exist for arm64 + intel,
@@ -17,16 +18,19 @@ A build is shippable only when:
 ## Required CI Gates (Minimum)
 
 ### Code quality
+
 - lint (TS/JS + Python as applicable)
 - unit tests
 - integration tests for key flows
 
 ### Security gates
+
 - deep security audit (Ted Profile) must be GREEN
 - secret scan (fail on new secret-like values)
 - dependency audit (npm + pip)
 
 ### Packaging gates
+
 - build macOS artifacts:
   - arm64 DMG
   - intel DMG
@@ -54,8 +58,8 @@ A build is shippable only when:
 ## Proof Artifacts
 
 Every release should attach:
+
 - CI run URL
 - artifact checksums
 - security audit report summary
 - doctor summary (redacted)
-

@@ -2,7 +2,7 @@
 
 **Generated:** 2026-02-17
 
-This is the *stable* interpretation of the request, stripped of accidental implementation details.
+This is the _stable_ interpretation of the request, stripped of accidental implementation details.
 
 ---
 
@@ -25,11 +25,11 @@ On a Mac, provide a secure “executive assistant” experience with a chat-firs
   - starts reliably on reboot (auto-start),
   - exposes a chat surface (OpenClaw UI + at least one mobile-like channel).
 
-- From OpenClaw chat, the operator can run the *core* Draft-Only loop end‑to‑end:
-  1) scan inbox (read only)
-  2) produce 1–N email drafts (write drafts only; no send)
-  3) produce proposed calendar holds (draft/tentative only; no invite send)
-  4) log all operations with a request_id and redaction
+- From OpenClaw chat, the operator can run the _core_ Draft-Only loop end‑to‑end:
+  1. scan inbox (read only)
+  2. produce 1–N email drafts (write drafts only; no send)
+  3. produce proposed calendar holds (draft/tentative only; no invite send)
+  4. log all operations with a request_id and redaction
 
 - Security posture is enforced:
   - secrets live in macOS Keychain (or equivalent secure store),
@@ -61,7 +61,7 @@ Rationale: reaching OpenClaw parity by extending a non-OpenClaw gateway is slowe
 
 ## What We Intentionally Treat as “User Narrative” (Not Requirements)
 
-The following may be valid later, but are *not* binding requirements for the Mac/OpenClaw revamp:
+The following may be valid later, but are _not_ binding requirements for the Mac/OpenClaw revamp:
 
 - “36 bots” / Domain Manager decomposition
 - specific endpoint names/paths (they are implementation suggestions)
@@ -76,4 +76,3 @@ The following may be valid later, but are *not* binding requirements for the Mac
 > The operator checks Outlook a few times per day and finds multiple high‑quality drafts ready in `/Drafts/` for review and send.
 
 (And **the system never sends autonomously**.)
-

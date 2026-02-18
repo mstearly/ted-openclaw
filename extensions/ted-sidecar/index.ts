@@ -1,5 +1,5 @@
-import fs from "node:fs";
 import { spawn, type ChildProcess } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 
@@ -137,7 +137,10 @@ async function fetchTedPayload(endpoint: URL, timeoutMs: number): Promise<TedHea
   };
 }
 
-async function probeTedSidecar(baseUrl: URL, timeoutMs: number): Promise<{
+async function probeTedSidecar(
+  baseUrl: URL,
+  timeoutMs: number,
+): Promise<{
   ok: boolean;
   status?: TedHealthPayload;
   doctor?: TedHealthPayload;
@@ -291,8 +294,7 @@ export default function register(api: OpenClawPluginApi) {
           const probe = await probeTedSidecar(baseUrl, timeoutMs);
           if (!probe.ok) {
             return {
-              text:
-                "Ted sidecar is unhealthy. Only /ted doctor and /ted status are allowed until it recovers.",
+              text: "Ted sidecar is unhealthy. Only /ted doctor and /ted status are allowed until it recovers.",
             };
           }
           return { text: "Usage: /ted doctor | /ted status" };
@@ -311,9 +313,4 @@ export default function register(api: OpenClawPluginApi) {
   });
 }
 
-export {
-  buildSafeEndpoint,
-  isLoopbackHost,
-  normalizeBaseUrl,
-  resolvePathFromAction,
-};
+export { buildSafeEndpoint, isLoopbackHost, normalizeBaseUrl, resolvePathFromAction };

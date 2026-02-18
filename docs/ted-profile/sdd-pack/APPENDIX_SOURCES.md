@@ -8,6 +8,7 @@ This spec pack was distilled from the following source docs (provided in the bun
 - Bot_Fleet_Architecture.md
 
 OpenClaw/Ted council & operator docs:
+
 - OPENCLAW_PARITY_AUDIT.md
 - OPENCLAW_TED_ADDONS_INTEGRATION_PLAN.md
 - OPENCLAW_SECURITY_HARDENING_PLAN.md

@@ -28,6 +28,7 @@
 ## Threat Model (Pragmatic)
 
 ### Threats we assume are realistic
+
 - infostealer harvesting local files
 - token leakage leading to Graph data extraction
 - accidental scope creep (permissions expand silently)
@@ -35,6 +36,7 @@
 - supply chain compromise via dependencies/plugins
 
 ### Threats we deprioritize day‑1
+
 - targeted nation-state compromise
 - physical theft with full disk decryption (still mitigated by Keychain, but not fully solvable)
 
@@ -43,30 +45,36 @@
 ## Controls (What must be implemented)
 
 ### A) Identity and Channel Controls
+
 - DM policy: pairing-only or strict allowlist.
 - Refuse unknown senders.
 - Channel “send” only replies within the active session, not arbitrary outbound.
 
 ### B) Tool & Endpoint Blast Radius
+
 - Deny-by-default tool posture.
 - Endpoint allowlists (OpenClaw tool wrappers and Ted Engine control plane).
 - Break-glass flags require explicit audit record.
 
 ### C) Graph Least Privilege
+
 - Delegated device-code by default.
 - Scopes limited to read + draft-only.
 - Separate “read” operations from “write” operations for clearer gates.
 
 ### D) Approvals
+
 - Risky writes require approval records.
 - Approvals are one-time-use and optionally plan-scoped.
 
 ### E) Audit + Redaction
+
 - Every tool call → policy decision → result/error is logged.
 - Redact secrets and sensitive token patterns before persistence.
 - Include `request_id` on all records for traceability.
 
 ### F) Data Minimization + Retention
+
 - Do not persist full email bodies by default.
 - Keep only what is needed for drafts and traceability.
 - Define retention policy for audit/artifacts.
@@ -89,4 +97,3 @@
 - Sidecar is unreachable from non-loopback clients.
 - Unknown inbound channel senders are rejected.
 - Any operation categorized “risky write” fails without an approval record.
-

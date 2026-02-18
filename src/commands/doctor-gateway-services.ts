@@ -35,9 +35,9 @@ function getTedSidecarConfig(cfg: OpenClawConfig): {
   const rawBaseUrl =
     typeof entry?.config === "object" &&
     entry?.config &&
-    "baseUrl" in (entry.config as Record<string, unknown>) &&
-    typeof (entry.config as Record<string, unknown>).baseUrl === "string"
-      ? ((entry.config as Record<string, unknown>).baseUrl as string)
+    "baseUrl" in entry.config &&
+    typeof entry.config.baseUrl === "string"
+      ? (entry.config.baseUrl as string)
       : "";
   const envBaseUrl = process.env.TED_SIDECAR_BASE_URL?.trim() ?? "";
   const baseUrl = (rawBaseUrl.trim() || envBaseUrl || "http://127.0.0.1:48080").replace(/\/+$/, "");
@@ -400,8 +400,5 @@ export async function noteTedSidecarHealth(
     note(`unhealthy: ${probe.error}`, "Ted sidecar");
     return;
   }
-  note(
-    `healthy at ${tedSidecar.baseUrl} (/status + /doctor responding)`,
-    "Ted sidecar",
-  );
+  note(`healthy at ${tedSidecar.baseUrl} (/status + /doctor responding)`, "Ted sidecar");
 }

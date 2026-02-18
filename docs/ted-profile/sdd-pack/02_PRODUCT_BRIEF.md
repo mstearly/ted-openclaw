@@ -7,6 +7,7 @@
 ## Problem
 
 The operator’s deal/legal workflow currently requires too much manual effort:
+
 - copying/pasting email context,
 - missing deadlines buried in threads,
 - inconsistent filing and documentation hygiene,
@@ -45,12 +46,14 @@ The operator’s deal/legal workflow currently requires too much manual effort:
 ## Success Metrics
 
 ### 30-day metrics (minimum viable success)
+
 - **Draft throughput:** ≥ 5 useful drafts/day (on business days).
 - **Draft quality:** ≥ 50% sent with minimal edits (baseline), improving week-over-week.
 - **Missed deadlines:** 0 deadlines missed due to “buried in inbox.”
 - **Operational reliability:** auto-start works; no “manual restart” needed > 1×/week.
 
 ### 60–90 day (growth targets, not day‑1)
+
 - **Draft quality:** ≥ 70–90% sent with no edits (depending on category).
 - **Triage rate:** < 20%, trending down toward < 5%.
 - **Approval latency:** median time-to-approval decreasing.
@@ -60,6 +63,7 @@ The operator’s deal/legal workflow currently requires too much manual effort:
 ## Core User Journeys
 
 ### Journey A — Email Draft Loop (daily)
+
 1. Operator messages OpenClaw: “Draft replies for my unread deal emails.”
 2. System reads inbox candidates (no body-by-default).
 3. System selects 3–10 items and drafts replies.
@@ -67,6 +71,7 @@ The operator’s deal/legal workflow currently requires too much manual effort:
 5. Operator reviews/sends.
 
 ### Journey B — Filing Suggestions (batch)
+
 1. Operator asks: “Suggest filing for today’s deal emails.”
 2. System proposes suggested folders/tags/categories.
 3. Operator approves suggestions in a batch view.
@@ -74,12 +79,14 @@ The operator’s deal/legal workflow currently requires too much manual effort:
 5. Audit trail records each move/tag.
 
 ### Journey C — Deadlines → Holds (proposal → certify → apply)
+
 1. Operator asks: “Extract deadlines from this thread.”
 2. System proposes deadline candidates and tentative holds.
 3. Operator certifies.
-4. System applies *draft/tentative* holds to calendar (no invites sent).
+4. System applies _draft/tentative_ holds to calendar (no invites sent).
 
 ### Journey D — Setup & Health
+
 1. Operator installs app, opens Setup Wizard.
 2. Configures Graph profiles (2 tenants).
 3. Stores secrets in Keychain.
@@ -94,4 +101,3 @@ The operator’s deal/legal workflow currently requires too much manual effort:
 - No autonomous outbound comms.
 - Secrets never stored in plaintext files.
 - Governance gates enforce approvals for risky writes.
-

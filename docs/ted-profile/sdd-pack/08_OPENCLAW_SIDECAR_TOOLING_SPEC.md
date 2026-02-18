@@ -34,19 +34,23 @@ Define how OpenClaw calls the Ted Engine sidecar safely.
 ## Recommended Allowlisted Endpoints (Day‑1)
 
 ### Health / setup
+
 - `GET /status`
 - `GET /doctor`
 - `GET /setup-wizard` (or a lightweight status endpoint for setup wizard summary)
 
 ### Draft-only workflows
+
 - `POST /drafts/email`
 - `GET /drafts/queue`
 
 ### Daily surface
+
 - `POST /dealops/daily/generate`
 - `GET /dealops/daily/latest` (or similar)
 
 ### (Optional) Filing / deadlines
+
 - `POST /filing/suggest`
 - `POST /deadlines/extract`
 - `POST /deadlines/proposals/tentative`
@@ -66,9 +70,9 @@ Define how OpenClaw calls the Ted Engine sidecar safely.
 ## Error Contracts (Stable)
 
 Every tool response should include:
+
 - `ok` (bool)
 - `request_id` (string)
 - `kind` (enum: `SUCCESS` | `NEEDS_APPROVAL` | `BLOCKED` | `ERROR`)
 - `message` (string)
 - `next_steps` (list of strings/links)
-

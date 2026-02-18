@@ -14,9 +14,7 @@ describe("ted-sidecar safety guards", () => {
   });
 
   it("rejects non-loopback base URLs", () => {
-    expect(() => normalizeBaseUrl("http://192.168.1.12:48080")).toThrow(
-      /loopback-only/,
-    );
+    expect(() => normalizeBaseUrl("http://192.168.1.12:48080")).toThrow(/loopback-only/);
   });
 
   it("maps command actions to allowlisted paths", () => {

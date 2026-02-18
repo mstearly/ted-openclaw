@@ -105,3 +105,11 @@ sidecars/ted-engine/config/graph.profiles.json
 
 # sidecar runtime artifacts
 sidecars/ted-engine/artifacts/
+
+# Spec Kit / SDD artifacts (track in this repo)
+!.specify/
+!.specify/memory/
+!.specify/memory/constitution.md
+!.specify/templates/
+!.specify/templates/**
+!.specify/specs/**

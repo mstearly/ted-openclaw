@@ -2,7 +2,7 @@
 
 **Generated:** 2026-02-17
 
-These are intentionally *few* and only where choices matter.
+These are intentionally _few_ and only where choices matter.
 
 1. **Distribution model**
    - Do we ship as one bundled installer (preferred), or two coordinated apps day‑1?
@@ -18,4 +18,3 @@ These are intentionally *few* and only where choices matter.
 
 5. **Retention**
    - How long should we retain audit/artifact logs locally? (Default suggestion: 90 days locally + operator export if needed.)
-
