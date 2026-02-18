@@ -20,3 +20,19 @@ Proves the platform/sidecar boundary before we build any features (Graph, ledger
    - uptime
    - profiles_count
 4) Attempting non-allowlisted call is blocked.
+
+---
+
+## Proof Evidence (Executed)
+- Date: 2026-02-18
+- Environment: macOS shell (user-space Node via nvm)
+- Proof Script: scripts/ted-profile/proof_jc001.sh
+- Result: PASS
+
+### Observations
+- /doctor and /status checks passed
+- doctor/status payload keys verified
+- non-allowlisted endpoint returned 404 (fail-closed behavior confirmed)
+
+### Notes
+- Node runtime required for sidecar (server.mjs). Installed via nvm (user-space).
