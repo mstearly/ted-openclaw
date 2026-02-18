@@ -107,3 +107,49 @@ else
   cat /tmp/jc005_apply.out || true
   exit 1
 fi
+
+echo
+echo "=== JC-005 Increment 2: Apply endpoint (dry-run + fail-closed) — proof-first ==="
+
+SUGG_RESP="$(curl -sS -X POST "$BASE_URL/filing/suggestions/propose" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_type":"email",
+    "source_ref":"from:someone@example.com",
+    "deal_id":"proof_deal",
+    "suggested_path":"/Deals/proof_deal/Emails/",
+    "rationale":"proof inc2",
+    "profile_id":"olumie"
+  }')"
+
+SUGG_ID="$(echo "$SUGG_RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("suggestion_id",""))' 2>/dev/null || true)"
+if [ -z "$SUGG_ID" ]; then
+  echo "FAIL: propose did not return suggestion_id"
+  echo "$SUGG_RESP"
+  exit 1
+fi
+
+curl -sS -X POST "$BASE_URL/filing/suggestions/$SUGG_ID/approve" \
+  -H "Content-Type: application/json" \
+  -d '{"approved_by":"proof_inc2"}' >/dev/null
+
+APPLY_CODE="$(curl -sS -o /tmp/jc005_apply.out -w "%{http_code}" \
+  -X POST "$BASE_URL/filing/suggestions/$SUGG_ID/apply" \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"dry_run"}' || true)"
+
+if [ "$APPLY_CODE" = "404" ]; then
+  echo "EXPECTED_FAIL_UNTIL_JC005_INC2_IMPLEMENTED: missing /filing/suggestions/:id/apply"
+  cat /tmp/jc005_apply.out || true
+  exit 1
+fi
+
+if [ "$APPLY_CODE" = "409" ]; then
+  grep -q "NOT_AUTHENTICATED" /tmp/jc005_apply.out && echo "OK: apply fail-closed when not authenticated" || {
+    echo "FAIL: expected NOT_AUTHENTICATED body"; cat /tmp/jc005_apply.out; exit 1;
+  }
+else
+  echo "FAIL: expected 404 (pre-impl) or 409 (fail-closed), got $APPLY_CODE"
+  cat /tmp/jc005_apply.out || true
+  exit 1
+fi
