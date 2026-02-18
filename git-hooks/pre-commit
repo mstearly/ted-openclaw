@@ -1,5 +1,14 @@
 #!/usr/bin/env bash
 
+# --- ensure node available for hooks (nvm user-space) ---
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+if ! command -v node >/dev/null 2>&1; then
+  command -v nvm >/dev/null 2>&1 && nvm use --lts >/dev/null 2>&1 || true
+fi
+# --- end node bootstrap ---
+
+
 set -euo pipefail
 
 ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
