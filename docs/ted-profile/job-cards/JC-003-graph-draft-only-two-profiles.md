@@ -46,6 +46,10 @@ Ted Engine can (a) read limited email/calendar context and (b) create **drafts o
 2. Profile config model + setup command(s)
 3. Audit logging for all Graph calls (redacted)
 4. Doctor integration shows Graph connectivity per profile (healthy/degraded)
+5. Device-code auth endpoints exist for per-profile bootstrap/revoke:
+   - POST /graph/{profile_id}/auth/device/start
+   - POST /graph/{profile_id}/auth/device/poll
+   - POST /graph/{profile_id}/auth/revoke
 
 ## Proof (must pass)
 

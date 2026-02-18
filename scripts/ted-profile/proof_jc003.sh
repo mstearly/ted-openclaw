@@ -56,6 +56,34 @@ print(f"OK: /graph/{expected_profile}/status returns fail-closed auth state")
 PY
 done
 
+echo "2b) Device-code start endpoint should exist and return challenge schema."
+start_payload="$(curl -fsS -X POST -H "Accept: application/json" "$BASE_URL/graph/olumie/auth/device/start")"
+python3 - "$start_payload" <<'PY'
+import json
+import sys
+obj = json.loads(sys.argv[1])
+required = [
+    "profile_id",
+    "tenant_id",
+    "client_id",
+    "scopes",
+    "verification_uri",
+    "user_code",
+    "device_code",
+    "expires_in",
+    "interval",
+    "message",
+]
+for key in required:
+    if key not in obj:
+        raise SystemExit(f"missing key in device start response: {key}")
+if obj["profile_id"] != "olumie":
+    raise SystemExit(f"unexpected profile_id: {obj['profile_id']}")
+if not isinstance(obj["scopes"], list):
+    raise SystemExit("scopes must be a list")
+print("OK: /graph/olumie/auth/device/start response schema validated")
+PY
+
 echo "3) Ensure no plaintext token artifacts exist in SIDE-CAR owned paths (scoped check)"
 # Only scan areas we control for secrets: sidecars/, docs/ted-profile/, scripts/ted-profile/
 SCAN_PATHS=("sidecars")
