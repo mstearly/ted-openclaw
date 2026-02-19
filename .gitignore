@@ -113,3 +113,6 @@ sidecars/ted-engine/artifacts/
 !.specify/templates/
 !.specify/templates/**
 !.specify/specs/**
+
+# Windows ADS metadata
+*:Zone.Identifier
