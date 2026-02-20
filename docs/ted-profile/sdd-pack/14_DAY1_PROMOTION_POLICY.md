@@ -76,6 +76,7 @@ No slice advances until prior slice proofs and gates are PASS.
 - Deterministic proof scripts PASS for two consecutive runs.
 - No critical governance violations in monitored window.
 - Operator validation pass (doctor/setup/workflow smoke + reboot where applicable).
+- Value/friction gate PASS (see `15_VALUE_AND_FRICTION_GATES.md`).
 
 ---
 
@@ -84,6 +85,7 @@ No slice advances until prior slice proofs and gates are PASS.
 - GA: governance baseline, sidecar contract seam, setup/doctor/runtime reliability, draft workflows.
 - PREVIEW: higher-risk or less-proven behavior where approvals remain strict.
 - SHADOW: optimization/learning features until quality and control metrics stabilize.
+- All states: increments must improve the canonical operator loop and stay inside friction budget.
 
 ---
 

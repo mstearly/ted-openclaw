@@ -78,6 +78,11 @@
       "title": "Day-1 Promotion Policy"
     },
     {
+      "id": "VALUE_FRICTION",
+      "file": "15_VALUE_AND_FRICTION_GATES.md",
+      "title": "Value and Friction Gates"
+    },
+    {
       "id": "SOURCES",
       "file": "APPENDIX_SOURCES.md",
       "title": "Appendix: Sources"

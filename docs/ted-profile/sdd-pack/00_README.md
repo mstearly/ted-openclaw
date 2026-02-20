@@ -45,7 +45,9 @@
 | `10_ROADMAP_JOB_BOARD.md`             | Backlog epics + job cards (proof-based)           |
 | `11_DECISION_LOG.md`                  | Record of key decisions and why                   |
 | `12_RISK_REGISTER.md`                 | Risks + mitigations + monitoring                  |
-| `13_OPEN_QUESTIONS.md`                | Items to confirm before building                  |
+| `13_OPEN_QUESTIONS.md`                | Resolved build defaults + override policy         |
+| `14_DAY1_PROMOTION_POLICY.md`         | Promotion states and recursive SDD loop           |
+| `15_VALUE_AND_FRICTION_GATES.md`      | Operator-loop value and friction KPI gates        |
 | `APPENDIX_SOURCES.md`                 | Source docs list (for traceability)               |
 | `spec_index.json`                     | Machine-readable index of specs                   |
 

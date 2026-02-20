@@ -4,6 +4,7 @@ Gates for all work:
 
 - docs/ted-profile/sdd-pack/09_TEST_AND_RELEASE_GATES.md
 - docs/ted-profile/sdd-pack/14_DAY1_PROMOTION_POLICY.md
+- docs/ted-profile/sdd-pack/15_VALUE_AND_FRICTION_GATES.md
 
 Roadmap reference:
 
@@ -19,6 +20,8 @@ For each job card increment:
 3. Run gates
 4. Record evidence in job card
 5. Set promotion state (`SHADOW`, `PREVIEW`, `GA`, `DEFERRED`)
+6. Confirm increment improves the canonical operator loop
+7. Record friction-budget KPI evidence in the job card
 
 ## Active Job Cards (execute in order)
 
@@ -59,8 +62,18 @@ For each job card increment:
 - scripts/ted-profile/proof_jc003.sh
 - scripts/ted-profile/proof_jc004.sh
 - scripts/ted-profile/proof_jc005.sh
-- scripts/ted-profile/proof_jc006.sh (planned)
-- scripts/ted-profile/proof_jc007.sh (planned)
+- scripts/ted-profile/proof_jc006.sh
+- scripts/ted-profile/proof_jc007.sh
 - scripts/ted-profile/proof_jc008.sh (planned)
 - scripts/ted-profile/proof_jc009.sh (planned)
 - scripts/ted-profile/proof_jc010.sh (planned)
+
+## Mandatory Value/Friction Evidence (each increment)
+
+- Operator-loop mapping:
+  - morning brief, draft queue, approval/escalation, end-of-day digest impact
+- Friction metrics snapshot:
+  - manual handling minutes/day
+  - approval queue oldest age
+  - unresolved triage end-of-day count
+  - explainability missing count

@@ -141,3 +141,34 @@ Legend:
   - release docs + CI gates.
 - Proof:
   - checklist used for a release.
+
+---
+
+## EPIC 6 — Operator Value and Friction Governance
+
+### OC6.1 — Canonical operator loop is first-class
+
+- Status: TODO
+- Goal: Keep all Day-1 capability mapped to one operator flow.
+- DoD:
+  - Morning brief, draft queue, approval/escalation, and end-of-day digest are explicitly linked in spec/tasks/job cards.
+- Proof:
+  - Story and job-card traceability matrix shows each implemented slice maps to the loop.
+
+### OC6.2 — Friction budget KPIs enforced
+
+- Status: TODO
+- Goal: Prevent shipping features that increase operator overhead.
+- DoD:
+  - Friction KPI thresholds are documented and release-blocking in gates.
+- Proof:
+  - Release evidence includes KPI snapshot and pass/fail decision.
+
+### OC6.3 — Fail-closed explainability contract complete
+
+- Status: TODO
+- Goal: Every blocked action is actionable to operator.
+- DoD:
+  - "what blocked", "why", and "next safe step" fields are present for all deny paths.
+- Proof:
+  - Negative-path test outputs include reason code plus remediation guidance.

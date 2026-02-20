@@ -14,11 +14,21 @@ Day-1 is complete when all P0 spine stories are accepted and gates are green:
 3. Draft-first communication workflows operate without autonomous send/invite behavior.
 4. Governed ledgers/audit/evidence paths are active, redaction compliant, and retention-configured.
 5. Sidecar boundary contract and secrets posture are enforced and testable.
+6. Canonical operator flow is coherent end-to-end and measured by friction KPIs.
 
 ## Day-1 Approval Surface
 
 Day-1 risky write certification is operator-only and must happen through the OpenClaw operator-facing approval/review surface.
 If certification is missing, expired, or invalid, execution fails closed and emits an auditable redacted event.
+
+## Canonical Operator Loop (Day-1)
+
+1. Morning brief from governed artifacts.
+2. Draft queue prioritized by urgency and risk.
+3. Single approval/escalation surface for risky decisions.
+4. End-of-day digest with unresolved actions and next-safe steps.
+
+All Day-1 increments must prove they improve this loop.
 
 ## Spine Stories (P0/P1)
 
@@ -138,6 +148,14 @@ Then purge behavior is auditable and no early deletion occurs.
 6. Sidecar communication is loopback-only; non-health routes require auth contract.
 7. Day-1 excludes filing apply/move and calendar invite sends.
 8. Day-1 retention baseline defaults: audit logs 30 days, transient/media artifacts 7 days, SDD snapshots 90 days unless explicitly overridden.
+9. Day-1 channels default to Telegram only; iMessage is deferred.
+
+## Friction Budget (Release Blocking)
+
+- manual handling minutes/day <= 45
+- approval queue oldest age <= 120 minutes
+- unresolved triage items at EOD <= 12
+- blocked actions missing explainability = 0
 
 ## Risks and Governance Mitigations
 

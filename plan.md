@@ -7,6 +7,7 @@ Canonical planning docs live in:
 - M365 Graph spec: docs/ted-profile/sdd-pack/07_M365_GRAPH_SPEC.md
 - Sidecar tooling spec: docs/ted-profile/sdd-pack/08_OPENCLAW_SIDECAR_TOOLING_SPEC.md
 - Day-1 promotion policy: docs/ted-profile/sdd-pack/14_DAY1_PROMOTION_POLICY.md
+- Value/friction gates: docs/ted-profile/sdd-pack/15_VALUE_AND_FRICTION_GATES.md
 
 ## Promotion model (required)
 
@@ -30,6 +31,10 @@ Every slice runs through recursive SDD phases:
    - Slice 3: escalation + contradiction + confidence policy
    - Slice 4: pause/resume + rate governance
    - Slice 5: deterministic learning + optional affinity routing
+6. Enforce operator-loop coherence on every increment:
+   - morning brief -> draft queue -> approve/escalate -> end-of-day digest
+7. Enforce friction budget gates before promotion:
+   - manual effort, approval queue age, unresolved triage, explainability completeness
 
 All phases must pass gates defined in:
 
