@@ -1,0 +1,64 @@
+# Day-1 Clarifications (Council)
+
+## A) P0 blockers (must decide before plan)
+
+- ID: CLAR-P0-01 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Reconcile sidecar auth contract drift (`ADR_REQUIRED-0007`): enforce `/auth/mint` + auth on non-health routes vs ratify current runtime behavior. | Default recommendation: Enforce `/auth/mint` contract now; keep `/status` and `/doctor` unauthenticated loopback-only. | Evidence needed: Contract tests for 401 on non-health without bearer token, 200 on health endpoints, doctor compatibility proof. | Status: OPEN
+- ID: CLAR-P0-02 | Category: P0 | Owner(Role): Platform Architect | Question/Decision: Confirm Day-1 deployable set is exactly two runtimes (OpenClaw + Ted sidecar) with no extra services. | Default recommendation: Lock two deployables only; treat bot/domain constructs as modules. | Evidence needed: `DAY1_DEPLOYABLES` alignment, role matrix packaging alignment, overengineering gate pass in CI. | Status: OPEN
+- ID: CLAR-P0-03 | Category: P0 | Owner(Role): Product/Outcome | Question/Decision: Confirm Day-1 channel set for operator execution. | Default recommendation: Telegram-only Day-1, defer iMessage to Phase-2 (already recorded in ADR-0006). | Evidence needed: Updated plan/tasks/job cards showing iMessage as explicit deferred scope. | Status: OPEN
+- ID: CLAR-P0-04 | Category: P0 | Owner(Role): Product/Outcome | Question/Decision: Lock retention defaults for Day-1 operations and audits. | Default recommendation: Keep ADR-0006 defaults (audit 30d, transient/media 7d, SDD snapshots 90d) until operator override is defined. | Evidence needed: Retention config schema + purge proof script + no-early-delete test evidence. | Status: OPEN
+
+## B) P1 clarifications (can decide during plan)
+
+- ID: CLAR-P1-01 | Category: P1 | Owner(Role): Product/Outcome | Question/Decision: Whether tentative calendar holds are required in Phase-1 vs deferred after stable drafts. | Default recommendation: Drafts-first; calendar writes remain approval-gated and deferred unless explicitly required. | Evidence needed: Clint priority call + updated JC sequencing. | Status: OPEN
+- ID: CLAR-P1-02 | Category: P1 | Owner(Role): Product/Outcome | Question/Decision: Filing Phase-1 execution depth (`label/category` only vs `move/apply`). | Default recommendation: Keep Day-1 suggestions + approval only; defer `apply/move` to later increment. | Evidence needed: Explicit destructive-op acceptance criteria and rollback strategy if promoted. | Status: OPEN
+- ID: CLAR-P1-03 | Category: P1 | Owner(Role): Ops/Packaging | Question/Decision: Whether notarization/signing is required for first operator deployment. | Default recommendation: Internal-first unsigned allowed; notarization before broader distribution. | Evidence needed: Release channel policy and checklist update. | Status: OPEN
+- ID: CLAR-P1-04 | Category: P1 | Owner(Role): QA/Gates | Question/Decision: Scope of required operator validation proof beyond CI for each release. | Default recommendation: Keep 2-minute operator validation mandatory for Day-1 release gates. | Evidence needed: Gate checklist evidence block with install, draft creation, reboot recovery. | Status: OPEN
+
+## C) Decisions already locked
+
+- ID: LOCK-01 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Draft-only outbound behavior; no autonomous send/invite. | Default recommendation: Keep hard ceiling with fail-closed policy checks. | Evidence needed: Regression tests proving send/invite absent or blocked without certification. | Status: DECIDED
+- ID: LOCK-02 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Approval-first for risky writes. | Default recommendation: Maintain one-time approval record requirement before execution. | Evidence needed: Approval-required tests + audit events with request IDs. | Status: DECIDED
+- ID: LOCK-03 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Single-operator restriction. | Default recommendation: Keep allowlist/pairing only; reject unknown senders. | Evidence needed: Negative tests for non-allowlisted identity requests. | Status: DECIDED
+- ID: LOCK-04 | Category: P0 | Owner(Role): Product/Outcome | Question/Decision: No personal mailbox/calendar in Day-1 scope. | Default recommendation: Restrict to explicit business profiles only. | Evidence needed: Profile-routing checks and setup validation output. | Status: DECIDED
+- ID: LOCK-05 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Auditable and redacted execution trail. | Default recommendation: Persist policy decision + action/result logs with redaction. | Evidence needed: Redaction tests and sampled audit records. | Status: DECIDED
+- ID: LOCK-06 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Secrets rules (no plaintext tokens; keychain-first; fail-closed). | Default recommendation: Keychain required in production; explicit dev override only for memory-only mode. | Evidence needed: Secret scan gate pass + keychain/memory-mode status proof. | Status: DECIDED
+
+## D) Assumptions + who validates
+
+- ID: ASM-01 | Category: P0 | Owner(Role): Clint | Question/Decision: Operator will manually send drafts and finalize external actions. | Default recommendation: Preserve manual final action in Day-1. | Evidence needed: Clint sign-off on Day-1 operating model. | Status: OPEN
+- ID: ASM-02 | Category: P0 | Owner(Role): Internal (Ops/Packaging) | Question/Decision: Day-1 deploys on a single-user Mac controlled by operator. | Default recommendation: Keep single-user operational assumption; no shared-host model in Day-1. | Evidence needed: Install/runbook constraints and doctor checks for host assumptions. | Status: OPEN
+- ID: ASM-03 | Category: P1 | Owner(Role): Clint | Question/Decision: Telegram is acceptable as sole Day-1 operational channel. | Default recommendation: Use Telegram now, defer iMessage. | Evidence needed: Clint acceptance and communications workflow confirmation. | Status: OPEN
+- ID: ASM-04 | Category: P0 | Owner(Role): Internal (Security/Governance) | Question/Decision: Tenant consent friction is manageable via IT/admin path. | Default recommendation: Keep explicit consent packet and fail-closed behavior until consent granted. | Evidence needed: Consent checklist + doctor status mapping for consent failure. | Status: OPEN
+
+## E) Top 5 risks + mitigations
+
+- ID: RISK-01 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Sidecar auth boundary drift between docs and runtime. | Default recommendation: Enforce auth-contract tests + ADR reconciliation gate before release. | Evidence needed: JC-006 proof and contract conformance report. | Status: OPEN
+- ID: RISK-02 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Secret leakage to disk/config/logs. | Default recommendation: Keychain-first + secret scan + redaction checks in CI. | Evidence needed: Security gate output and grep/scan evidence. | Status: OPEN
+- ID: RISK-03 | Category: P0 | Owner(Role): Ops/Packaging | Question/Decision: Mac autostart/recovery failures after reboot. | Default recommendation: Keep LaunchAgent + doctor proof as release-blocking gate. | Evidence needed: Reboot validation evidence and doctor non-blocking output. | Status: OPEN
+- ID: RISK-04 | Category: P1 | Owner(Role): Product/Outcome | Question/Decision: Scope creep into autonomous writes or multi-user expansion. | Default recommendation: Treat as explicit de-scope until ADR + new proofs. | Evidence needed: Boundary checklist and roadmap status review each increment. | Status: OPEN
+- ID: RISK-05 | Category: P1 | Owner(Role): QA/Gates | Question/Decision: Non-deterministic proof scripts creating false PASS. | Default recommendation: One proof script per implemented increment; expected-fail scripts isolated. | Evidence needed: Proof script inventory with PASS/EXPECTED_FAIL labels. | Status: OPEN
+
+## F) Max 10 questions to ask Clint (crisp)
+
+- ID: Q-01 | Category: P0 | Owner(Role): Clint | Question/Decision: Confirm Telegram-only Day-1 operations, yes/no. | Default recommendation: Yes for Day-1, defer iMessage. | Evidence needed: Written approval in decision log. | Status: OPEN
+- ID: Q-02 | Category: P0 | Owner(Role): Clint | Question/Decision: Confirm retention defaults (30d audit, 7d transient/media, 90d SDD snapshots), yes/no. | Default recommendation: Accept defaults now. | Evidence needed: Retention decision entry and config mapping. | Status: OPEN
+- ID: Q-03 | Category: P0 | Owner(Role): Clint | Question/Decision: For Phase-1, do you require calendar hold writes or drafts-only remains sufficient initially? | Default recommendation: Drafts-only first. | Evidence needed: Priority decision linked to JC sequencing. | Status: OPEN
+- ID: Q-04 | Category: P0 | Owner(Role): Clint | Question/Decision: For filing, is suggestions+approval sufficient in Day-1? | Default recommendation: Yes; no apply/move Day-1. | Evidence needed: Scope sign-off in roadmap/job cards. | Status: OPEN
+- ID: Q-05 | Category: P1 | Owner(Role): Clint | Question/Decision: Which Day-1 daily output matters most: draft queue, DealOps digest, or triage queue? | Default recommendation: Prioritize draft queue + DealOps digest. | Evidence needed: Ordered success metric list. | Status: OPEN
+- ID: Q-06 | Category: P1 | Owner(Role): Clint | Question/Decision: What is acceptable Day-1 manual effort per day (minutes) before it is considered failure? | Default recommendation: Set explicit threshold for operator time saved KPI. | Evidence needed: KPI target written into acceptance criteria. | Status: OPEN
+- ID: Q-07 | Category: P1 | Owner(Role): Clint | Question/Decision: Is internal unsigned/notarization-later distribution acceptable for first milestone? | Default recommendation: Accept internal first, notarize before broader rollout. | Evidence needed: Release policy decision and checklist update. | Status: OPEN
+- ID: Q-08 | Category: P1 | Owner(Role): Clint | Question/Decision: For living knowledge projection, must publish remain approval-gated for Day-1? | Default recommendation: Yes, approval-gated publish only. | Evidence needed: Decision log confirmation and story acceptance criteria. | Status: OPEN
+
+## G) Proof requirements per SPINE story
+
+- ID: PROOF-SPINE-01 | Category: P0 | Owner(Role): QA/Gates | Question/Decision: Governance/identity baseline proof bundle. | Default recommendation: Require deny-unknown, approval-required, redaction, and secret-scan proofs as release blockers. | Evidence needed: Tests for unknown sender reject, risky write fail-without-approval, redacted audit output, no plaintext secret scan. | Status: OPEN
+- ID: PROOF-SPINE-02 | Category: P0 | Owner(Role): Ops/Packaging | Question/Decision: Mac reliability/recovery proof bundle. | Default recommendation: Require install success, doctor pass/no blockers, and reboot autostart verification. | Evidence needed: Artifact install output, doctor summary, reboot test logs/screens. | Status: OPEN
+- ID: PROOF-SPINE-03 | Category: P0 | Owner(Role): Product/Outcome | Question/Decision: Draft-first communications proof bundle. | Default recommendation: Require draft creation in Outlook Drafts and explicit no-send assertions. | Evidence needed: Integration test + artifact evidence of draft presence, absence of send/invite execution. | Status: OPEN
+- ID: PROOF-SPINE-04 | Category: P0 | Owner(Role): QA/Gates | Question/Decision: Ledger/daily surface proof bundle. | Default recommendation: Require linkage-or-triage enforcement and reproducible daily digest from governed artifacts. | Evidence needed: Triaging tests, ledger linkage records, deterministic digest generation proof. | Status: OPEN
+- ID: PROOF-SPINE-05 | Category: P1 | Owner(Role): QA/Gates | Question/Decision: Approval-first workflow-action proof bundle. | Default recommendation: Keep destructive actions blocked unless explicit future increment is approved. | Evidence needed: Suggest/approve pass proofs and expected-fail proof for apply/move when not enabled. | Status: OPEN
+- ID: PROOF-SPINE-06 | Category: P1 | Owner(Role): Security/Governance | Question/Decision: Connector/self-serve governance proof bundle. | Default recommendation: Block onboarding without legal metadata and allowed-ops declarations. | Evidence needed: Negative tests for missing approval metadata; provenance visibility checks. | Status: OPEN
+- ID: PROOF-SPINE-07 | Category: P0 | Owner(Role): Security/Governance | Question/Decision: Sidecar boundary + retention governance proof bundle. | Default recommendation: Enforce authenticated non-health routes and auditable retention purge behavior. | Evidence needed: Contract auth tests, loopback-only tests, retention no-early-delete tests, purge audit logs. | Status: OPEN
+
+## P0 OPEN count
+
+- P0 items remaining OPEN: 18
