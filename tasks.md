@@ -55,6 +55,9 @@ For each job card increment:
 - JC-010 — Deterministic learning + optional affinity routing
   - Source slice: docs/ted-profile/ted_sdd_user_stories_bundle/EXECUTION_SLICE_048_061.md
 
+- JC-011 — Mac packaging preflight + installer gate
+  - File: docs/ted-profile/job-cards/JC-011-mac-packaging-preflight-and-installer-gate.md
+
 ## Proof Scripts
 
 - scripts/ted-profile/proof_jc001.sh
@@ -67,6 +70,7 @@ For each job card increment:
 - scripts/ted-profile/proof_jc008.sh
 - scripts/ted-profile/proof_jc009.sh
 - scripts/ted-profile/proof_jc010.sh
+- scripts/ted-profile/proof_jc011_mac_preflight.sh
 
 ## Mandatory Value/Friction Evidence (each increment)
 
