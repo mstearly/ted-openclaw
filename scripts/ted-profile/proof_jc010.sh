@@ -3,8 +3,11 @@ set -euo pipefail
 
 BASE_URL="${TED_SIDECAR_URL:-http://127.0.0.1:48080}"
 echo "JC-010 proof: deterministic learning + bounded affinity"
+source "$(dirname "$0")/lib_auth.sh"
 
 curl -fsS "$BASE_URL/status" >/dev/null
+mint_ted_auth_token
+AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
 echo "1) Deterministic modifiers should be stable for same input..."
 PAYLOAD='{
@@ -18,10 +21,12 @@ PAYLOAD='{
 CODE_1="$(curl -sS -o /tmp/jc010_mod1.out -w "%{http_code}" \
   -X POST "$BASE_URL/learning/modifiers/evaluate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d "$PAYLOAD" || true)"
 CODE_2="$(curl -sS -o /tmp/jc010_mod2.out -w "%{http_code}" \
   -X POST "$BASE_URL/learning/modifiers/evaluate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d "$PAYLOAD" || true)"
 [ "$CODE_1" = "200" ] && [ "$CODE_2" = "200" ] || {
   echo "FAIL: expected 200 from modifiers endpoint"
@@ -48,6 +53,8 @@ echo "2) Affinity routing cannot override policy blocks..."
 AFF_CODE="$(curl -sS -o /tmp/jc010_affinity.out -w "%{http_code}" \
   -X POST "$BASE_URL/learning/affinity/route" \
   -H "Content-Type: application/json" \
+  -H "x-ted-execution-mode: ADAPTIVE" \
+  -H "Authorization: Bearer ${TED_AUTH_TOKEN}" \
   -d '{
     "enabled":true,
     "candidates":[
@@ -80,6 +87,7 @@ echo "3) Excluded meetings must not be processed..."
 MEET_EXCL_CODE="$(curl -sS -o /tmp/jc010_meet_excl.out -w "%{http_code}" \
   -X POST "$BASE_URL/learning/meetings/capture" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "meeting_id":"m-excl-1",
     "excluded":true,
@@ -101,6 +109,7 @@ echo "4) Eligible meeting should produce summary and actions..."
 MEET_OK_CODE="$(curl -sS -o /tmp/jc010_meet_ok.out -w "%{http_code}" \
   -X POST "$BASE_URL/learning/meetings/capture" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "meeting_id":"m-ok-1",
     "excluded":false,

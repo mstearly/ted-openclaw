@@ -3,13 +3,17 @@ set -euo pipefail
 
 BASE_URL="${TED_SIDECAR_URL:-http://127.0.0.1:48080}"
 echo "JC-008 proof: escalation + confidence + contradiction controls"
+source "$(dirname "$0")/lib_auth.sh"
 
 curl -fsS "$BASE_URL/status" >/dev/null
+mint_ted_auth_token
+AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
 echo "1) Low confidence should escalate to questions..."
 CONF_CODE="$(curl -sS -o /tmp/jc008_conf.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/confidence/evaluate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "threshold":0.8,
     "extracted_items":[
@@ -38,6 +42,7 @@ echo "2) Contradiction check should block conflicting commitment..."
 CONFLICT_CODE="$(curl -sS -o /tmp/jc008_conflict.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/contradictions/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "candidate_commitment":{"field":"close_date","value":"2026-03-12"},
     "prior_commitments":[
@@ -66,6 +71,7 @@ echo "3) Non-conflicting commitment should pass..."
 NOCONFLICT_CODE="$(curl -sS -o /tmp/jc008_noconflict.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/contradictions/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "candidate_commitment":{"field":"close_date","value":"2026-03-20"},
     "prior_commitments":[
@@ -88,6 +94,7 @@ echo "4) High-risk escalation must route to approval queue..."
 ROUTE_CODE="$(curl -sS -o /tmp/jc008_route.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/escalations/route" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "item_id":"esc-1",
     "risk_level":"high",

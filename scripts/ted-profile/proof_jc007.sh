@@ -3,13 +3,17 @@ set -euo pipefail
 
 BASE_URL="${TED_SIDECAR_URL:-http://127.0.0.1:48080}"
 echo "JC-007 proof: entity/provenance + cross-entity guards"
+source "$(dirname "$0")/lib_auth.sh"
 
 curl -fsS "$BASE_URL/status" >/dev/null
+mint_ted_auth_token
+AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
 echo "1) Missing metadata should fail closed..."
 MISSING_CODE="$(curl -sS -o /tmp/jc007_missing.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/entity/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "target_entity":"Everest",
     "objects":[{"id":"obj-1","entity_tag":{"primary_entity":"Everest"}}]
@@ -30,6 +34,7 @@ echo "2) Cross-entity render should fail closed..."
 CROSS_CODE="$(curl -sS -o /tmp/jc007_cross.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/entity/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "target_entity":"Everest",
     "objects":[
@@ -61,6 +66,7 @@ echo "3) Same-entity governed set should pass..."
 PASS_CODE="$(curl -sS -o /tmp/jc007_pass.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/entity/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "target_entity":"Everest",
     "objects":[

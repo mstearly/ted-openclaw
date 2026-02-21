@@ -3,13 +3,17 @@ set -euo pipefail
 
 BASE_URL="${TED_SIDECAR_URL:-http://127.0.0.1:48080}"
 echo "JC-006 proof: role cards + hard bans + output contract"
+source "$(dirname "$0")/lib_auth.sh"
 
 curl -fsS "$BASE_URL/status" >/dev/null
+mint_ted_auth_token
+AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
 echo "1) Invalid role card should fail closed..."
 INVALID_ROLE_CODE="$(curl -sS -o /tmp/jc006_invalid_role.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/role-cards/validate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{"role_card":{"role_id":"writer"}}' || true)"
 [ "$INVALID_ROLE_CODE" = "400" ] || {
   echo "FAIL: expected 400 for invalid role card, got $INVALID_ROLE_CODE"
@@ -43,6 +47,7 @@ ROLE_PAYLOAD='{
 VALID_ROLE_CODE="$(curl -sS -o /tmp/jc006_valid_role.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/role-cards/validate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d "$ROLE_PAYLOAD" || true)"
 [ "$VALID_ROLE_CODE" = "200" ] || {
   echo "FAIL: expected 200 for valid role card, got $VALID_ROLE_CODE"
@@ -60,6 +65,7 @@ echo "3) Hard-ban match should block candidate output..."
 HARD_BAN_BLOCK_CODE="$(curl -sS -o /tmp/jc006_hard_ban_block.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/hard-bans/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "role_card":{
       "role_id":"social_drafter",
@@ -88,6 +94,7 @@ echo "4) Hard-ban clean candidate should pass..."
 HARD_BAN_PASS_CODE="$(curl -sS -o /tmp/jc006_hard_ban_pass.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/hard-bans/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "role_card":{
       "role_id":"social_drafter",
@@ -116,6 +123,7 @@ echo "5) Invalid output contract should fail..."
 INVALID_OUTPUT_CODE="$(curl -sS -o /tmp/jc006_invalid_output.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/output/validate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{"output":{"title":"t"}}' || true)"
 [ "$INVALID_OUTPUT_CODE" = "400" ] || {
   echo "FAIL: expected 400 for invalid output contract, got $INVALID_OUTPUT_CODE"
@@ -133,6 +141,7 @@ echo "6) Valid output contract should pass..."
 VALID_OUTPUT_CODE="$(curl -sS -o /tmp/jc006_valid_output.out -w "%{http_code}" \
   -X POST "$BASE_URL/governance/output/validate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{
     "output":{
       "title":"Daily priority draft",

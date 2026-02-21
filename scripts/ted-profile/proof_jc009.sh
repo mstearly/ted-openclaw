@@ -3,13 +3,17 @@ set -euo pipefail
 
 BASE_URL="${TED_SIDECAR_URL:-http://127.0.0.1:48080}"
 echo "JC-009 proof: pause/resume + rate governance"
+source "$(dirname "$0")/lib_auth.sh"
 
 curl -fsS "$BASE_URL/status" >/dev/null
+mint_ted_auth_token
+AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
 echo "1) Pause automation..."
 PAUSE_CODE="$(curl -sS -o /tmp/jc009_pause.out -w "%{http_code}" \
   -X POST "$BASE_URL/ops/pause" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{"reason":"proof_jc009"}' || true)"
 [ "$PAUSE_CODE" = "200" ] || {
   echo "FAIL: expected 200 from /ops/pause, got $PAUSE_CODE"
@@ -27,6 +31,7 @@ echo "2) Non-critical dispatch should queue while paused..."
 DISPATCH_CODE="$(curl -sS -o /tmp/jc009_dispatch.out -w "%{http_code}" \
   -X POST "$BASE_URL/ops/dispatch/check" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{"priority":"LOW"}' || true)"
 [ "$DISPATCH_CODE" = "409" ] || {
   echo "FAIL: expected 409 dispatch block during pause, got $DISPATCH_CODE"
@@ -44,6 +49,7 @@ echo "3) Resume automation should return catch-up summary..."
 RESUME_CODE="$(curl -sS -o /tmp/jc009_resume.out -w "%{http_code}" \
   -X POST "$BASE_URL/ops/resume" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{}' || true)"
 [ "$RESUME_CODE" = "200" ] || {
   echo "FAIL: expected 200 from /ops/resume, got $RESUME_CODE"
@@ -66,6 +72,7 @@ echo "4) Rate policy should defer low priority at high quota..."
 RATE_DEFER_CODE="$(curl -sS -o /tmp/jc009_rate_defer.out -w "%{http_code}" \
   -X POST "$BASE_URL/ops/rate/evaluate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{"quota_percent":91,"priority":"LOW"}' || true)"
 [ "$RATE_DEFER_CODE" = "200" ] || {
   echo "FAIL: expected 200 from /ops/rate/evaluate, got $RATE_DEFER_CODE"
@@ -83,6 +90,7 @@ echo "5) Rate policy should allow critical at high quota..."
 RATE_ALLOW_CODE="$(curl -sS -o /tmp/jc009_rate_allow.out -w "%{http_code}" \
   -X POST "$BASE_URL/ops/rate/evaluate" \
   -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" \
   -d '{"quota_percent":91,"priority":"CRITICAL"}' || true)"
 [ "$RATE_ALLOW_CODE" = "200" ] || {
   echo "FAIL: expected 200 from /ops/rate/evaluate for critical, got $RATE_ALLOW_CODE"
