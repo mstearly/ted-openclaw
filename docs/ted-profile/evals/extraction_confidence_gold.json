@@ -1,0 +1,14 @@
+{
+  "suite": "extraction_confidence",
+  "version": "1",
+  "cases": [
+    {
+      "id": "ec-001",
+      "input": "Deadline due Friday",
+      "expected": {
+        "confidence_field": true,
+        "low_confidence_requires_question": true
+      }
+    }
+  ]
+}

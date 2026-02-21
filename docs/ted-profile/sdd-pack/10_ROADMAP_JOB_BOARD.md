@@ -179,7 +179,7 @@ Legend:
 
 ### OC7.1 — Expanded council interrogation pass is mandatory
 
-- Status: TODO
+- Status: DONE
 - Goal: prevent co-work quality regressions by enforcing expert interrogation before promotion.
 - DoD:
   - All new permanent council seats participate in review with written findings.
@@ -205,3 +205,290 @@ Legend:
   - Fast repair (<10s correction flow) is tested for operator-facing slices.
 - Proof:
   - Eval and fast-repair evidence attached to release gating.
+
+---
+
+## EPIC 8 — Council Cycle 001 Remediation Backlog (JC-012+)
+
+### OC8.1 — JC-012 Workflow-vs-agent boundary contract
+
+- Status: DONE
+- Goal: make deterministic vs adaptive behavior explicit and enforceable.
+- DoD:
+  - Boundary contract artifact exists per promoted slice.
+  - Undefined execution path fails closed with explainability fields.
+- Proof:
+  - `scripts/ted-profile/proof_jc012.sh`
+
+### OC8.2 — JC-013 Sidecar auth boundary hardening
+
+- Status: DONE
+- Goal: enforce auth contract on all non-health sidecar routes.
+- DoD:
+  - Non-health routes require auth.
+  - `/status` and `/doctor` remain unauthenticated health endpoints.
+- Proof:
+  - `scripts/ted-profile/proof_jc013.sh`
+
+### OC8.3 — JC-014 Orchestration idempotency and resume integrity
+
+- Status: DONE
+- Goal: ensure retries and restarts do not duplicate side effects or lose intent.
+- DoD:
+  - Idempotency key + dedupe behavior enforced for write-like operations.
+  - Retry/backoff and resume consistency are deterministic.
+- Proof:
+  - `scripts/ted-profile/proof_jc014.sh`
+
+### OC8.4 — JC-015 Offline evals and regression gates
+
+- Status: DONE
+- Goal: add reproducible quality gates beyond endpoint smoke checks.
+- DoD:
+  - Gold eval corpus is versioned and runner is wired into release gates.
+  - Regression below threshold blocks promotion.
+- Proof:
+  - `scripts/ted-profile/proof_jc015.sh`
+
+### OC8.5 — JC-016 Fast-repair and explainability completion gate
+
+- Status: DONE
+- Goal: enforce sub-10-second operator correction flow and complete deny-path explainability.
+- DoD:
+  - Median fast-repair proof <= 10 seconds.
+  - Deny-path contract fields present on all governed routes.
+- Proof:
+  - `scripts/ted-profile/proof_jc016.sh`
+
+### OC8.6 — JC-017 Darwin packaging closure
+
+- Status: BLOCKED
+- Goal: close final mac installer gate on macOS runner.
+- DoD:
+  - Preflight and packaging pass on Darwin with artifact evidence.
+- Proof:
+  - `scripts/ted-profile/proof_jc017.sh`
+
+### OC8.7 — JC-018 Ted discoverability and console visibility
+
+- Status: DONE
+- Goal: make Ted capabilities explicit when operator expects agents/skills visibility in console.
+- DoD:
+  - `/ted catalog` available from plugin command surface.
+  - Discoverability metadata exposed additively via health payload.
+  - No non-health auth boundary regression.
+- Proof:
+  - `scripts/ted-profile/proof_jc018.sh`
+
+### OC8.8 — JC-019 Ted workbench dashboard surface
+
+- Status: DONE
+- Goal: reduce operator friction with a first-class Ted dashboard in Control UI.
+- DoD:
+  - `Ted` tab renders sidecar health, job-card status, friction KPIs, and council recommendations.
+  - Dashboard remains read-only for Day-1 and preserves governance ceilings.
+- Proof:
+  - `scripts/ted-profile/proof_jc019.sh`
+
+### OC8.9 — JC-020 Ted workbench data-source correctness
+
+- Status: DONE
+- Goal: restore trust in dashboard metrics by ensuring source discovery is runtime-safe.
+- DoD:
+  - Job-card totals are computed from discovered source of truth.
+  - UI shows source diagnostics when discovery fails.
+- Proof:
+  - `scripts/ted-profile/proof_jc020.sh`
+
+### OC8.10 — JC-021 Persona and role-card studio
+
+- Status: DONE
+- Goal: allow governed persona lifecycle directly in Ted UI.
+- Proof:
+  - `scripts/ted-profile/proof_jc021.sh`
+
+### OC8.11 — JC-022 Job-card board and proof runner
+
+- Status: DONE
+- Goal: enable dependency-ordered build control from Ted UI.
+- Proof:
+  - `scripts/ted-profile/proof_jc022.sh`
+
+### OC8.12 — JC-023 Governance console
+
+- Status: TODO
+- Goal: expose policy checks and explainability interactions in Ted UI.
+- Proof:
+  - `scripts/ted-profile/proof_jc023.sh`
+
+### OC8.13 — JC-024 Ops control console
+
+- Status: TODO
+- Goal: expose pause/resume/rate/retry controls with fail-closed behavior.
+- Proof:
+  - `scripts/ted-profile/proof_jc024.sh`
+
+### OC8.14 — JC-025 Triage and filing console
+
+- Status: TODO
+- Goal: consolidate triage/linkage/filing workflows in governed UI.
+- Proof:
+  - `scripts/ted-profile/proof_jc025.sh`
+
+### OC8.15 — JC-026 Graph profile manager and diagnostics
+
+- Status: TODO
+- Goal: remove shell-only friction for profile auth and Graph diagnostics.
+- Proof:
+  - `scripts/ted-profile/proof_jc026.sh`
+
+### OC8.16 — JC-027 Unified approval surface
+
+- Status: TODO
+- Goal: one certification surface for risky decisions.
+- Proof:
+  - `scripts/ted-profile/proof_jc027.sh`
+
+### OC8.17 — JC-028 KPI and evals dashboard
+
+- Status: TODO
+- Goal: expose promotion gates as first-class operator metrics.
+- Proof:
+  - `scripts/ted-profile/proof_jc028.sh`
+
+### OC8.18 — JC-029 Intake recommender and job-card draft studio
+
+- Status: DONE
+- Goal: reduce onboarding friction for new work with governed, structured job-card recommendations.
+- Proof:
+  - `scripts/ted-profile/proof_jc029.sh`
+
+### OC8.19 — JC-030 Threshold governance and early unlock controls
+
+- Status: DONE
+- Goal: allow controlled threshold tuning to unlock value sooner with explicit warning and risk acknowledgement.
+- Proof:
+  - `scripts/ted-profile/proof_jc030.sh`
+
+### OC8.20 — JC-031 UI surface inventory and gap map
+
+- Status: DONE
+- Goal: establish a complete, accepted inventory before additional UX redesign.
+- Proof:
+  - `scripts/ted-profile/proof_jc031.sh`
+
+### OC8.21 — JC-032 Information architecture and interaction contract
+
+- Status: DONE
+- Goal: lock IA and interaction contracts to prevent ad hoc UI sprawl.
+- Proof:
+  - `scripts/ted-profile/proof_jc032.sh`
+
+### OC8.22 — JC-033 Core task flow redesign
+
+- Status: DONE
+- Goal: reduce operator friction on inspect/decide/prove/intake loop.
+- Proof:
+  - `scripts/ted-profile/proof_jc033.sh`
+
+### OC8.23 — JC-034 Governance and approval UX hardening
+
+- Status: DONE
+- Goal: unify approval and governance explainability surfaces.
+- Proof:
+  - `scripts/ted-profile/proof_jc034.sh`
+
+### OC8.24 — JC-035 KPI and evals observability cockpit
+
+- Status: DONE
+- Goal: expose trend-based quality signals for promotion decisions.
+- Proof:
+  - `scripts/ted-profile/proof_jc035.sh`
+
+---
+
+## EPIC 9 — Operator UX Hardening (Cycle 003)
+
+### OC9.1 — JC-036 Policy center pages (guided config)
+
+- Status: TODO
+- Goal: convert raw policy docs into structured editable surfaces with impact preview and audit.
+- Proof:
+  - `scripts/ted-profile/proof_jc036.sh`
+
+### OC9.2 — JC-037 Structured job-card editor
+
+- Status: TODO
+- Goal: reduce markdown dependence for core job-card operations.
+- Proof:
+  - `scripts/ted-profile/proof_jc037.sh`
+
+### OC9.3 — JC-038 Unlock simulator and risk forecaster
+
+- Status: TODO
+- Goal: make threshold consequences explicit before apply.
+- Proof:
+  - `scripts/ted-profile/proof_jc038.sh`
+
+### OC9.4 — JC-039 KPI cockpit (card + portfolio)
+
+- Status: TODO
+- Goal: expose readiness and drift at a glance.
+- Proof:
+  - `scripts/ted-profile/proof_jc039.sh`
+
+### OC9.5 — JC-040 Guided intake wizard
+
+- Status: TODO
+- Goal: plain-English intake with AI-generated safe starter configuration.
+- Proof:
+  - `scripts/ted-profile/proof_jc040.sh`
+
+### OC9.6 — JC-041 Recommendation outcome attribution
+
+- Status: DONE
+- Goal: automatically attribute recommendation decisions to impacted cards for measurable learning.
+- Proof:
+  - `scripts/ted-profile/proof_jc041.sh`
+
+### OC9.7 — JC-042 Per-card promotion confidence
+
+- Status: DONE
+- Goal: compute and surface per-card promotion confidence from proof, KPI, dependency, and recommendation outcome signals.
+- Proof:
+  - `scripts/ted-profile/proof_jc042.sh`
+
+### OC9.8 — JC-043 Policy change impact attribution
+
+- Status: DONE
+- Goal: attribute policy deltas to affected work areas and expected KPI effects.
+- Proof:
+  - `scripts/ted-profile/proof_jc043.sh`
+
+### OC9.9 — JC-046 Integration health and readiness plane
+
+- Status: DONE
+- Goal: expose profile-level integration readiness and remediation guidance in Ted UI.
+- Proof:
+  - `scripts/ted-profile/proof_jc046.sh`
+
+### OC9.10 — JC-047 Operator flow and approval path clarity
+
+- Status: DONE
+- Goal: make approval and draft-review workflow surfaces explicit from Clint's seat.
+- Proof:
+  - `scripts/ted-profile/proof_jc047.sh`
+
+### OC9.11 — JC-048 Connector auth controls in Ted UI
+
+- Status: DONE
+- Goal: enable profile auth recovery (start/poll/revoke) directly from Ted integration surface.
+- Proof:
+  - `scripts/ted-profile/proof_jc048.sh`
+
+### OC9.12 — JC-049 Approval ledger correlation view
+
+- Status: DONE
+- Goal: correlate recommendation decisions to linked cards and confidence signals in one govern panel.
+- Proof:
+  - `scripts/ted-profile/proof_jc049.sh`

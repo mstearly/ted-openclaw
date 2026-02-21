@@ -53,3 +53,9 @@
 
 - [TED-US-046](story_bundle/user_stories/ted-us-046_loopback_sidecar_contract_with_authenticated_non_health_routes.md)
 - [TED-US-047](story_bundle/user_stories/ted-us-047_retention_purge_controls_with_auditable_lifecycle.md)
+- [TED-US-062](story_bundle/user_stories/ted-us-062_workflow_vs_agent_boundary_contract_enforced.md)
+- [TED-US-063](story_bundle/user_stories/ted-us-063_sidecar_auth_contract_hardened_for_non_health_routes.md)
+- [TED-US-064](story_bundle/user_stories/ted-us-064_idempotent_retryable_and_resume_safe_orchestration.md)
+- [TED-US-065](story_bundle/user_stories/ted-us-065_offline_eval_gold_sets_and_regression_gate.md)
+- [TED-US-066](story_bundle/user_stories/ted-us-066_fast_repair_under_10_seconds_with_explainability.md)
+- [TED-US-067](story_bundle/user_stories/ted-us-067_darwin_packaging_and_installer_evidence_gate.md)

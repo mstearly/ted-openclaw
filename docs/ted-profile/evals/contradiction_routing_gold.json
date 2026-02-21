@@ -1,0 +1,14 @@
+{
+  "suite": "contradiction_routing",
+  "version": "1",
+  "cases": [
+    {
+      "id": "cr-001",
+      "input": "Conflicting close date",
+      "expected": {
+        "reason_code": "CONTRADICTION_DETECTED",
+        "requires_citation": true
+      }
+    }
+  ]
+}

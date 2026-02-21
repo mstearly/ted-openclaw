@@ -1,0 +1,56 @@
+# OpenClaw ↔ Ted Sidecar Contract
+
+## Summary (facts)
+Ted Sidecar is a **local loopback HTTP service** that OpenClaw may **autostart** as a Node child process.
+
+Evidence locations:
+- Spawn + routing: `index.ts` (uses `spawn(process.execPath, [sidecarEntry])`; /ted command uses `fetch(...)`)
+- Plugin config: `openclaw.plugin.json` (plugin id: `ted-sidecar`; keys: `baseUrl`, `sidecarPath`, `autostart`)
+- Doctor probing + loopback enforcement: `doctor-gateway-services.ts` (probes `${baseUrl}/status` and `${baseUrl}/doctor`)
+- Sidecar HTTP server: `server.mjs` (binds host `127.0.0.1`, port `48080`; serves routes; Graph/device-code flows)
+
+## Integration style
+- [x] HTTP client/server over loopback (`127.0.0.1` / `localhost`)
+- [x] Child process autostart (Node spawn)
+- [ ] Library import (no evidence)
+- [ ] Event bus (no evidence)
+
+## Configuration contract (plugin id: `ted-sidecar`)
+Required/expected keys (confirm defaults in `openclaw.plugin.json`):
+- `baseUrl`: MUST be loopback (`127.0.0.1` / `localhost`) — non-loopback is rejected.
+- `sidecarPath`: filesystem path to the sidecar entrypoint script (currently used as the spawn target).
+- `autostart`: when true, OpenClaw is responsible for spawning the sidecar process.
+
+## HTTP endpoints (minimum stable surface)
+Doctor pipeline requires these to exist and remain safe:
+- `GET /status`  → health/readiness
+- `GET /doctor`  → diagnostics output used by OpenClaw doctor checks
+
+Additional endpoints:
+- TODO (discover by inspecting `server.mjs` route handling and any `/ted` command fetch paths in `index.ts`)
+
+## Security invariants (NON-NEGOTIABLE)
+- Sidecar MUST bind to loopback only.
+- `baseUrl` MUST be loopback only.
+- `/status` and `/doctor` MUST be safe to call locally and MUST NOT leak secrets.
+
+## Error model & lifecycle (TBD from code)
+- Startup sequence (autostart): TODO (extract from `index.ts`)
+- Timeouts/retries for fetch/probes: TODO (extract from `index.ts` and `doctor-gateway-services.ts`)
+- Shutdown behavior / orphan processes: TODO (extract from `index.ts`)
+
+## Compatibility
+- Node runtime baseline: `>= 22.12.0` (engines); CI uses Node `22.x`
+- Breaking changes to this boundary require updates here + docs/release notes (per Constitution).
+
+## Verification (source of truth = CI + root scripts)
+Run from repo root for any boundary-impacting change:
+- Install: `pnpm install --frozen-lockfile`
+- Quality: `pnpm check`, `pnpm lint`, `pnpm build`
+- Tests: `pnpm test`
+- Unit tests (CI): `bunx vitest run --config vitest.unit.config.ts`
+- Docs (when docs touched): `pnpm check:docs`
+- Install smoke parity: `pnpm test:install:smoke` (and workflow parity)
+
+## Change log
+- 2026-02-18: Contract created/updated with loopback HTTP + autostart spawn model; endpoint/details pending line-level extraction.

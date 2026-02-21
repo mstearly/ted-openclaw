@@ -48,3 +48,10 @@ Proves the platform/sidecar boundary before we build any features (Graph, ledger
 ### Notes
 
 - Node runtime required for sidecar (server.mjs). Installed via nvm (user-space).
+
+## Friction KPI Evidence
+
+- linked artifacts rate
+- triage queue size at end of day
+- deal transition latency
+- evidence citation completeness

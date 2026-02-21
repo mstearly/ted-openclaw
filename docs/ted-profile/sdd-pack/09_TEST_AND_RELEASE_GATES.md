@@ -63,3 +63,10 @@ Every release should attach:
 - artifact checksums
 - security audit report summary
 - doctor summary (redacted)
+- council remediation proof chain:
+  - `scripts/ted-profile/proof_jc012.sh`
+  - `scripts/ted-profile/proof_jc013.sh`
+  - `scripts/ted-profile/proof_jc014.sh`
+  - `scripts/ted-profile/proof_jc015.sh`
+  - `scripts/ted-profile/proof_jc016.sh`
+  - `scripts/ted-profile/proof_jc017.sh` (Darwin-only closeout gate)

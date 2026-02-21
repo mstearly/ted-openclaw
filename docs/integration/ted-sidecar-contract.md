@@ -47,6 +47,7 @@ Authoritative sources:
 - Both currently return the same payload handler (`sidecars/ted-engine/server.mjs:1471`, `sidecars/ted-engine/server.mjs:1472`).
 - Ted plugin expects payload with `version`, `uptime`, `profiles_count` (`extensions/ted-sidecar/index.ts:126`, `extensions/ted-sidecar/index.ts:127`, `extensions/ted-sidecar/index.ts:128`).
 - Doctor checker validates the same payload fields (`src/commands/doctor-gateway-services.ts:83`, `src/commands/doctor-gateway-services.ts:84`, `src/commands/doctor-gateway-services.ts:85`).
+- Ted command surface includes discoverability via `/ted catalog` (implemented as a read of `/status` additive payload fields).
 
 ## Contract surface and stability policy
 
@@ -79,7 +80,7 @@ All other sidecar routes (including route families like `/deals/*`, `/triage/*`,
 
 ### Optional/additive fields
 
-Additional fields are allowed but MUST be additive and optional (e.g., `deals_count`, `triage_open_count`, etc.).
+Additional fields are allowed but MUST be additive and optional (e.g., `deals_count`, `triage_open_count`, `catalog`, etc.).
 
 ### Payload parity
 
@@ -127,6 +128,14 @@ Plugin command path and doctor probes use different timeouts today. Any PR touch
 - Plugin command path default timeout is `5000` ms (`extensions/ted-sidecar/index.ts:7`).
 - Doctor probe timeout is `2000` ms (`src/commands/doctor-gateway-services.ts:23`).
 - Treat this as a deliberate decision: either keep the mismatch (document why) or align them.
+
+## Command contract
+
+- `/ted doctor` -> reads `/doctor`
+- `/ted status` -> reads `/status`
+- `/ted catalog` -> reads `/status` and renders discoverability metadata when present
+
+Catalog metadata is additive and informational only; it does not relax auth or policy boundaries.
 
 ## Verification expectations (run from repo root)
 

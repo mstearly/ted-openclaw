@@ -87,6 +87,15 @@ No slice advances until prior slice proofs and gates are PASS.
 - SHADOW: optimization/learning features until quality and control metrics stabilize.
 - All states: increments must improve the canonical operator loop and stay inside friction budget.
 
+## Current Council Remediation Order (Mandatory)
+
+1. `JC-012` workflow-vs-agent boundary contract.
+2. `JC-013` non-health route auth contract hardening.
+3. `JC-014` idempotency/retry/resume integrity.
+4. `JC-015` offline eval regression gate.
+5. `JC-016` fast-repair/explainability gate.
+6. `JC-017` Darwin packaging closure.
+
 ---
 
 ## Open Questions Handling Rule

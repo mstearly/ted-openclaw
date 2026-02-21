@@ -69,6 +69,7 @@ This means you get:
 - macOS installer and restart persistence
 - doctor/setup diagnostics
 - release gates and rollback discipline
+- Control UI `Ted` workbench tab for KPI/job-card/recommendation visibility
 
 ## How Features Unlock (Quality-Gate Evolution)
 
@@ -158,6 +159,13 @@ Unlock requires:
 4. JC-009: pause/resume + rate governance
 5. JC-010: deterministic learning + optional affinity
 
+## Council UI Remediation (Cycle 002)
+
+- `JC-020`: workbench data-source correctness (in progress)
+- `JC-021`: persona/role-card studio
+- `JC-022`: job-card board + proof runner
+- `JC-023`..`JC-028`: governance, ops, triage/filling, Graph profiles, unified approvals, KPI/evals
+
 Each slice is blocked from promotion until prior slice proofs are green.
 
 ## What This Means for Clint
@@ -196,5 +204,6 @@ These are guardrails that protect quality while the platform matures.
 - `.specify/specs/001-ted-day1-launch/spec.md`
 - `.specify/specs/001-ted-day1-launch/clarify.md`
 - `docs/ted-profile/ted_sdd_user_stories_bundle/EXECUTION_SLICE_048_061.md`
+- `docs/ted-profile/ted_sdd_user_stories_bundle/EXECUTION_SLICE_062_067.md`
 - `docs/ted-profile/sdd-pack/14_DAY1_PROMOTION_POLICY.md`
 - `docs/ted-profile/sdd-pack/15_VALUE_AND_FRICTION_GATES.md`

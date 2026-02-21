@@ -149,6 +149,8 @@ Then purge behavior is auditable and no early deletion occurs.
 7. Day-1 excludes filing apply/move and calendar invite sends.
 8. Day-1 retention baseline defaults: audit logs 30 days, transient/media artifacts 7 days, SDD snapshots 90 days unless explicitly overridden.
 9. Day-1 channels default to Telegram only; iMessage is deferred.
+10. Non-health sidecar routes require authenticated bearer access; `/status` and `/doctor` stay unauthenticated health endpoints.
+11. Runtime execution mode contract is deterministic-by-default; adaptive mode is explicitly bounded per-route and fails closed when out-of-contract.
 
 ## Friction Budget (Release Blocking)
 

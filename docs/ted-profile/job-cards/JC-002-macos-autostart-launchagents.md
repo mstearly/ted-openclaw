@@ -70,3 +70,10 @@ Use the existing OpenClaw gateway daemon/launchd framework as the single orchest
 ### Notes
 
 - `pnpm ui:build` required Node in shell; used nvm Node to avoid broken corepack shim.
+
+## Friction KPI Evidence
+
+- connector success rate
+- ingestion lag
+- classification accuracy
+- retry/backoff rate

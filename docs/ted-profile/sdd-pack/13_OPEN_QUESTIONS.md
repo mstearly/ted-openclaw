@@ -25,3 +25,6 @@ Operator overrides can be applied later through decision-log updates plus proof 
 
 7. **Signing/notarization**
    - Decision: internal distribution may start unsigned; notarization required before broad external rollout.
+
+8. **Darwin packaging runner availability**
+   - Decision: keep as explicit blocker until a macOS runner executes `proof_jc017.sh` successfully.

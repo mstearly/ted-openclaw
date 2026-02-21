@@ -37,6 +37,7 @@ Day-1 defaults:
 - `approval_queue_oldest_age_minutes <= 120`
 - `unresolved_triage_items_eod <= 12`
 - `critical_explainer_missing_count = 0`
+- `fast_repair_median_seconds <= 10` (enabled once JC-016 is active)
 
 If any KPI breaches for two consecutive days, freeze expansion and run friction-remediation work.
 

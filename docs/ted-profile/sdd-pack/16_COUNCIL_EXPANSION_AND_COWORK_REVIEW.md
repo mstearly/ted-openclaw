@@ -94,3 +94,7 @@ Existing seats remain active. Add these seats as permanent council roles:
 - Keep this expanded council active for all future slices.
 - No slice promotes without a council interrogation pass against the questions above.
 - Failures in evals, security posture, or operator cognitive load are stop-the-line conditions.
+
+## Interrogation Cycles
+
+- Cycle 001 completed: `17_COUNCIL_INTERROGATION_CYCLE_001.md`

@@ -201,3 +201,10 @@ This is not a defect in sidecar auth flow. It is a tenant onboarding prerequisit
 ### Notes (4)
 
 This endpoint converts real-world tenant/auth failures into admin-ready guidance while keeping the system fail-closed.
+
+## Friction KPI Evidence
+
+- connector success rate
+- ingestion lag
+- classification accuracy
+- retry/backoff rate

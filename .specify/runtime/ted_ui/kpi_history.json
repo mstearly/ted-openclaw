@@ -1,0 +1,9 @@
+[
+  {
+    "ts": "2026-02-20T17:54:04.790Z",
+    "manual_minutes_per_day_max": 45,
+    "approval_queue_oldest_minutes_max": 120,
+    "unresolved_triage_eod_max": 12,
+    "blocked_actions_missing_explainability_max": 0
+  }
+]

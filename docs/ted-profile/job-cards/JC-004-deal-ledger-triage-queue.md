@@ -133,3 +133,10 @@ This enables later workflows (filing, deadlines, dashboards) to be governed and 
 ### Notes (4)
 
 - docs/ted-profile/planning/ remains local scratch and intentionally not committed.
+
+## Friction KPI Evidence
+
+- linked artifacts rate
+- triage queue size at end of day
+- deal transition latency
+- evidence citation completeness

@@ -34,3 +34,10 @@ Establish deterministic macOS packaging preflight checks so final installer crea
 - Proof Script: `scripts/ted-profile/proof_jc011_mac_preflight.sh`
 - Result: BLOCKED (swift toolchain missing in current environment)
 - Blocker: `pnpm mac:package` reached Swift build step and failed with `swift: command not found`.
+
+## Friction KPI Evidence
+
+- connector success rate
+- ingestion lag
+- classification accuracy
+- retry/backoff rate
