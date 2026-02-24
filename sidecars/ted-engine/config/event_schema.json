@@ -18,13 +18,15 @@
       "triage.ingested": "New item ingested into triage queue",
       "triage.classified": "Item classified by LLM or pattern match",
       "triage.linked": "Triage item linked to deal/task",
-      "triage.resolved": "Triage item resolved"
+      "triage.resolved": "Triage item resolved",
+      "triage.listed": "Triage queue listed by operator or agent"
     },
     "commitment": {
       "commitment.created": "New commitment created",
       "commitment.completed": "Commitment marked complete",
       "commitment.updated": "Commitment fields updated",
-      "commitment.escalated": "Commitment escalated (future)"
+      "commitment.escalated": "Commitment escalated (future)",
+      "commitment.listed": "Commitment ledger listed by operator or agent"
     },
     "deal": {
       "deal.created": "New deal created",
@@ -43,6 +45,7 @@
       "deal.checklist.item.removed": "Checklist item removed from deal",
       "deal.note.added": "Note added to deal",
       "deal.owner.stale_check": "Deal owner responsiveness check — stale deals flagged",
+      "deal.listed": "Deal pipeline listed by operator or agent",
       "deal.brief.auto_generated": "Skeleton brief auto-generated on deal creation",
       "deal.retrospective.generated": "Per-deal learning retrospective generated"
     },
@@ -98,6 +101,7 @@
       "governance.output_contract.blocked": "Output contract check blocked",
       "governance.output_contract.passed": "Output contract check passed",
       "governance.output_contract.hybrid": "Output contract partially met — fallback sections injected",
+      "governance.rubber_stamping.detected": "Rubber-stamping detected — operator approval rate exceeds safety threshold",
       "governance.entity_check.blocked": "Entity boundary check blocked",
       "governance.entity_check.passed": "Entity boundary check passed",
       "governance.confidence.evaluated": "Confidence level evaluated",
@@ -218,7 +222,8 @@
       "improvement.rubber_stamping.suspected": "Rubber-stamping detected — proposals approved too quickly",
       "improvement.archetype.applied": "Archetype selected and applied during onboarding cold-start",
       "improvement.voice_extraction.started": "Voice/style extraction pipeline started from Graph sent items",
-      "improvement.voice_extraction.completed": "Voice/style extraction pipeline completed with style deltas"
+      "improvement.voice_extraction.completed": "Voice/style extraction pipeline completed with style deltas",
+      "improvement.shadow.eval_recorded": "Individual shadow evaluation data point recorded during LLM call"
     },
     "scheduler": {
       "scheduler.started": "Scheduler started (cron tick loop active)",
@@ -271,6 +276,9 @@
       "sharepoint.file.uploaded": "File uploaded to SharePoint (operator-approved)",
       "sharepoint.folder.created": "Folder created in SharePoint (operator-approved)",
       "sharepoint.search.executed": "SharePoint search query executed"
+    },
+    "builder_lane": {
+      "builder_lane.style_delta.recorded": "Style delta recorded from draft edit — voice/style drift tracking"
     },
     "self_healing": {
       "self_healing.circuit_breaker.tripped": "Graph workload group circuit breaker tripped after failure rate exceeded threshold",

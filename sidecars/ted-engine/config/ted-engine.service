@@ -32,7 +32,7 @@ Environment=TED_HOST=127.0.0.1
 # Security hardening
 NoNewPrivileges=true
 ProtectSystem=strict
-ReadWritePaths=/home/mattstearly/GitRepos/ted-openclaw/sidecars/ted-engine/data
+ReadWritePaths=/home/mattstearly/GitRepos/ted-openclaw/sidecars/ted-engine/artifacts /home/mattstearly/GitRepos/ted-openclaw/sidecars/ted-engine/logs /home/mattstearly/GitRepos/ted-openclaw/sidecars/ted-engine/scheduler /home/mattstearly/GitRepos/ted-openclaw/sidecars/ted-engine/config/snapshots
 ProtectHome=read-only
 PrivateTmp=true
 

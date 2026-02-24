@@ -2976,7 +2976,15 @@ export function renderTed(props: TedViewProps) {
                               return html`
                           <div
                             style="display: flex; align-items: center; gap: var(--space-4); padding: var(--space-3) 0; border-bottom: 1px solid var(--color-divider); cursor: pointer; transition: var(--transition-fast);"
+                            role="button" tabindex="0"
+                            aria-label=${`View deal ${deal.deal_name || deal.deal_id}`}
                             @click=${() => props.onLoadDealDetail(deal.deal_id)}
+                            @keydown=${(e: KeyboardEvent) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                props.onLoadDealDetail(deal.deal_id);
+                              }
+                            }}
                           >
                             <div style="flex: 1; min-width: 0;">
                               <span style="max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: inline-block; vertical-align: middle; font-weight: var(--font-weight-semibold); font-size: var(--font-size-base); color: var(--color-text-primary);" title=${deal.deal_name || deal.deal_id}>${deal.deal_name || deal.deal_id}</span>
@@ -3983,7 +3991,19 @@ export function renderTed(props: TedViewProps) {
                             ? plan.buckets.map(
                                 (b) => html`
                           <div style="margin-left:1rem;padding:0.25rem 0;border-bottom:1px solid var(--border-color,#333);display:flex;justify-content:space-between;cursor:pointer"
-                            @click=${() => props.onLoadPlannerTasks(props.plannerPlans?.profile_id || "olumie", plan.plan_id, b.id)}>
+                            role="button" tabindex="0"
+                            aria-label=${`Load tasks for bucket ${b.name}`}
+                            @click=${() => props.onLoadPlannerTasks(props.plannerPlans?.profile_id || "olumie", plan.plan_id, b.id)}
+                            @keydown=${(e: KeyboardEvent) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                props.onLoadPlannerTasks(
+                                  props.plannerPlans?.profile_id || "olumie",
+                                  plan.plan_id,
+                                  b.id,
+                                );
+                              }
+                            }}>
                             <span>${b.name}</span>
                             <span class="muted" style="font-size:0.8rem">${b.tasks_count} tasks</span>
                           </div>
@@ -4053,7 +4073,15 @@ export function renderTed(props: TedViewProps) {
                         ? props.todoLists.lists.map(
                             (l) => html`
                       <div style="display:flex;justify-content:space-between;padding:0.25rem 0;border-bottom:1px solid var(--border-color,#333);cursor:pointer"
-                        @click=${() => props.onLoadTodoTasks(props.todoLists?.profile_id || "olumie", l.id)}>
+                        role="button" tabindex="0"
+                        aria-label=${`Load tasks for list ${l.display_name}`}
+                        @click=${() => props.onLoadTodoTasks(props.todoLists?.profile_id || "olumie", l.id)}
+                        @keydown=${(e: KeyboardEvent) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            props.onLoadTodoTasks(props.todoLists?.profile_id || "olumie", l.id);
+                          }
+                        }}>
                         <span>${l.display_name}</span>
                         <span class="muted" style="font-size:0.8rem">${l.tasks_count || 0} tasks</span>
                       </div>
