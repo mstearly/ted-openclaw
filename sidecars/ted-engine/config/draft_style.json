@@ -1,0 +1,56 @@
+{
+  "_sdd": {
+    "source": "docs/ted-profile/client_intake_COMPLETED.md",
+    "sections": ["9) Draft tone and style"],
+    "record_id": "clint-olumie-everest-2026-02-20"
+  },
+  "preferred_tone": "Direct, concise, professional. No fluff. Lead with the answer or the ask.",
+  "style_rules": {
+    "business": "Direct, concise, professional. Lead with the answer or the ask.",
+    "isaac_nightly_report": "Matter-of-fact. State what was done, what's in progress, what's next, who owns each next step. Confident and organized.",
+    "everest_owner_communications": "Professional, measured, solution-oriented",
+    "deal_counterparty": "Professional, precise — always Tier 3, Clint approves"
+  },
+  "signature_conventions": {
+    "business": "— Clint",
+    "draft_disclaimer": "(Generated as a draft for review; not sent)"
+  },
+  "words_to_avoid": [
+    "I hope this finds you well",
+    "Please don't hesitate",
+    "As per my previous email",
+    "It seems like",
+    "I think maybe",
+    "You might want to consider"
+  ],
+  "avoid_categories": {
+    "filler_openers": [
+      "I hope this finds you well",
+      "Please don't hesitate",
+      "As per my previous email"
+    ],
+    "hedging_language": ["It seems like", "I think maybe", "You might want to consider"]
+  },
+  "voice_training": {
+    "status": "awaiting_onboarding — Ted auto-scans Sent Items via Graph API during Learning Mode setup",
+    "source": "Operator Sent Items folder (Graph API Mail.ReadWrite scope, sentitems folder, automated scan)",
+    "extraction_method": "LLM analysis of 20-30 sent emails across audience categories → pattern extraction → config update",
+    "samples_needed": {
+      "deal_counterparty": "5-8 emails to deal counterparties (brokers, sellers, counsel)",
+      "internal_team": "5-8 emails to Isaac, Maurice, internal team",
+      "investor_communications": "3-5 emails to investors or LPs",
+      "casual_professional": "3-5 shorter emails (scheduling, quick updates)",
+      "formal_business": "3-5 longer emails (proposals, summaries, strategic)"
+    },
+    "extracted_patterns": {
+      "greeting_style": "pending extraction",
+      "closing_style": "pending extraction",
+      "sentence_length_avg": "pending extraction",
+      "formality_gradient": "pending extraction",
+      "paragraph_structure": "pending extraction",
+      "action_item_format": "pending extraction",
+      "question_phrasing": "pending extraction"
+    },
+    "post_launch_refinement": "Codex Builder lane captures operator edits to drafts as signal for voice refinement"
+  }
+}

@@ -36,7 +36,28 @@ import type {
   TedPolicyImpactPreview,
   TedPolicyKey,
   TedSourceDocument,
+  TedDealFull,
+  TedDealSummary,
   TedJobCardDetail,
+  TedLlmProviderConfig,
+  TedMeetingUpcomingResponse,
+  TedCommitmentsListResponse,
+  TedActionsListResponse,
+  TedWaitingForListResponse,
+  TedTrustMetricsResponse,
+  TedDeepWorkMetricsResponse,
+  TedDraftQueueResponse,
+  TedEventLogStatsResponse,
+  TedPlannerListResponse,
+  TedPlannerTasksResponse,
+  TedTodoListsResponse,
+  TedTodoTasksResponse,
+  TedSyncReconciliationResponse,
+  TedSyncProposalsResponse,
+  TedCommitmentExtractionResponse,
+  TedImprovementProposal,
+  TedTrustAutonomyEvaluation,
+  TedFailureAggregationResponse,
   SkillStatusReport,
   StatusSummary,
 } from "./types.ts";
@@ -274,7 +295,271 @@ export type AppViewState = {
   tedConnectorAuthError: string | null;
   tedConnectorAuthResult: string | null;
   tedConnectorDeviceCodeByProfile: Record<string, string>;
+  tedMailLoading: boolean;
+  tedMailMessages: import("./types.js").TedMailMessage[];
+  tedMailError: string | null;
+  tedMailFolder: string;
+  tedMorningBriefLoading: boolean;
+  tedMorningBrief: import("./types.js").TedMorningBriefResponse | null;
+  tedMorningBriefError: string | null;
+  tedEodDigestLoading: boolean;
+  tedEodDigest: import("./types.js").TedEodDigestResponse | null;
+  tedEodDigestError: string | null;
+  tedDealListLoading: boolean;
+  tedDealList: TedDealSummary[];
+  tedDealListError: string | null;
+  tedDealDetailLoading: boolean;
+  tedDealDetail: TedDealFull | null;
+  tedDealDetailError: string | null;
+  tedDealActionBusy: boolean;
+  tedDealActionError: string | null;
+  tedDealActionResult: string | null;
+  tedLlmProviderConfig: TedLlmProviderConfig | null;
+  tedLlmProviderLoading: boolean;
+  tedLlmProviderError: string | null;
+  // Phase 6: Meetings + Commitments + GTD
+  tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
+  tedMeetingsLoading: boolean;
+  tedMeetingsError: string | null;
+  tedCommitments: TedCommitmentsListResponse | null;
+  tedCommitmentsLoading: boolean;
+  tedCommitmentsError: string | null;
+  tedActions: TedActionsListResponse | null;
+  tedActionsLoading: boolean;
+  tedActionsError: string | null;
+  tedWaitingFor: TedWaitingForListResponse | null;
+  tedWaitingForLoading: boolean;
+  tedWaitingForError: string | null;
+  // Phase 8: Trust + Deep Work
+  tedTrustMetrics: TedTrustMetricsResponse | null;
+  tedTrustMetricsLoading: boolean;
+  tedTrustMetricsError: string | null;
+  tedDeepWorkMetrics: TedDeepWorkMetricsResponse | null;
+  tedDeepWorkMetricsLoading: boolean;
+  tedDeepWorkMetricsError: string | null;
+  // Draft Queue (JC-089f)
+  tedDraftQueue: TedDraftQueueResponse | null;
+  tedDraftQueueLoading: boolean;
+  tedDraftQueueError: string | null;
+  // Event Log Stats (JC-087e)
+  tedEventLogStats: TedEventLogStatsResponse | null;
+  tedEventLogStatsLoading: boolean;
+  tedEventLogStatsError: string | null;
+  // Planner
+  tedPlannerPlans: TedPlannerListResponse | null;
+  tedPlannerPlansLoading: boolean;
+  tedPlannerPlansError: string | null;
+  tedPlannerTasks: TedPlannerTasksResponse | null;
+  tedPlannerTasksLoading: boolean;
+  tedPlannerTasksError: string | null;
+  // To Do
+  tedTodoLists: TedTodoListsResponse | null;
+  tedTodoListsLoading: boolean;
+  tedTodoListsError: string | null;
+  tedTodoTasks: TedTodoTasksResponse | null;
+  tedTodoTasksLoading: boolean;
+  tedTodoTasksError: string | null;
+  // Sync
+  tedSyncReconciliation: TedSyncReconciliationResponse | null;
+  tedSyncReconciliationLoading: boolean;
+  tedSyncReconciliationError: string | null;
+  tedSyncProposals: TedSyncProposalsResponse | null;
+  tedSyncProposalsLoading: boolean;
+  tedSyncProposalsError: string | null;
+  tedSyncApproveBusy: string | null;
+  tedSyncApproveError: string | null;
+  tedSyncApproveResult: string | null;
+  tedSyncRejectBusy: string | null;
+  tedSyncRejectError: string | null;
+  tedSyncRejectResult: string | null;
+  // Extraction
+  tedExtractionResult: TedCommitmentExtractionResponse | null;
+  tedExtractionLoading: boolean;
+  tedExtractionError: string | null;
+  // Improvement Proposals
+  tedImprovementProposals: TedImprovementProposal[];
+  tedImprovementProposalsLoading: boolean;
+  tedImprovementProposalsError: string | null;
+  tedImprovementCreateBusy: boolean;
+  tedImprovementCreateError: string | null;
+  tedImprovementCreateResult: string | null;
+  tedImprovementReviewBusy: boolean;
+  tedImprovementReviewError: string | null;
+  tedImprovementReviewResult: string | null;
+  tedImprovementApplyBusy: boolean;
+  tedImprovementApplyError: string | null;
+  tedImprovementApplyResult: string | null;
+  tedImprovementGenerateBusy: boolean;
+  tedImprovementGenerateError: string | null;
+  tedImprovementGenerateResult: import("./types.ts").TedImprovementGenerateResponse | null;
+  onLoadImprovementProposals: (status?: string) => void;
+  onCreateImprovementProposal: (params: {
+    title: string;
+    type: string;
+    description: string;
+  }) => void;
+  onReviewImprovementProposal: (proposalId: string, verdict: string, notes?: string) => void;
+  onApplyImprovementProposal: (proposalId: string) => void;
+  onGenerateImprovementProposal: (days?: number) => void;
+  // Trust Autonomy
+  tedTrustAutonomy: TedTrustAutonomyEvaluation | null;
+  tedTrustAutonomyLoading: boolean;
+  tedTrustAutonomyError: string | null;
+  onLoadTrustAutonomy: () => void;
+  // Failure Aggregation
+  tedFailureAggregation: TedFailureAggregationResponse | null;
+  tedFailureAggregationLoading: boolean;
+  tedFailureAggregationError: string | null;
+  onLoadFailureAggregation: (days?: number) => void;
+  // Builder Lane (BL-010)
+  tedBuilderLanePatterns: Record<string, unknown> | null;
+  tedBuilderLanePatternsLoading: boolean;
+  tedBuilderLanePatternsError: string | null;
+  tedBuilderLaneStatus: Record<string, unknown> | null;
+  tedBuilderLaneStatusLoading: boolean;
+  tedBuilderLaneMetrics: Record<string, unknown> | null;
+  tedBuilderLaneMetricsLoading: boolean;
+  tedBuilderLaneRevertBusy: boolean;
+  tedBuilderLaneRevertError: string | null;
+  tedBuilderLaneRevertResult: string | null;
+  tedBuilderLaneGenerateBusy: boolean;
+  tedBuilderLaneCalibrationBusy: boolean;
+  onLoadBuilderLanePatterns: () => void;
+  onLoadBuilderLaneStatus: () => void;
+  onLoadBuilderLaneMetrics: () => void;
+  onGenerateFromPattern: (domain: string, contextBucket?: Record<string, unknown>) => void;
+  onRevertAppliedProposal: (proposalId: string) => void;
+  onSubmitCalibrationResponse: (
+    promptId: string,
+    response: string,
+    domain?: string,
+    moment?: string,
+  ) => void;
+  // JC-110: Architecture closure
+  tedDraftSubmitReviewLoading: boolean;
+  tedDraftSubmitReviewError: string | null;
+  tedDeepWorkSessionLoading: boolean;
+  tedDeepWorkSessionError: string | null;
+  tedDeepWorkSessionResult: Record<string, unknown> | null;
+  tedGraphSyncStatusLoading: boolean;
+  tedGraphSyncStatusError: string | null;
+  tedGraphSyncStatusResult: Record<string, unknown> | null;
+  onTedDraftSubmitReview: (draftId: string) => void;
+  onTedDeepWorkSession: (durationMinutes: number, label?: string, entity?: string) => void;
+  onTedGraphSyncStatus: (profileId: string) => void;
+  // Inline form state for deep work session input
+  showDeepWorkInput: boolean;
+  deepWorkInputMinutes: string;
+  deepWorkInputLabel: string;
+  // Inline form state for graph sync profile input
+  showGraphSyncInput: boolean;
+  graphSyncInputProfileId: string;
+  // Ingestion
+  tedIngestionStatusLoading: boolean;
+  tedIngestionStatusError: string | null;
+  tedIngestionStatus: Record<string, unknown> | null;
+  tedIngestionRunBusy: boolean;
+  tedIngestionRunError: string | null;
+  tedIngestionRunResult: Record<string, unknown> | null;
+  // Discovery
+  tedDiscoveryStatusLoading: boolean;
+  tedDiscoveryStatusError: string | null;
+  tedDiscoveryStatus: Record<string, unknown> | null;
+  tedDiscoveryRunBusy: boolean;
+  tedDiscoveryRunError: string | null;
+  tedDiscoveryRunResult: Record<string, unknown> | null;
+  loadTedIngestionStatus: () => Promise<void>;
+  triggerTedIngestion: () => Promise<void>;
+  loadTedDiscoveryStatus: () => Promise<void>;
+  triggerTedDiscovery: (profileId: string) => Promise<void>;
+  // Self-Healing Dashboard
+  fetchSelfHealingStatus: () => Promise<void>;
+  fetchCorrectionTaxonomy: () => Promise<void>;
+  fetchEngagementInsights: () => Promise<void>;
+  fetchNoiseLevel: () => Promise<void>;
+  fetchAutonomyStatus: () => Promise<void>;
+  // SharePoint state
+  tedSharePointSites: Array<{
+    id: string;
+    displayName: string;
+    webUrl: string;
+    name: string;
+  }> | null;
+  tedSharePointSitesLoading: boolean;
+  tedSharePointSitesError: string | null;
+  tedSharePointDrives: Array<{
+    id: string;
+    name: string;
+    driveType: string;
+    webUrl: string;
+    description: string | null;
+  }> | null;
+  tedSharePointDrivesLoading: boolean;
+  tedSharePointDrivesError: string | null;
+  tedSharePointItems: Array<{
+    id: string;
+    name: string;
+    size: number;
+    lastModifiedDateTime: string;
+    webUrl: string;
+    isFolder: boolean;
+    mimeType: string | null;
+    createdBy: string | null;
+    lastModifiedBy: string | null;
+    parentPath: string | null;
+  }> | null;
+  tedSharePointItemsLoading: boolean;
+  tedSharePointItemsError: string | null;
+  tedSharePointItemsPath: string;
+  tedSharePointSearchResults: Array<{
+    id: string;
+    name: string;
+    size: number;
+    lastModifiedDateTime: string;
+    webUrl: string;
+    isFolder: boolean;
+    mimeType: string | null;
+    createdBy: string | null;
+    lastModifiedBy: string | null;
+    parentPath: string | null;
+  }> | null;
+  tedSharePointSearchLoading: boolean;
+  tedSharePointSearchError: string | null;
+  tedSharePointUploadResult: string | null;
+  tedSharePointUploadLoading: boolean;
+  tedSharePointUploadError: string | null;
+  tedSharePointFolderResult: string | null;
+  tedSharePointFolderLoading: boolean;
+  tedSharePointFolderError: string | null;
+  tedSharePointSelectedProfile: string;
+  tedSharePointSelectedSiteId: string;
+  tedSharePointSelectedDriveId: string;
+  tedSharePointSearchQuery: string;
+  // C12-004: Stale deal owners
+  tedStaleDealsList: import("./types.ts").TedStaleDeal[];
+  tedStaleDealsLoading: boolean;
+  tedStaleDealsError: string | null;
+  // C12-011: Deal retrospective
+  tedDealRetrospective: import("./types.ts").TedDealRetrospective | null;
+  tedDealRetrospectiveLoading: boolean;
+  tedDealRetrospectiveError: string | null;
   tedActiveSection: "all" | "operate" | "build" | "govern" | "intake" | "evals";
+  // Self-Healing Dashboard
+  selfHealingStatus: Record<string, unknown> | null;
+  selfHealingStatusLoading: boolean;
+  selfHealingStatusError: string | null;
+  correctionTaxonomy: Record<string, unknown> | null;
+  correctionTaxonomyLoading: boolean;
+  correctionTaxonomyError: string | null;
+  engagementInsights: Record<string, unknown> | null;
+  engagementInsightsLoading: boolean;
+  engagementInsightsError: string | null;
+  noiseLevel: Record<string, unknown> | null;
+  noiseLevelLoading: boolean;
+  noiseLevelError: string | null;
+  autonomyStatus: Record<string, unknown> | null;
+  autonomyStatusLoading: boolean;
+  autonomyStatusError: string | null;
   logsLoading: boolean;
   logsError: string | null;
   logsFile: string | null;
@@ -316,6 +601,46 @@ export type AppViewState = {
   startTedConnectorAuth: (profileId: "olumie" | "everest") => Promise<void>;
   pollTedConnectorAuth: (profileId: "olumie" | "everest") => Promise<void>;
   revokeTedConnectorAuth: (profileId: "olumie" | "everest") => Promise<void>;
+  loadTedMail: (profileId?: string, folder?: string) => Promise<void>;
+  loadTedMorningBrief: () => Promise<void>;
+  loadTedEodDigest: () => Promise<void>;
+  loadTedDealList: () => Promise<void>;
+  loadTedDealDetail: (dealId: string) => Promise<void>;
+  updateTedDeal: (dealId: string, fields: Record<string, unknown>) => Promise<void>;
+  loadTedStaleDeals: (days?: number) => Promise<void>;
+  generateTedDealRetrospective: (dealId: string) => Promise<void>;
+  loadTedSharePointSites: () => Promise<void>;
+  loadTedSharePointDrives: () => Promise<void>;
+  loadTedSharePointItems: (itemId?: string) => Promise<void>;
+  searchTedSharePoint: () => Promise<void>;
+  uploadTedSharePointFile: (
+    fileName: string,
+    contentBase64: string,
+    contentType: string,
+  ) => Promise<void>;
+  createTedSharePointFolder: (folderName: string) => Promise<void>;
+  loadTedLlmProvider: () => Promise<void>;
+  updateTedLlmProvider: (
+    newDefault: import("./types.js").LlmProviderName,
+    perJobOverrides?: Record<string, { provider: import("./types.js").LlmProviderName }>,
+  ) => Promise<void>;
+  loadTedMeetingsUpcoming: () => Promise<void>;
+  loadTedCommitments: () => Promise<void>;
+  loadTedActions: () => Promise<void>;
+  loadTedWaitingFor: () => Promise<void>;
+  loadTedTrustMetrics: () => Promise<void>;
+  loadTedDeepWorkMetrics: () => Promise<void>;
+  loadTedDraftQueue: () => Promise<void>;
+  loadTedEventLogStats: () => Promise<void>;
+  loadTedPlannerPlans: (profileId?: string) => Promise<void>;
+  loadTedPlannerTasks: (profileId: string, planId: string, bucketId?: string) => Promise<void>;
+  loadTedTodoLists: (profileId?: string) => Promise<void>;
+  loadTedTodoTasks: (profileId: string, listId: string) => Promise<void>;
+  loadTedSyncReconciliation: (profileId?: string) => Promise<void>;
+  loadTedSyncProposals: (profileId?: string) => Promise<void>;
+  approveTedSyncProposal: (profileId: string, proposalId: string) => Promise<void>;
+  rejectTedSyncProposal: (profileId: string, proposalId: string) => Promise<void>;
+  extractTedCommitments: (profileId: string, messageId: string) => Promise<void>;
   handleWhatsAppStart: (force: boolean) => Promise<void>;
   handleWhatsAppWait: () => Promise<void>;
   handleWhatsAppLogout: () => Promise<void>;

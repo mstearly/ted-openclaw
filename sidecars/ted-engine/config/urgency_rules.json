@@ -1,0 +1,97 @@
+{
+  "_sdd": {
+    "source": "docs/ted-profile/client_intake_COMPLETED.md",
+    "sections": ["5) Urgency rules", "10) Escalation triggers"],
+    "record_id": "clint-olumie-everest-2026-02-20"
+  },
+  "urgency_definitions": [
+    "Any deadline within 48 hours on any active deal or Everest compliance matter",
+    "Any Everest facility entering CRISIS level (3+ metrics off 20%+) — immediate text alert",
+    "Any stop loss breach on investment holdings — immediate alert",
+    "Any email from Isaac requiring a response",
+    "Any outside counsel communication flagged as time-sensitive",
+    "Any OIG or state exclusion list hit on an active investor"
+  ],
+  "urgency_signals": [
+    {
+      "signal": "deadline_within_48h",
+      "label": "Deadline within 48 hours",
+      "severity": "high"
+    },
+    {
+      "signal": "email_from_vip_list",
+      "label": "Email from VIP (Isaac, outside counsel, facility administrators, deal counterparties at LOI/PSA stage)",
+      "severity": "high"
+    },
+    {
+      "signal": "escalation_keywords",
+      "label": "Escalation keywords: crisis, urgent, immediately, deadline, default, breach",
+      "keywords": ["crisis", "urgent", "immediately", "deadline", "default", "breach"],
+      "severity": "high"
+    },
+    {
+      "signal": "financial_threshold",
+      "label": "Financial threshold exceeded (deal deposits, closing dates, invoice disputes above $10K)",
+      "threshold_usd": 10000,
+      "severity": "high"
+    },
+    {
+      "signal": "health_safety_keywords",
+      "label": "Everest facility health/safety keywords",
+      "keywords": ["fall", "incident", "survey", "citation", "deficiency", "DOH"],
+      "severity": "critical"
+    },
+    {
+      "signal": "meeting_no_prep",
+      "label": "Meeting within 24h and no prep materials",
+      "severity": "medium"
+    }
+  ],
+  "escalation_triggers": [
+    {
+      "trigger": "Everest facility enters CRISIS level (3+ metrics off 20%+)",
+      "method": "immediate_text_alert",
+      "severity": "critical"
+    },
+    {
+      "trigger": "Stop loss breach on any investment holding",
+      "method": "immediate_text_alert",
+      "severity": "critical"
+    },
+    {
+      "trigger": "OIG or state exclusion list hit on any investor",
+      "method": "immediate_text_alert",
+      "severity": "critical"
+    },
+    {
+      "trigger": "Outside counsel flags a material legal issue on any active deal",
+      "method": "immediate_text_alert",
+      "severity": "critical"
+    },
+    {
+      "trigger": "Unannounced Everest facility survey notification",
+      "method": "immediate_text_alert",
+      "severity": "critical"
+    },
+    {
+      "trigger": "Isaac sends a message marked urgent or requiring same-day response",
+      "method": "immediate_text_alert",
+      "severity": "high"
+    }
+  ],
+  "escalation_config": {
+    "escalate_to": "Clint",
+    "methods": ["SMS", "Telegram"],
+    "contact": "205-913-0550"
+  },
+  "error_tolerance": {
+    "tradeoff": "prefer_fewer_misses",
+    "notes": "Missed deadline or missed facility crisis >> false alarm. Surface more, not less."
+  },
+  "low_confidence_behavior": {
+    "primary": "Create a draft + flag uncertainty with confidence score and source",
+    "secondary": "Put it in the daily brief as 'needs review' with the specific question",
+    "rule": "Do NOT ask clarifying questions in real time during off-hours — batch them into the daily brief",
+    "exception": "CRISIS-level facility alerts and stop loss breaches are always immediate regardless of confidence"
+  }
+}

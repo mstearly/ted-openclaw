@@ -1,0 +1,41 @@
+{
+  "_sdd": {
+    "source": "docs/ted-profile/sdd-pack/44_OPERATOR_COMMAND_CENTER_ARCHITECTURE.md",
+    "section": "3.2 JC-082: PARA Filing Classification",
+    "record_id": "jc-082a"
+  },
+  "classification_rules": [
+    {
+      "signal": "active_deal_match",
+      "category": "project",
+      "confidence_boost": 0.3,
+      "notes": "Active deal maps to PARA Project"
+    },
+    {
+      "signal": "entity_context_match",
+      "category": "area",
+      "confidence_boost": 0.2,
+      "notes": "Ongoing entity responsibility maps to PARA Area"
+    },
+    {
+      "signal": "reference_keywords",
+      "category": "resource",
+      "keywords": ["template", "checklist", "guide", "methodology", "playbook", "SOP", "policy"],
+      "confidence_boost": 0.15,
+      "notes": "Reference material not tied to specific project"
+    },
+    {
+      "signal": "deal_archived_or_closed",
+      "category": "archive",
+      "confidence_boost": 0.4,
+      "notes": "Closed deal or inactive item"
+    }
+  ],
+  "folder_template": "/{entity}/{para_category}/{deal_or_topic}/{document_type}",
+  "para_category_mapping": {
+    "project": "Active deals and time-bound initiatives",
+    "area": "Ongoing entity responsibilities (Olumie operations, Everest compliance)",
+    "resource": "Templates, checklists, guides, reference material",
+    "archive": "Closed deals, completed projects, inactive items"
+  }
+}

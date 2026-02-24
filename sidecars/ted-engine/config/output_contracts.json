@@ -1,0 +1,64 @@
+{
+  "morning_brief": {
+    "required_sections": ["inbox_summary", "priorities", "calendar"],
+    "max_length": 5000,
+    "forbidden_patterns": []
+  },
+  "eod_digest": {
+    "required_sections": ["completed_today", "pending", "tomorrow_prep"],
+    "max_length": 5000,
+    "forbidden_patterns": []
+  },
+  "draft_email": {
+    "required_sections": [],
+    "max_length": 3000,
+    "forbidden_patterns": ["CONFIDENTIAL PLACEHOLDER", "TODO:", "FIXME"]
+  },
+  "triage_classify": {
+    "required_sections": [],
+    "max_length": 1000,
+    "forbidden_patterns": []
+  },
+  "deadline_extract": {
+    "required_sections": [],
+    "max_length": 1000,
+    "forbidden_patterns": []
+  },
+  "commitment_extract": {
+    "required_sections": [],
+    "max_length": 2000,
+    "forbidden_patterns": ["TODO:", "FIXME"]
+  },
+  "improvement_proposal": {
+    "required_sections": ["problem_statement", "proposed_change", "evidence"],
+    "max_length": 3000,
+    "forbidden_patterns": ["PLACEHOLDER", "TBD"]
+  },
+  "golden_fixtures": {
+    "_description": "Reference outputs for contract validation regression testing",
+    "morning_brief": {
+      "fixture": "## Inbox Summary\n3 new emails requiring attention: 1 urgent from counsel re: Olumie Fund II closing docs, 1 follow-up from Isaac on Everest compliance filing, 1 investor update request.\n\n## Priorities\n1. Review and approve closing docs for Olumie Fund II (deadline: tomorrow)\n2. Respond to Everest compliance inquiry (regulatory deadline: Friday)\n3. Prepare investor update memo for Q4 distributions\n\n## Calendar\n- 10:00 AM — Olumie Fund II closing call (45 min)\n- 2:00 PM — Everest board prep with Isaac (30 min)\n- 4:00 PM — Deep work block (90 min)",
+      "validates_against": "morning_brief"
+    },
+    "eod_digest": {
+      "fixture": "## Completed Today\n- Reviewed and approved Olumie Fund II closing docs\n- Sent investor update memo draft to Isaac for review\n- Responded to Everest compliance inquiry\n\n## Pending\n- Awaiting Isaac review on investor update memo (due: tomorrow AM)\n- Everest board deck needs final numbers from accounting\n\n## Tomorrow Prep\n- 9:00 AM slot open for Isaac sync on memo feedback\n- Board deck finalization before 2 PM Everest call\n- Follow up on Fund II wire confirmations",
+      "validates_against": "eod_digest"
+    },
+    "draft_email": {
+      "fixture": "Hi Isaac,\n\nFollowing up on our discussion about the Everest compliance filing — I've reviewed the latest draft and have a few notes:\n\n1. Section 3.2 needs updated financials from Q4\n2. The board resolution language should match the template from Fund I\n3. Filing deadline is Friday — please confirm we're on track\n\nLet me know if you need anything else.\n\n— Clint\n\n[Draft for review — not yet sent]",
+      "validates_against": "draft_email"
+    },
+    "triage_classify": {
+      "fixture": "{\"entity\":\"olumie\",\"category\":\"deal_update\",\"urgency\":\"medium\",\"confidence\":0.85,\"suggested_action\":\"Route to deal pipeline — Olumie Fund II closing docs update\",\"related_deal_id\":\"fund-ii-2024\"}",
+      "validates_against": "triage_classify"
+    },
+    "commitment_extract": {
+      "fixture": "[{\"who_owes\":\"Isaac\",\"who_to\":\"Clint\",\"what\":\"Send updated Q4 financials for Everest board deck\",\"due_date\":\"2026-02-25\",\"confidence\":0.92,\"source_text\":\"I'll have the updated Q4 numbers to you by Tuesday.\"},{\"who_owes\":\"Clint\",\"who_to\":\"Counsel\",\"what\":\"Review and approve Olumie Fund II closing docs\",\"due_date\":\"2026-02-24\",\"confidence\":0.88,\"source_text\":\"Please review and sign off on the closing documents by tomorrow.\"}]",
+      "validates_against": "commitment_extract"
+    },
+    "improvement_proposal": {
+      "fixture": "## Problem Statement\nDraft email contract validation has a 23% false-positive rate on signature detection — emails with inline quotes containing '— Name' patterns trigger signature-missing failures.\n\n## Proposed Change\nUpdate validateLlmOutputContract() signature check to only match signatures at the end of the email body (last 5 lines), not anywhere in the content. Add a regex anchor: /— Clint\\s*$/m instead of simple string includes.\n\n## Evidence\n- 12 trust_validation failures in last 7 days with intent=draft_email, missing_sections=[\"signature\"]\n- Manual review shows 9/12 were false positives caused by quoted reply signatures\n- Projected improvement: reduce false-positive rate from 23% to <5%",
+      "validates_against": "improvement_proposal"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "_sdd": {
+    "source": "docs/ted-profile/client_intake_COMPLETED.md",
+    "sections": ["3) Non-negotiable boundaries", "B) Autonomy ladder"],
+    "record_id": "clint-olumie-everest-2026-02-20"
+  },
+  "never_without_approval": [
+    "Send any external email (no exceptions until 90%+ approval rate proven over 3-6 months)",
+    "Send meeting invites to external attendees",
+    "Execute any financial transaction, trade, or payment",
+    "File, move, or delete documents (Day-1: suggestions + approval only; no apply/move)",
+    "Forward attorney-client privileged communications outside approved lists",
+    "Contact any invoice marked as Disputed",
+    "Send the nightly Isaac report without Clint review",
+    "Any action involving a new recipient not already on the email thread"
+  ],
+  "never_do": [
+    "Execute investment trades of any kind — analysis and alerts only; Clint places all orders manually",
+    "Access personal email or personal calendar directly",
+    "Mix entity data across Olumie, Everest, Prestige, or Personal boundaries",
+    "Share Prestige vendor pricing with Everest or Olumie personnel",
+    "Produce output containing un-redacted PHI for non-HIPAA-cleared recipients"
+  ],
+  "hard_ban_strings": [
+    "NEVER execute investment trades — analysis and alerts only",
+    "NEVER access personal email or personal calendar directly",
+    "NEVER mix entity data across Olumie/Everest/Prestige/Personal boundaries",
+    "NEVER share Prestige vendor pricing with Everest or Olumie personnel",
+    "NEVER produce un-redacted PHI for non-HIPAA-cleared recipients",
+    "NEVER send external email without Clint approval",
+    "NEVER send meeting invites to external attendees without Clint approval",
+    "NEVER file, move, or delete documents without Clint approval",
+    "NEVER forward privileged communications outside approved lists",
+    "NEVER contact any invoice marked as Disputed",
+    "NEVER send Isaac nightly report without Clint review"
+  ],
+  "invoice_statuses": {
+    "allowed": ["Active", "Paid"],
+    "blocked": ["Disputed"]
+  },
+  "pause_conditions": [
+    "Any governance violation (entity data mixing, PHI exposure, unauthorized send)",
+    "Email draft approval rate below 60% for two consecutive weeks",
+    "Isaac receives an incorrect report (factual error, wrong deal status, wrong attribution)",
+    "Any investor proceeds without OIG/state exclusion check being documented",
+    "Any Everest facility crisis that Ted detected but did not escalate"
+  ]
+}

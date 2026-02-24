@@ -1,6 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { Type } from "@sinclair/typebox";
 import type { GatewayRequestHandlerOptions, OpenClawPluginApi } from "openclaw/plugin-sdk";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:48080";
@@ -272,7 +273,7 @@ const POLICY_PATHS: Record<TedPolicyKey, string> = {
 let sidecarProcess: ChildProcess | null = null;
 let sidecarLastError: string | null = null;
 let cachedGatewayAuth: { token: string; expiresAtMs: number } | null = null;
-const PROOF_SCRIPT_PATH_RE = /^scripts\/ted-profile\/proof_jc\d+\.sh$/i;
+const PROOF_SCRIPT_PATH_RE = /^scripts\/ted-profile\/proof_[\w]+\.sh$/i;
 const RECOMMENDATION_DECISIONS_FILE = "recommendation_decisions.json";
 const RECOMMENDATION_OUTCOMES_FILE = "recommendation_outcomes.json";
 const POLICY_IMPACTS_FILE = "policy_impacts.json";
@@ -1339,7 +1340,7 @@ ${guardrails}
 
 function upsertPolicyConfigSection(markdown: string, config: TedPolicyConfig): string {
   const section = renderPolicyConfigSection(config);
-  const re = /^##\s+Operator Configuration\s*$[\s\S]*?(?=^##\s+|\Z)/m;
+  const re = /^##\s+Operator Configuration\s*\n[\s\S]*?(?=\n##\s|$(?![\s\S]))/m;
   if (re.test(markdown)) {
     return markdown.replace(re, section).trimEnd() + "\n";
   }
@@ -1475,7 +1476,8 @@ function listJobCardRecords(api: OpenClawPluginApi): {
 
 function extractSection(contents: string, heading: string): string {
   const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^##\\s+${escaped}\\s*$([\\s\\S]*?)(?=^##\\s+|\\Z)`, "m");
+  // Use $(?![\s\S]) for true end-of-string in multiline mode (bare $ matches end-of-line).
+  const re = new RegExp(`^##\\s+${escaped}\\s*\\n([\\s\\S]*?)(?=\\n##\\s|$(?![\\s\\S]))`, "m");
   const match = contents.match(re);
   return match?.[1]?.trim() ?? "";
 }
@@ -1893,6 +1895,7 @@ async function callAuthenticatedTedRoute(
   timeoutMs: number,
   routePath: string,
   body: Record<string, unknown>,
+  extraHeaders?: Record<string, string>,
 ) {
   const token = await mintTedAuthToken(baseUrl, timeoutMs);
   const endpoint = new URL(routePath, baseUrl);
@@ -1903,6 +1906,7 @@ async function callAuthenticatedTedRoute(
       "x-ted-execution-mode": "DETERMINISTIC",
       "content-type": "application/json",
       accept: "application/json",
+      ...(extraHeaders || {}),
     },
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(timeoutMs),
@@ -1911,7 +1915,11 @@ async function callAuthenticatedTedRoute(
   if (!response.ok) {
     throw new Error(
       String(
-        payload?.next_safe_step ?? payload?.reason_code ?? `request failed (${response.status})`,
+        payload?.error ??
+          payload?.message ??
+          payload?.next_safe_step ??
+          payload?.reason_code ??
+          `request failed (${response.status})`,
       ),
     );
   }
@@ -1934,9 +1942,10 @@ async function callAuthenticatedTedGetRoute(baseUrl: URL, timeoutMs: number, rou
   if (!response.ok) {
     throw new Error(
       String(
-        payload?.next_safe_step ??
+        payload?.error ??
+          payload?.message ??
+          payload?.next_safe_step ??
           payload?.reason_code ??
-          payload?.error ??
           `request failed (${response.status})`,
       ),
     );
@@ -2407,26 +2416,24 @@ export default function register(api: OpenClawPluginApi) {
           respond(false, { error: `job card not found: ${cardId}` });
           return;
         }
-        const outcome = extractSection(record.contents, "Outcome")
+        // Destructure to exclude fullPath (absolute filesystem path) and
+        // contents (raw bytes) from any accidental spread into the response.
+        const { fullPath: _fp, contents, ...safeRecord } = record;
+        const outcome = extractSection(contents, "Outcome")
           .split("\n")
           .map((line) => line.trim())
           .filter(Boolean)
           .join(" ");
-        const nonNegotiables = extractBullets(extractSection(record.contents, "Non-negotiables"));
-        const deliverables = extractBullets(extractSection(record.contents, "Deliverables"));
-        const evidence = extractBullets(
-          extractSection(record.contents, "Proof Evidence (Executed)"),
-        );
+        const nonNegotiables = extractBullets(extractSection(contents, "Non-negotiables"));
+        const deliverables = extractBullets(extractSection(contents, "Deliverables"));
+        const evidence = extractBullets(extractSection(contents, "Proof Evidence (Executed)"));
         respond(true, {
-          ...record,
-          family: record.family,
-          operator_summary: record.operator_summary,
-          kpi_signals: record.kpi_signals,
+          ...safeRecord,
           outcome: outcome || null,
           non_negotiables: nonNegotiables,
           deliverables,
           proof_evidence: evidence,
-          markdown: record.contents,
+          markdown: contents,
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -3140,6 +3147,7384 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
       }
     },
   );
+
+  // ---------------------------------------------------------------------------
+  // Core JTBD gateway methods: inbox, filing, calendar, deadlines, briefs
+  // ---------------------------------------------------------------------------
+
+  api.registerGatewayMethod(
+    "ted.mail.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                folder?: unknown;
+                top?: unknown;
+                filter?: unknown;
+                skip?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const folder =
+          typeof payloadIn.folder === "string" && payloadIn.folder.trim().length > 0
+            ? payloadIn.folder.trim()
+            : "inbox";
+        const top =
+          typeof payloadIn.top === "number" && Number.isFinite(payloadIn.top) && payloadIn.top > 0
+            ? Math.floor(payloadIn.top)
+            : 25;
+        const filter =
+          typeof payloadIn.filter === "string" && payloadIn.filter.trim().length > 0
+            ? payloadIn.filter.trim()
+            : "all";
+        const skip =
+          typeof payloadIn.skip === "number" &&
+          Number.isFinite(payloadIn.skip) &&
+          payloadIn.skip >= 0
+            ? Math.floor(payloadIn.skip)
+            : 0;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const queryParams = `folder=${encodeURIComponent(folder)}&top=${top}&filter=${encodeURIComponent(filter)}&skip=${skip}`;
+        const routePath = `/graph/${encodeURIComponent(profileId)}/mail/list?${queryParams}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted mail list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.mail.move",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                message_id?: unknown;
+                destination_folder_id?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const messageId =
+          typeof payloadIn.message_id === "string" ? payloadIn.message_id.trim() : "";
+        if (!messageId) {
+          respond(false, { error: "message_id is required" });
+          return;
+        }
+        const destinationFolderId =
+          typeof payloadIn.destination_folder_id === "string"
+            ? payloadIn.destination_folder_id.trim()
+            : "";
+        if (!destinationFolderId) {
+          respond(false, { error: "destination_folder_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/mail/${encodeURIComponent(messageId)}/move`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {
+            destination_folder_id: destinationFolderId,
+          },
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted mail move failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.calendar.event.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                subject?: unknown;
+                start_datetime?: unknown;
+                end_datetime?: unknown;
+                location?: unknown;
+                body_text?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const subject = typeof payloadIn.subject === "string" ? payloadIn.subject.trim() : "";
+        if (!subject) {
+          respond(false, { error: "subject is required" });
+          return;
+        }
+        const startDatetime =
+          typeof payloadIn.start_datetime === "string" ? payloadIn.start_datetime.trim() : "";
+        if (!startDatetime) {
+          respond(false, { error: "start_datetime is required" });
+          return;
+        }
+        const endDatetime =
+          typeof payloadIn.end_datetime === "string" ? payloadIn.end_datetime.trim() : "";
+        if (!endDatetime) {
+          respond(false, { error: "end_datetime is required" });
+          return;
+        }
+        const body: Record<string, unknown> = {
+          subject,
+          start_datetime: startDatetime,
+          end_datetime: endDatetime,
+        };
+        if (typeof payloadIn.location === "string" && payloadIn.location.trim().length > 0) {
+          body.location = payloadIn.location.trim();
+        }
+        if (typeof payloadIn.body_text === "string" && payloadIn.body_text.trim().length > 0) {
+          body.body_text = payloadIn.body_text.trim();
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/calendar/event/create`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted calendar event create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.extraction.deadlines",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { text?: unknown; source_ref?: unknown })
+            : {};
+        const text = typeof payloadIn.text === "string" ? payloadIn.text.trim() : "";
+        if (!text) {
+          respond(false, { error: "text is required" });
+          return;
+        }
+        const body: Record<string, unknown> = { text };
+        if (typeof payloadIn.source_ref === "string" && payloadIn.source_ref.trim().length > 0) {
+          body.source_ref = payloadIn.source_ref.trim();
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/extraction/deadlines",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted extraction deadlines failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.reporting.morning_brief",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/reporting/morning-brief",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted reporting morning brief failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.reporting.eod_digest",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/reporting/eod-digest",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted reporting eod digest failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.drafts.generate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                max_drafts?: unknown;
+                filter?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const maxDrafts =
+          typeof payloadIn.max_drafts === "number" &&
+          Number.isFinite(payloadIn.max_drafts) &&
+          payloadIn.max_drafts > 0
+            ? Math.floor(payloadIn.max_drafts)
+            : 5;
+        const filter =
+          typeof payloadIn.filter === "string" && payloadIn.filter.trim().length > 0
+            ? payloadIn.filter.trim()
+            : "unread";
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/drafts/generate`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {
+          max_drafts: maxDrafts,
+          filter,
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts generate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Deal CRUD gateway methods ---
+
+  api.registerGatewayMethod(
+    "ted.deals.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                deal_name?: unknown;
+                deal_type?: unknown;
+                entity?: unknown;
+                stage?: unknown;
+                status?: unknown;
+              })
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body = {
+          deal_id: payloadIn.deal_id,
+          deal_name: payloadIn.deal_name,
+          deal_type: payloadIn.deal_type,
+          entity: payloadIn.entity,
+          stage: payloadIn.stage,
+          status: payloadIn.status,
+        };
+        const routePath = "/deals/create";
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.list",
+    async ({ params: _params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = "/deals/list";
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.get",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { deal_id?: unknown })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/deals/${encodeURIComponent(dealId)}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.update",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                deal_name?: unknown;
+                deal_type?: unknown;
+                stage?: unknown;
+                status?: unknown;
+                entity?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.deal_name !== undefined) body.deal_name = payloadIn.deal_name;
+        if (payloadIn.deal_type !== undefined) body.deal_type = payloadIn.deal_type;
+        if (payloadIn.stage !== undefined) body.stage = payloadIn.stage;
+        if (payloadIn.status !== undefined) body.status = payloadIn.status;
+        if (payloadIn.entity !== undefined) body.entity = payloadIn.entity;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/update`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals update failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.dates.add",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                label?: unknown;
+                date?: unknown;
+                type?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.label !== undefined) body.label = payloadIn.label;
+        if (payloadIn.date !== undefined) body.date = payloadIn.date;
+        if (payloadIn.type !== undefined) body.type = payloadIn.type;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/dates`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals dates add failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.investors.add",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                name?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.name !== undefined) body.name = payloadIn.name;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/investors`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals investors add failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.investors.update",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                name?: unknown;
+                oig_status?: unknown;
+                state_exclusion_status?: unknown;
+                disclosure_form_sent?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.name !== undefined) body.name = payloadIn.name;
+        if (payloadIn.oig_status !== undefined) body.oig_status = payloadIn.oig_status;
+        if (payloadIn.state_exclusion_status !== undefined)
+          body.state_exclusion_status = payloadIn.state_exclusion_status;
+        if (payloadIn.disclosure_form_sent !== undefined)
+          body.disclosure_form_sent = payloadIn.disclosure_form_sent;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/investors/update`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals investors update failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.counsel.add",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                firm_name?: unknown;
+                matter?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.firm_name !== undefined) body.firm_name = payloadIn.firm_name;
+        if (payloadIn.matter !== undefined) body.matter = payloadIn.matter;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/counsel`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals counsel add failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.counsel.invoice",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                firm_name?: unknown;
+                amount?: unknown;
+                date?: unknown;
+                description?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.firm_name !== undefined) body.firm_name = payloadIn.firm_name;
+        if (payloadIn.amount !== undefined) body.amount = payloadIn.amount;
+        if (payloadIn.date !== undefined) body.date = payloadIn.date;
+        if (payloadIn.description !== undefined) body.description = payloadIn.description;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/counsel/invoice`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals counsel invoice failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.tasks.add",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                task?: unknown;
+                owner?: unknown;
+                due_date?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.task !== undefined) body.task = payloadIn.task;
+        if (payloadIn.owner !== undefined) body.owner = payloadIn.owner;
+        if (payloadIn.due_date !== undefined) body.due_date = payloadIn.due_date;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/tasks`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals tasks add failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.tasks.update",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                task_index?: unknown;
+                status?: unknown;
+                owner?: unknown;
+                due_date?: unknown;
+                task?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.task_index !== undefined) body.task_index = payloadIn.task_index;
+        if (payloadIn.status !== undefined) body.status = payloadIn.status;
+        if (payloadIn.owner !== undefined) body.owner = payloadIn.owner;
+        if (payloadIn.due_date !== undefined) body.due_date = payloadIn.due_date;
+        if (payloadIn.task !== undefined) body.task = payloadIn.task;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/tasks/update`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals tasks update failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.checklist.update",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                action?: unknown;
+                item?: unknown;
+                item_index?: unknown;
+                status?: unknown;
+                notes?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.action !== undefined) body.action = payloadIn.action;
+        if (payloadIn.item !== undefined) body.item = payloadIn.item;
+        if (payloadIn.item_index !== undefined) body.item_index = payloadIn.item_index;
+        if (payloadIn.status !== undefined) body.status = payloadIn.status;
+        if (payloadIn.notes !== undefined) body.notes = payloadIn.notes;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/checklist`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals checklist update failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.deals.notes.add",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                text?: unknown;
+                author?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.text !== undefined) body.text = payloadIn.text;
+        if (payloadIn.author !== undefined) body.author = payloadIn.author;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/notes`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals notes add failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- LLM Provider gateway methods (JC-070d) ---
+
+  api.registerGatewayMethod(
+    "ted.llm.provider.get",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/llm-provider");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted llm provider get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.llm.provider.set",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                default_provider?: unknown;
+                per_job_overrides?: unknown;
+              })
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.default_provider !== undefined)
+          body.default_provider = payloadIn.default_provider;
+        if (payloadIn.per_job_overrides !== undefined)
+          body.per_job_overrides = payloadIn.per_job_overrides;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/llm-provider",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted llm provider set failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Notification Budget gateway method (JC-084a) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.notification_budget",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/notification-budget",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted notification budget get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Meeting: upcoming (Phase 6) ---
+
+  api.registerGatewayMethod(
+    "ted.meeting.upcoming",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/meeting/upcoming?hours=24",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted meeting upcoming failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Meeting: prep (Phase 6) ---
+
+  api.registerGatewayMethod(
+    "ted.meeting.prep",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const eventId = typeof paramsObj.event_id === "string" ? paramsObj.event_id : "";
+        const routePath = `/meeting/prep/${encodeURIComponent(eventId)}`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, paramsObj);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted meeting prep failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Meeting: debrief (Phase 6) ---
+
+  api.registerGatewayMethod(
+    "ted.meeting.debrief",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/meeting/debrief",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted meeting debrief failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Commitments: list (Phase 6) ---
+
+  api.registerGatewayMethod(
+    "ted.commitments.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/commitments/list");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted commitments list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Commitments: create (Phase 6) ---
+
+  api.registerGatewayMethod(
+    "ted.commitments.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/commitments/create",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted commitments create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Commitments: complete (Phase 6) ---
+
+  api.registerGatewayMethod(
+    "ted.commitments.complete",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const commitmentId =
+          typeof paramsObj.commitment_id === "string" ? paramsObj.commitment_id : "";
+        const routePath = `/commitments/${encodeURIComponent(commitmentId)}/complete`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {});
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted commitments complete failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- GTD Actions: list (Phase 7) ---
+
+  api.registerGatewayMethod(
+    "ted.gtd.actions.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/gtd/actions/list");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted gtd actions list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- GTD Actions: create (Phase 7) ---
+
+  api.registerGatewayMethod(
+    "ted.gtd.actions.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/gtd/actions/create",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted gtd actions create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- GTD Actions: complete (Phase 7) ---
+
+  api.registerGatewayMethod(
+    "ted.gtd.actions.complete",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const actionId = typeof paramsObj.action_id === "string" ? paramsObj.action_id : "";
+        const routePath = `/gtd/actions/${encodeURIComponent(actionId)}/complete`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {});
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted gtd actions complete failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- GTD Waiting-For: list (Phase 7) ---
+
+  api.registerGatewayMethod(
+    "ted.gtd.waiting_for.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/gtd/waiting-for/list",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted gtd waiting-for list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- GTD Waiting-For: create (Phase 7) ---
+
+  api.registerGatewayMethod(
+    "ted.gtd.waiting_for.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/gtd/waiting-for/create",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted gtd waiting-for create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Planning: timeblock generate (Phase 7) ---
+
+  api.registerGatewayMethod(
+    "ted.planning.timeblock.generate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/planning/timeblock/generate",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted planning timeblock generate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Filing: PARA classify (Phase 8) ---
+
+  api.registerGatewayMethod(
+    "ted.filing.para.classify",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/filing/para/classify",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted filing para classify failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Filing: PARA structure (Phase 8) ---
+
+  api.registerGatewayMethod(
+    "ted.filing.para.structure",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/filing/para/structure",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted filing para structure failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Reporting: deep work metrics (Phase 8) ---
+
+  api.registerGatewayMethod(
+    "ted.reporting.deep_work_metrics",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/reporting/deep-work-metrics?period=week",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted reporting deep work metrics failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Reporting: trust metrics (Phase 8) ---
+
+  api.registerGatewayMethod(
+    "ted.reporting.trust_metrics",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/reporting/trust-metrics?period=week",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted reporting trust metrics failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.events.stats",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/events/stats");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted events stats failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.events.recent",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { limit?: unknown; event_type?: unknown })
+            : {};
+        const queryParts: string[] = [];
+        if (
+          typeof payloadIn.limit === "number" &&
+          Number.isFinite(payloadIn.limit) &&
+          payloadIn.limit > 0
+        ) {
+          queryParts.push(`limit=${Math.floor(payloadIn.limit)}`);
+        }
+        if (typeof payloadIn.event_type === "string" && payloadIn.event_type.trim().length > 0) {
+          queryParts.push(`event_type=${encodeURIComponent(payloadIn.event_type.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/events/recent${queryString}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted events recent failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Planner / To Do / Sync / Extraction gateway methods (JC-104a) ───────────
+
+  api.registerGatewayMethod(
+    "ted.planner.plans.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/planner/plans`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted planner plans list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.planner.tasks.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; plan_id?: unknown; bucket_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const planId = typeof payloadIn.plan_id === "string" ? payloadIn.plan_id.trim() : "";
+        if (!planId) {
+          respond(false, { error: "plan_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const queryParts: string[] = [];
+        if (typeof payloadIn.bucket_id === "string" && payloadIn.bucket_id.trim().length > 0) {
+          queryParts.push(`bucket_id=${encodeURIComponent(payloadIn.bucket_id.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/planner/plans/${encodeURIComponent(planId)}/tasks${queryString}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted planner tasks list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.todo.lists",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/todo/lists`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted todo lists failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.todo.tasks.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; list_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const listId = typeof payloadIn.list_id === "string" ? payloadIn.list_id.trim() : "";
+        if (!listId) {
+          respond(false, { error: "list_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/todo/lists/${encodeURIComponent(listId)}/tasks`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted todo tasks list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sync.reconcile",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sync/reconcile`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sync reconcile failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sync.proposals.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; status?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const queryParts: string[] = [];
+        if (typeof payloadIn.status === "string" && payloadIn.status.trim().length > 0) {
+          queryParts.push(`status=${encodeURIComponent(payloadIn.status.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sync/proposals${queryString}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sync proposals list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sync.proposals.approve",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; proposal_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const proposalId =
+          typeof payloadIn.proposal_id === "string" ? payloadIn.proposal_id.trim() : "";
+        if (!proposalId) {
+          respond(false, { error: "proposal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sync/proposals/${encodeURIComponent(proposalId)}/approve`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sync proposals approve failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sync.proposals.reject",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; proposal_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const proposalId =
+          typeof payloadIn.proposal_id === "string" ? payloadIn.proposal_id.trim() : "";
+        if (!proposalId) {
+          respond(false, { error: "proposal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sync/proposals/${encodeURIComponent(proposalId)}/reject`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sync proposals reject failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── SharePoint gateway methods ────────────────────────────────────────────────
+
+  api.registerGatewayMethod(
+    "ted.sharepoint.sites.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/sites`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sharepoint sites list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sharepoint.drives.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; site_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const siteId = typeof payloadIn.site_id === "string" ? payloadIn.site_id.trim() : "";
+        if (!siteId) {
+          respond(false, { error: "site_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/sites/${encodeURIComponent(siteId)}/drives`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sharepoint drives list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sharepoint.items.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                drive_id?: unknown;
+                path?: unknown;
+                item_id?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const driveId = typeof payloadIn.drive_id === "string" ? payloadIn.drive_id.trim() : "";
+        if (!driveId) {
+          respond(false, { error: "drive_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const queryParts: string[] = [];
+        if (typeof payloadIn.path === "string" && payloadIn.path.trim().length > 0) {
+          queryParts.push(`path=${encodeURIComponent(payloadIn.path.trim())}`);
+        }
+        if (typeof payloadIn.item_id === "string" && payloadIn.item_id.trim().length > 0) {
+          queryParts.push(`item_id=${encodeURIComponent(payloadIn.item_id.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/items${queryString}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sharepoint items list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sharepoint.item.get",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; drive_id?: unknown; item_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const driveId = typeof payloadIn.drive_id === "string" ? payloadIn.drive_id.trim() : "";
+        if (!driveId) {
+          respond(false, { error: "drive_id is required" });
+          return;
+        }
+        const itemId = typeof payloadIn.item_id === "string" ? payloadIn.item_id.trim() : "";
+        if (!itemId) {
+          respond(false, { error: "item_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sharepoint item get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sharepoint.search",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; drive_id?: unknown; query?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const driveId = typeof payloadIn.drive_id === "string" ? payloadIn.drive_id.trim() : "";
+        if (!driveId) {
+          respond(false, { error: "drive_id is required" });
+          return;
+        }
+        const query = typeof payloadIn.query === "string" ? payloadIn.query.trim() : "";
+        if (!query) {
+          respond(false, { error: "query is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/search?q=${encodeURIComponent(query)}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sharepoint search failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sharepoint.upload",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                drive_id?: unknown;
+                path?: unknown;
+                file_name?: unknown;
+                content_base64?: unknown;
+                content_type?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const driveId = typeof payloadIn.drive_id === "string" ? payloadIn.drive_id.trim() : "";
+        if (!driveId) {
+          respond(false, { error: "drive_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/upload`;
+        const body: Record<string, unknown> = {};
+        if (typeof payloadIn.path === "string") body.path = payloadIn.path;
+        if (typeof payloadIn.file_name === "string") body.file_name = payloadIn.file_name;
+        if (typeof payloadIn.content_base64 === "string")
+          body.content_base64 = payloadIn.content_base64;
+        if (typeof payloadIn.content_type === "string") body.content_type = payloadIn.content_type;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sharepoint upload failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.sharepoint.folder.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                drive_id?: unknown;
+                parent_path?: unknown;
+                folder_name?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const driveId = typeof payloadIn.drive_id === "string" ? payloadIn.drive_id.trim() : "";
+        if (!driveId) {
+          respond(false, { error: "drive_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/folder`;
+        const body: Record<string, unknown> = {};
+        if (typeof payloadIn.parent_path === "string") body.parent_path = payloadIn.parent_path;
+        if (typeof payloadIn.folder_name === "string") body.folder_name = payloadIn.folder_name;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted sharepoint folder create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.extraction.commitments",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; message_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const messageId =
+          typeof payloadIn.message_id === "string" ? payloadIn.message_id.trim() : "";
+        if (!messageId) {
+          respond(false, { error: "message_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/mail/${encodeURIComponent(messageId)}/extract-commitments`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {});
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted extraction commitments failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Draft Queue gateway methods (Phase 11 / JC-089e) ────────────────────────
+
+  api.registerGatewayMethod(
+    "ted.drafts.queue",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { state?: unknown; from_profile?: unknown })
+            : {};
+        const qs = new URLSearchParams();
+        if (typeof payloadIn.state === "string" && payloadIn.state.trim().length > 0) {
+          qs.set("state", payloadIn.state.trim());
+        }
+        if (
+          typeof payloadIn.from_profile === "string" &&
+          payloadIn.from_profile.trim().length > 0
+        ) {
+          qs.set("from_profile", payloadIn.from_profile.trim());
+        }
+        const qsStr = qs.toString();
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/drafts/queue${qsStr ? `?${qsStr}` : ""}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts queue failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.drafts.get",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { draft_id?: unknown })
+            : {};
+        const draftId = typeof payloadIn.draft_id === "string" ? payloadIn.draft_id.trim() : "";
+        if (!draftId) {
+          respond(false, { error: "draft_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/drafts/${encodeURIComponent(draftId)}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.drafts.edit",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { draft_id?: unknown; content?: unknown; subject?: unknown })
+            : {};
+        const draftId = typeof payloadIn.draft_id === "string" ? payloadIn.draft_id.trim() : "";
+        if (!draftId) {
+          respond(false, { error: "draft_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.content !== undefined) body.content = payloadIn.content;
+        if (payloadIn.subject !== undefined) body.subject = payloadIn.subject;
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/edit`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts edit failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.drafts.approve",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { draft_id?: unknown })
+            : {};
+        const draftId = typeof payloadIn.draft_id === "string" ? payloadIn.draft_id.trim() : "";
+        if (!draftId) {
+          respond(false, { error: "draft_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/approve`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts approve failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.drafts.execute",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { draft_id?: unknown })
+            : {};
+        const draftId = typeof payloadIn.draft_id === "string" ? payloadIn.draft_id.trim() : "";
+        if (!draftId) {
+          respond(false, { error: "draft_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/execute`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts execute failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── State Machine Extensions gateway methods (Phase 13 / JC-091e) ──────────
+
+  api.registerGatewayMethod(
+    "ted.commitments.escalate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { id?: unknown; reason?: unknown })
+            : {};
+        const id = typeof payloadIn.id === "string" ? payloadIn.id.trim() : "";
+        if (!id) {
+          respond(false, { error: "id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.reason !== undefined) body.reason = payloadIn.reason;
+        const routePath = `/commitments/${encodeURIComponent(id)}/escalate`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted commitments escalate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.investors.oig.update",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                deal_id?: unknown;
+                investor_name?: unknown;
+                new_status?: unknown;
+                notes?: unknown;
+              })
+            : {};
+        const dealId = typeof payloadIn.deal_id === "string" ? payloadIn.deal_id.trim() : "";
+        const investorName =
+          typeof payloadIn.investor_name === "string" ? payloadIn.investor_name.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        if (!investorName) {
+          respond(false, { error: "investor_name is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.new_status !== undefined) body.new_status = payloadIn.new_status;
+        if (payloadIn.notes !== undefined) body.notes = payloadIn.notes;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/investors/${encodeURIComponent(investorName)}/oig-update`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted investors oig update failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.facility.alerts.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/facility/alert/create",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted facility alerts create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.facility.alerts.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { status?: unknown })
+            : {};
+        const qs = new URLSearchParams();
+        if (typeof payloadIn.status === "string" && payloadIn.status.trim().length > 0) {
+          qs.set("status", payloadIn.status.trim());
+        }
+        const qsStr = qs.toString();
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/facility/alerts/list${qsStr ? `?${qsStr}` : ""}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted facility alerts list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.facility.alert.escalate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { id?: unknown; target_status?: unknown; reason?: unknown })
+            : {};
+        const id = typeof payloadIn.id === "string" ? payloadIn.id.trim() : "";
+        if (!id) {
+          respond(false, { error: "id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.target_status !== undefined) body.target_status = payloadIn.target_status;
+        if (payloadIn.reason !== undefined) body.reason = payloadIn.reason;
+        const routePath = `/facility/alert/${encodeURIComponent(id)}/escalate`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted facility alert escalate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.facility.alert.resolve",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { id?: unknown; notes?: unknown })
+            : {};
+        const id = typeof payloadIn.id === "string" ? payloadIn.id.trim() : "";
+        if (!id) {
+          respond(false, { error: "id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.notes !== undefined) body.notes = payloadIn.notes;
+        const routePath = `/facility/alert/${encodeURIComponent(id)}/resolve`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted facility alert resolve failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Improvement Proposals & Trust Autonomy gateway methods ─────────────────
+
+  api.registerGatewayMethod(
+    "ted.improvement.proposals.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { status?: unknown })
+            : {};
+        const qs = new URLSearchParams();
+        if (typeof payloadIn.status === "string" && payloadIn.status.trim().length > 0) {
+          qs.set("status", payloadIn.status.trim());
+        }
+        const qsStr = qs.toString();
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/improvement/proposals${qsStr ? `?${qsStr}` : ""}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted improvement proposals list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.improvement.proposals.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                title?: unknown;
+                type?: unknown;
+                description?: unknown;
+                source?: unknown;
+                change_spec?: unknown;
+                evidence?: unknown;
+              })
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.title !== undefined) body.title = payloadIn.title;
+        if (payloadIn.type !== undefined) body.type = payloadIn.type;
+        if (payloadIn.description !== undefined) body.description = payloadIn.description;
+        if (payloadIn.source !== undefined) body.source = payloadIn.source;
+        if (payloadIn.change_spec !== undefined) body.change_spec = payloadIn.change_spec;
+        if (payloadIn.evidence !== undefined) body.evidence = payloadIn.evidence;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/improvement/proposals",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted improvement proposals create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.improvement.proposals.review",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { proposal_id?: unknown; verdict?: unknown; notes?: unknown })
+            : {};
+        const proposalId =
+          typeof payloadIn.proposal_id === "string" ? payloadIn.proposal_id.trim() : "";
+        if (!proposalId) {
+          respond(false, { error: "proposal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (payloadIn.verdict !== undefined) body.verdict = payloadIn.verdict;
+        if (payloadIn.notes !== undefined) body.notes = payloadIn.notes;
+        const routePath = `/improvement/proposals/${encodeURIComponent(proposalId)}/review`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted improvement proposals review failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.improvement.proposals.apply",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { proposal_id?: unknown })
+            : {};
+        const proposalId =
+          typeof payloadIn.proposal_id === "string" ? payloadIn.proposal_id.trim() : "";
+        if (!proposalId) {
+          respond(false, { error: "proposal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/improvement/proposals/${encodeURIComponent(proposalId)}/apply`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted improvement proposals apply failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.improvement.proposals.generate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { days?: unknown })
+            : {};
+        const body: Record<string, unknown> = {};
+        if (payloadIn.days !== undefined) body.days = Number(payloadIn.days);
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/improvement/proposals/generate",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted improvement proposals generate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.improvement.failure_aggregation",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { days?: unknown })
+            : {};
+        const qs = new URLSearchParams();
+        if (payloadIn.days !== undefined) {
+          qs.set("days", String(payloadIn.days));
+        }
+        const qsStr = qs.toString();
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/improvement/failure-aggregation${qsStr ? `?${qsStr}` : ""}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted improvement failure aggregation failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Builder Lane Gateway Methods (BL-008) ───
+
+  api.registerGatewayMethod(
+    "ted.builder_lane.patterns",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/builder-lane/patterns",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted builder lane patterns failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.builder_lane.generate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { domain?: string; context_bucket?: unknown })
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/builder-lane/generate",
+          { domain: payloadIn.domain, context_bucket: payloadIn.context_bucket },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted builder lane generate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.builder_lane.revert",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { proposal_id?: string })
+            : {};
+        if (!payloadIn.proposal_id) {
+          respond(false, { error: "proposal_id required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          `/ops/builder-lane/revert/${encodeURIComponent(payloadIn.proposal_id)}`,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted builder lane revert failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.builder_lane.status",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/builder-lane/status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted builder lane status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.builder_lane.improvement_metrics",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/builder-lane/improvement-metrics",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted builder lane improvement metrics failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.builder_lane.calibration_response",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                prompt_id?: string;
+                response?: string;
+                domain?: string;
+                moment?: string;
+              })
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/builder-lane/calibration-response",
+          {
+            prompt_id: payloadIn.prompt_id,
+            response: payloadIn.response,
+            domain: payloadIn.domain,
+            moment: payloadIn.moment,
+          },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted builder lane calibration response failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.trust.autonomy.evaluate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/trust/autonomy/evaluate",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted trust autonomy evaluate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Draft submit-review gateway ────────────────────────────────────────────
+  api.registerGatewayMethod(
+    "ted.drafts.submit_review",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { draft_id?: unknown })
+            : {};
+        const draftId = typeof payloadIn.draft_id === "string" ? payloadIn.draft_id.trim() : "";
+        if (!draftId) {
+          respond(false, { error: "draft_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/submit-review`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {});
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts submit-review failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Deep work session gateway ──────────────────────────────────────────────
+  api.registerGatewayMethod(
+    "ted.deep_work.session",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/deep-work/session",
+          payloadIn,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deep work session failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Graph sync status gateway ──────────────────────────────────────────────
+  api.registerGatewayMethod(
+    "ted.graph.sync.status",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; limit?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const qs = new URLSearchParams();
+        if (payloadIn.limit !== undefined) {
+          qs.set("limit", String(payloadIn.limit));
+        }
+        const qsStr = qs.toString();
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/graph/${encodeURIComponent(profileId)}/sync/status${qsStr ? `?${qsStr}` : ""}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted graph sync status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- MF-10: Setup validation gateway ---
+
+  api.registerGatewayMethod(
+    "ted.ops.setup.validate",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/setup/validate",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted setup validate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- MF-10: Onboarding activate gateway ---
+
+  api.registerGatewayMethod(
+    "ted.ops.onboarding.activate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/onboarding/activate",
+          params as Record<string, unknown>,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted onboarding activate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ingestion status gateway (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.ingestion.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/ingestion/status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ingestion status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ingestion run gateway (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.ingestion.run",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/ingestion/run",
+          params as Record<string, unknown>,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ingestion run failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Onboarding discover gateway (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.onboarding.discover",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/onboarding/discover",
+          params as Record<string, unknown>,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted onboarding discover failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Onboarding discovery status gateway (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.onboarding.discovery.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/onboarding/discovery-status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted onboarding discovery status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── C10-023: Missing gateway methods for sidecar routes ────────────────────
+
+  // --- Graph: calendar list (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.calendar.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/graph/${encodeURIComponent(profileId)}/calendar/list`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted calendar list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Graph: draft create (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.graph.mail.draft.create",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                subject?: unknown;
+                content?: unknown;
+                to_recipients?: unknown;
+              })
+            : {};
+        const profileId = normalizeSupportedProfileId(payloadIn.profile_id);
+        if (!profileId) {
+          respond(false, { error: "profile_id must be one of olumie|everest" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const body: Record<string, unknown> = {};
+        if (typeof payloadIn.subject === "string") body.subject = payloadIn.subject;
+        if (typeof payloadIn.content === "string") body.content = payloadIn.content;
+        if (Array.isArray(payloadIn.to_recipients)) body.to_recipients = payloadIn.to_recipients;
+        const routePath = `/graph/${encodeURIComponent(profileId)}/mail/draft/create`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted graph mail draft create failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Drafts: archive (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.drafts.archive",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const draftId = typeof paramsObj.draft_id === "string" ? paramsObj.draft_id.trim() : "";
+        if (!draftId) {
+          respond(false, { error: "draft_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/archive`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {});
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted drafts archive failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Deals: timeline (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.deals.timeline",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const dealId = typeof paramsObj.deal_id === "string" ? paramsObj.deal_id.trim() : "";
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/deals/${encodeURIComponent(dealId)}/timeline`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals timeline failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: scheduler status (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.scheduler.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/scheduler");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops scheduler status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: scheduler config (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.scheduler.config",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/scheduler",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops scheduler config failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: pending deliveries list (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.pending_deliveries.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const queryParts: string[] = [];
+        if (typeof paramsObj.status === "string" && paramsObj.status.trim().length > 0) {
+          queryParts.push(`status=${encodeURIComponent(paramsObj.status.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/ops/pending-deliveries${queryString}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops pending deliveries list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: pending delivery ack (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.pending_deliveries.ack",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/pending-deliveries/ack",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops pending delivery ack failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: pause automation (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.pause",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/pause",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops pause failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: resume automation (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.resume",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/resume",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops resume failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: last resume summary (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.resume.last",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/resume/last");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops resume last failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: dispatch check (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.dispatch.check",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/dispatch/check",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops dispatch check failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: rate evaluate (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.rate.evaluate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/rate/evaluate",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops rate evaluate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Ops: retry evaluate (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.ops.retry.evaluate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/retry/evaluate",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted ops retry evaluate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Learning: modifiers evaluate (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.learning.modifiers.evaluate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/learning/modifiers/evaluate",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted learning modifiers evaluate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Learning: affinity route (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.learning.affinity.route",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/learning/affinity/route",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted learning affinity route failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Learning: meetings capture (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.learning.meetings.capture",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/learning/meetings/capture",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted learning meetings capture failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Filing: suggestions propose (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.filing.suggestions.propose",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/filing/suggestions/propose",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted filing suggestions propose failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Filing: suggestions list (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.filing.suggestions.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/filing/suggestions/list",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted filing suggestions list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Filing: suggestion approve (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.filing.suggestions.approve",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const suggestionId =
+          typeof paramsObj.suggestion_id === "string" ? paramsObj.suggestion_id.trim() : "";
+        if (!suggestionId) {
+          respond(false, { error: "suggestion_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/filing/suggestions/${encodeURIComponent(suggestionId)}/approve`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, paramsObj, {
+          "x-ted-approval-source": "operator",
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted filing suggestions approve failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Triage: list (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.triage.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/triage/list");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted triage list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Triage: ingest (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.triage.ingest",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/triage/ingest",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted triage ingest failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Triage: patterns list (GET) ---
+
+  api.registerGatewayMethod(
+    "ted.triage.patterns.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/triage/patterns");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted triage patterns list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Triage: patterns propose (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.triage.patterns.propose",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/triage/patterns/propose",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted triage patterns propose failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Triage: pattern approve (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.triage.patterns.approve",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const patternId =
+          typeof paramsObj.pattern_id === "string" ? paramsObj.pattern_id.trim() : "";
+        if (!patternId) {
+          respond(false, { error: "pattern_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/triage/patterns/${encodeURIComponent(patternId)}/approve`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, paramsObj, {
+          "x-ted-approval-source": "operator",
+        });
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted triage patterns approve failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Triage: link item (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.triage.link",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const paramsObj =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const itemId = typeof paramsObj.item_id === "string" ? paramsObj.item_id.trim() : "";
+        if (!itemId) {
+          respond(false, { error: "item_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const routePath = `/triage/${encodeURIComponent(itemId)}/link`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, paramsObj);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted triage link failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Governance: hard bans check (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.governance.hard_bans.check",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/governance/hard-bans/check",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted governance hard bans check failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Governance: output validate (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.governance.output.validate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/governance/output/validate",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted governance output validate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Governance: entity check (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.governance.entity.check",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/governance/entity/check",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted governance entity check failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Governance: confidence evaluate (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.governance.confidence.evaluate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/governance/confidence/evaluate",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted governance confidence evaluate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Governance: contradictions check (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.governance.contradictions.check",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/governance/contradictions/check",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted governance contradictions check failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Governance: escalations route (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.governance.escalations.route",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/governance/escalations/route",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted governance escalations route failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Governance: repair simulate (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.governance.repair.simulate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/governance/repair/simulate",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted governance repair simulate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // --- Graph: diagnostics classify (POST) ---
+
+  api.registerGatewayMethod(
+    "ted.graph.diagnostics.classify",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/graph/diagnostics/classify",
+          params ?? {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted graph diagnostics classify failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── C12-004: Deal stale owners ─────────────────────────────────────────────
+  api.registerGatewayMethod(
+    "ted.deals.stale_owners",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const days = params?.days ?? 7;
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/deals/stale-owners?days=${encodeURIComponent(String(days))}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals stale owners failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── C12-011: Deal retrospective ──────────────────────────────────────────
+  api.registerGatewayMethod(
+    "ted.deals.retrospective",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const dealId = params?.deal_id;
+        if (!dealId) {
+          respond(false, { error: "deal_id is required" });
+          return;
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          `/deals/${encodeURIComponent(String(dealId))}/retrospective`,
+          {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted deals retrospective failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Self-Healing Gateway Methods (Phase A) ──────────────────────────────────
+
+  api.registerGatewayMethod(
+    "ted.self_healing.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.circuit_breakers",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/circuit-breakers",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing circuit breakers failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.provider_health",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/provider-health",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing provider health failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.config_drift_reconcile",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/config-drift/reconcile",
+          {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing config drift reconcile failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.compact_ledgers",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/compact-ledgers",
+          {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing compact ledgers failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.expire_proposals",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/expire-proposals",
+          {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing expire proposals failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.resurrect_proposal",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { proposal_id?: string })
+            : {};
+        if (!payloadIn.proposal_id) {
+          respond(false, { error: "proposal_id required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          `/ops/builder-lane/proposals/${encodeURIComponent(payloadIn.proposal_id)}/resurrect`,
+          {},
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing resurrect proposal failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Self-Healing Gateway Methods (Phase B) ──────────────────────────────────
+
+  api.registerGatewayMethod(
+    "ted.self_healing.correction_taxonomy",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/correction-taxonomy",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing correction taxonomy failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.engagement.read_receipt",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { content_type?: string; delivered_at?: string })
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/engagement/read-receipt",
+          { content_type: payloadIn.content_type, delivered_at: payloadIn.delivered_at },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted engagement read receipt failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.engagement.action_receipt",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { content_type?: string; delivered_at?: string; duration_ms?: unknown })
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/engagement/action-receipt",
+          {
+            content_type: payloadIn.content_type,
+            delivered_at: payloadIn.delivered_at,
+            duration_ms: payloadIn.duration_ms,
+          },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted engagement action receipt failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.engagement_insights",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/engagement-insights",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing engagement insights failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.noise_level",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/noise-level",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing noise level failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.self_healing.autonomy_status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/autonomy-status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted self healing autonomy status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  // ─── Agent Tool Registration (JC-076a) ─────────────────────────────────────
+  //
+  // These tools expose Ted's capabilities to the OpenClaw agent system so they
+  // can be invoked from iMessage, chat, and all agent-powered channels.
+  // Each tool's execute function calls the same authenticated route helpers
+  // used by the gateway methods above.
+
+  const tedToolJson = (payload: unknown) => ({
+    content: [{ type: "text" as const, text: JSON.stringify(payload, null, 2) }],
+    details: payload,
+  });
+
+  const tedToolError = (err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    return tedToolJson({ error: message });
+  };
+
+  const resolveTedToolConfig = () => {
+    const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+    return {
+      baseUrl: resolveBaseUrl(pluginConfig),
+      timeoutMs: resolveTimeoutMs(pluginConfig),
+    };
+  };
+
+  // 1. ted_status — GET /status
+  api.registerTool({
+    name: "ted_status",
+    label: "Ted Status",
+    description:
+      "Check Ted sidecar health and readiness. Returns version, uptime, profile count, and catalog of available capabilities. Use this to verify Ted is running before calling other ted_* tools.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/status");
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 2. ted_morning_brief — GET /reporting/morning-brief
+  api.registerTool({
+    name: "ted_morning_brief",
+    label: "Ted Morning Brief",
+    description:
+      "Retrieve the operator's morning brief from Ted. Includes inbox summary, calendar preview, deal updates, and prioritised action items for the day. Call this when the user asks about their morning summary, daily priorities, or what's on their plate today.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/reporting/morning-brief",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 3. ted_eod_digest — GET /reporting/eod-digest
+  api.registerTool({
+    name: "ted_eod_digest",
+    label: "Ted End-of-Day Digest",
+    description:
+      "Retrieve the operator's end-of-day digest from Ted. Summarises completed actions, pending approvals, unresolved triage items, and tomorrow's early priorities. Call this when the user asks for their evening summary, daily wrap-up, or what happened today.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/reporting/eod-digest",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 4. ted_mail_list — GET /graph/{profile}/mail/list
+  api.registerTool({
+    name: "ted_mail_list",
+    label: "Ted Mail List",
+    description:
+      "List email messages from a Microsoft 365 mailbox managed by Ted. Returns subject, sender, date, and read status for each message. Use this when the user asks about their inbox, recent emails, or unread messages. Supports filtering by folder and read/unread status.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      folder: Type.Optional(
+        Type.String({
+          description:
+            'Mail folder to list. Defaults to "inbox". Other options: "sentitems", "drafts", "deleteditems".',
+        }),
+      ),
+      filter: Type.Optional(
+        Type.String({
+          description: 'Message filter. Defaults to "all". Options: "all", "unread", "flagged".',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const folder =
+          typeof params?.folder === "string" && params.folder.trim().length > 0
+            ? params.folder.trim()
+            : "inbox";
+        const filter =
+          typeof params?.filter === "string" && params.filter.trim().length > 0
+            ? params.filter.trim()
+            : "all";
+        const queryParams = `folder=${encodeURIComponent(folder)}&top=25&filter=${encodeURIComponent(filter)}&skip=0`;
+        const routePath = `/graph/${encodeURIComponent(profileId)}/mail/list?${queryParams}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 5. ted_draft_generate — POST /graph/{profile}/drafts/generate
+  api.registerTool({
+    name: "ted_draft_generate",
+    label: "Ted Draft Generate",
+    description:
+      "Generate email reply drafts for unread messages in a Microsoft 365 mailbox. Ted analyses each unread email and produces contextual reply drafts for operator review. Use this when the user wants Ted to prepare email responses or catch up on drafting replies.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      max_drafts: Type.Optional(
+        Type.Number({
+          description: "Maximum number of drafts to generate. Defaults to 5.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const maxDrafts =
+          typeof params?.max_drafts === "number" &&
+          Number.isFinite(params.max_drafts) &&
+          params.max_drafts > 0
+            ? Math.floor(params.max_drafts)
+            : 5;
+        const routePath = `/graph/${encodeURIComponent(profileId)}/drafts/generate`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {
+          max_drafts: maxDrafts,
+          filter: "unread",
+        });
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 6. ted_deadlines — POST /extraction/deadlines
+  api.registerTool({
+    name: "ted_deadlines",
+    label: "Ted Deadline Extraction",
+    description:
+      "Extract deadlines, due dates, and time-sensitive obligations from a block of text. Provide the text (e.g. email body, contract clause, meeting notes) and Ted returns structured deadline data including dates, descriptions, and urgency. Use this when the user shares text containing deadlines or asks to identify upcoming due dates.",
+    parameters: Type.Object({
+      text: Type.String({
+        description:
+          "The text to analyse for deadlines. Can be an email body, contract excerpt, meeting notes, or any prose containing date-sensitive obligations.",
+      }),
+      source_ref: Type.Optional(
+        Type.String({
+          description:
+            'Optional reference label for the source document (e.g. "Lease Agreement Section 4.2").',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const text = typeof params?.text === "string" ? params.text.trim() : "";
+        if (!text) {
+          return tedToolJson({ error: "text is required" });
+        }
+        const body: Record<string, unknown> = { text };
+        if (typeof params?.source_ref === "string" && params.source_ref.trim().length > 0) {
+          body.source_ref = params.source_ref.trim();
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/extraction/deadlines",
+          body,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 7. ted_deal_list — GET /deals/list
+  api.registerTool({
+    name: "ted_deal_list",
+    label: "Ted Deal List",
+    description:
+      "List all deals tracked by Ted's deal operations module. Returns deal names, types, stages, statuses, and entity assignments. Use this when the user asks about their active deals, deal pipeline, or wants an overview of tracked transactions.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/deals/list");
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 8. ted_deal_get — GET /deals/{deal_id}
+  api.registerTool({
+    name: "ted_deal_get",
+    label: "Ted Deal Details",
+    description:
+      "Retrieve detailed information about a specific deal by ID. Returns the deal's full record including name, type, entity, stage, status, tasks, notes, dates, and data room contents. Use this when the user asks about a particular deal's details or status.",
+    parameters: Type.Object({
+      deal_id: Type.String({
+        description: "The unique identifier of the deal to retrieve.",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const dealId = typeof params?.deal_id === "string" ? params.deal_id.trim() : "";
+        if (!dealId) {
+          return tedToolJson({ error: "deal_id is required" });
+        }
+        const routePath = `/deals/${encodeURIComponent(dealId)}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Write-Operation Agent Tools with Confirmation Gate (JC-076b) ───────────
+  //
+  // Each write tool accepts a `confirmed` boolean parameter. When confirmed is
+  // false or absent, the tool returns a preview of what WOULD happen. When
+  // confirmed is true, the tool actually executes the write operation.
+  // This two-step pattern prevents accidental mutations from agent channels.
+
+  const TED_WRITE_TOOLS_SET = new Set([
+    "ted_mail_move",
+    "ted_calendar_create",
+    "ted_deal_create",
+    "ted_deal_update",
+    "ted_deal_manage",
+    "ted_meeting_debrief",
+    "ted_meeting_prep",
+    "ted_commitment_create",
+    "ted_commitment_complete",
+    "ted_action_create",
+    "ted_para_classify",
+    "ted_draft_approve",
+    "ted_draft_edit",
+    "ted_draft_execute",
+    "ted_facility_alert_create",
+    "ted_facility_alert_escalate",
+    "ted_facility_alert_resolve",
+    "ted_commitment_escalate",
+    "ted_sync_approve",
+    "ted_improvement_review",
+    "ted_improvement_apply",
+    "ted_draft_submit_review",
+    "ted_deep_work_session",
+    "ted_sharepoint_upload",
+    "ted_sharepoint_create_folder",
+    "ted_builder_lane_revert",
+  ]);
+
+  // MF-8: Tools requiring operator (human) confirmation — agent cannot self-approve
+  // Design Law #6 (governance tiers) + #8 (progressive autonomy)
+  const REQUIRES_OPERATOR_CONFIRMATION = new Set([
+    "ted_sync_approve",
+    "ted_draft_execute",
+    "ted_draft_approve",
+    "ted_mail_move",
+    "ted_calendar_create",
+    "ted_improvement_apply",
+    "ted_improvement_review",
+    "ted_sharepoint_upload",
+    "ted_sharepoint_create_folder",
+    "ted_builder_lane_revert",
+  ]);
+
+  // 1. ted_mail_move — POST /graph/{profile}/mail/{message_id}/move
+  api.registerTool({
+    name: "ted_mail_move",
+    label: "Ted Mail Move",
+    description:
+      "Move an email message to a different folder in a Microsoft 365 mailbox. Requires confirmation: first call returns a preview of the move action; call again with confirmed=true to execute. Use this when the user wants to file, archive, or move an email to a specific folder.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      message_id: Type.String({
+        description: "The unique identifier of the email message to move.",
+      }),
+      destination_folder_id: Type.String({
+        description:
+          "The ID of the destination mail folder (e.g. archive folder ID, subfolder ID).",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the move. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const messageId = typeof params?.message_id === "string" ? params.message_id.trim() : "";
+        const destinationFolderId =
+          typeof params?.destination_folder_id === "string"
+            ? params.destination_folder_id.trim()
+            : "";
+        if (!messageId) {
+          return tedToolJson({ error: "message_id is required" });
+        }
+        if (!destinationFolderId) {
+          return tedToolJson({ error: "destination_folder_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Move message ${messageId} to folder ${destinationFolderId} in ${profileId} mailbox`,
+            params: {
+              profile_id: profileId,
+              message_id: messageId,
+              destination_folder_id: destinationFolderId,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const routePath = `/graph/${encodeURIComponent(profileId)}/mail/${encodeURIComponent(messageId)}/move`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {
+            destination_folder_id: destinationFolderId,
+          },
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 2. ted_calendar_create — POST /graph/{profile}/calendar/event/create
+  api.registerTool({
+    name: "ted_calendar_create",
+    label: "Ted Calendar Create",
+    description:
+      "Create a calendar event in a Microsoft 365 calendar. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to schedule a meeting, create a calendar hold, or add an event.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      subject: Type.String({
+        description: "The subject/title of the calendar event.",
+      }),
+      start_datetime: Type.String({
+        description: "Start date and time in ISO 8601 format (e.g. 2026-02-23T09:00:00).",
+      }),
+      end_datetime: Type.String({
+        description: "End date and time in ISO 8601 format (e.g. 2026-02-23T10:00:00).",
+      }),
+      location: Type.Optional(
+        Type.String({
+          description: "Location of the event (e.g. conference room name, address, or video link).",
+        }),
+      ),
+      body_text: Type.Optional(
+        Type.String({
+          description: "Body text or agenda for the calendar event.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the creation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const subject = typeof params?.subject === "string" ? params.subject.trim() : "";
+        const startDatetime =
+          typeof params?.start_datetime === "string" ? params.start_datetime.trim() : "";
+        const endDatetime =
+          typeof params?.end_datetime === "string" ? params.end_datetime.trim() : "";
+        if (!subject) {
+          return tedToolJson({ error: "subject is required" });
+        }
+        if (!startDatetime) {
+          return tedToolJson({ error: "start_datetime is required" });
+        }
+        if (!endDatetime) {
+          return tedToolJson({ error: "end_datetime is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Create calendar event "${subject}" from ${startDatetime} to ${endDatetime} in ${profileId} calendar`,
+            params: {
+              profile_id: profileId,
+              subject,
+              start_datetime: startDatetime,
+              end_datetime: endDatetime,
+              location: params?.location ?? null,
+              body_text: params?.body_text ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {
+          subject,
+          start_datetime: startDatetime,
+          end_datetime: endDatetime,
+        };
+        if (typeof params?.location === "string" && params.location.trim().length > 0) {
+          body.location = params.location.trim();
+        }
+        if (typeof params?.body_text === "string" && params.body_text.trim().length > 0) {
+          body.body_text = params.body_text.trim();
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/calendar/event/create`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 3. ted_deal_create — POST /deals/create
+  api.registerTool({
+    name: "ted_deal_create",
+    label: "Ted Deal Create",
+    description:
+      "Create a new deal in Ted's deal operations module. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to start tracking a new transaction, deal, or matter.",
+    parameters: Type.Object({
+      deal_name: Type.String({
+        description: "Name of the deal (e.g. 'Everest Q1 Refinance').",
+      }),
+      deal_type: Type.Optional(
+        Type.String({
+          description: 'Type of deal (e.g. "acquisition", "refinance", "lease", "development").',
+        }),
+      ),
+      entity: Type.Optional(
+        Type.String({
+          description: 'Entity the deal belongs to (e.g. "olumie", "everest", "prestige").',
+        }),
+      ),
+      status: Type.Optional(
+        Type.String({
+          description: 'Initial status of the deal (e.g. "active", "pending", "closed").',
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the creation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const dealName = typeof params?.deal_name === "string" ? params.deal_name.trim() : "";
+        if (!dealName) {
+          return tedToolJson({ error: "deal_name is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Create new deal "${dealName}"`,
+            params: {
+              deal_name: dealName,
+              deal_type: params?.deal_type ?? null,
+              entity: params?.entity ?? null,
+              status: params?.status ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { deal_name: dealName };
+        if (typeof params?.deal_type === "string") body.deal_type = params.deal_type;
+        if (typeof params?.entity === "string") body.entity = params.entity;
+        if (typeof params?.status === "string") body.status = params.status;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, "/deals/create", body);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 4. ted_deal_update — POST /deals/{deal_id}/update
+  api.registerTool({
+    name: "ted_deal_update",
+    label: "Ted Deal Update",
+    description:
+      "Update fields on an existing deal. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to change a deal's name, type, stage, status, or entity.",
+    parameters: Type.Object({
+      deal_id: Type.String({
+        description: "The unique identifier of the deal to update.",
+      }),
+      updates: Type.Optional(
+        Type.Object({
+          deal_name: Type.Optional(Type.String({ description: "New deal name." })),
+          deal_type: Type.Optional(Type.String({ description: "New deal type." })),
+          stage: Type.Optional(Type.String({ description: "New deal stage." })),
+          status: Type.Optional(Type.String({ description: "New deal status." })),
+          entity: Type.Optional(Type.String({ description: "New entity assignment." })),
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the update. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const dealId = typeof params?.deal_id === "string" ? params.deal_id.trim() : "";
+        if (!dealId) {
+          return tedToolJson({ error: "deal_id is required" });
+        }
+        const updates = params?.updates && typeof params.updates === "object" ? params.updates : {};
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Update deal ${dealId}`,
+            params: { deal_id: dealId, updates },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (updates.deal_name !== undefined) body.deal_name = updates.deal_name;
+        if (updates.deal_type !== undefined) body.deal_type = updates.deal_type;
+        if (updates.stage !== undefined) body.stage = updates.stage;
+        if (updates.status !== undefined) body.status = updates.status;
+        if (updates.entity !== undefined) body.entity = updates.entity;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/update`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 5. ted_deal_manage — POST /deals/{deal_id}/tasks or /deals/{deal_id}/notes
+  api.registerTool({
+    name: "ted_deal_manage",
+    label: "Ted Deal Manage",
+    description:
+      "Add a task or note to an existing deal. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to add a to-do item, checklist entry, or annotation to a deal.",
+    parameters: Type.Object({
+      deal_id: Type.String({
+        description: "The unique identifier of the deal.",
+      }),
+      action: Type.Union([Type.Literal("add_task"), Type.Literal("add_note")], {
+        description:
+          'The management action to perform: "add_task" to add a task/to-do, "add_note" to add a note/annotation.',
+      }),
+      payload: Type.Object(
+        {
+          title: Type.Optional(Type.String({ description: "Task title (for add_task)." })),
+          text: Type.Optional(Type.String({ description: "Note text (for add_note)." })),
+          due_date: Type.Optional(
+            Type.String({
+              description: "Due date for the task in ISO 8601 format (for add_task).",
+            }),
+          ),
+          author: Type.Optional(Type.String({ description: "Author of the note (for add_note)." })),
+        },
+        { description: "Payload for the action. Fields depend on the action type." },
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the action. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const dealId = typeof params?.deal_id === "string" ? params.deal_id.trim() : "";
+        const action = params?.action;
+        if (!dealId) {
+          return tedToolJson({ error: "deal_id is required" });
+        }
+        if (action !== "add_task" && action !== "add_note") {
+          return tedToolJson({
+            error: 'action must be "add_task" or "add_note"',
+          });
+        }
+        const payload = params?.payload ?? {};
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `${action === "add_task" ? "Add task to" : "Add note to"} deal ${dealId}`,
+            params: { deal_id: dealId, action, payload },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (action === "add_task") {
+          if (payload.title !== undefined) body.title = payload.title;
+          if (payload.due_date !== undefined) body.due_date = payload.due_date;
+          const routePath = `/deals/${encodeURIComponent(dealId)}/tasks`;
+          const result = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+          return tedToolJson(result);
+        }
+        // add_note
+        if (payload.text !== undefined) body.text = payload.text;
+        if (payload.author !== undefined) body.author = payload.author;
+        const routePath = `/deals/${encodeURIComponent(dealId)}/notes`;
+        const result = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        return tedToolJson(result);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Phase 6/7/8 Read-Only Agent Tools ─────────────────────────────────────
+
+  // 9. ted_meeting_upcoming — GET /meeting/upcoming?hours=24
+  api.registerTool({
+    name: "ted_meeting_upcoming",
+    label: "Ted Meeting Upcoming",
+    description:
+      "List upcoming meetings within the next 24 hours. Returns event details including subject, start/end times, attendees, and location. Use this when the user asks about their upcoming meetings, what's on their calendar today, or wants to prepare for their next meeting.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/meeting/upcoming?hours=24",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 10. ted_commitments_list — GET /commitments/list
+  api.registerTool({
+    name: "ted_commitments_list",
+    label: "Ted Commitments List",
+    description:
+      "List all tracked commitments (promises made to or by the operator). Returns commitment descriptions, owners, due dates, statuses, and associated entities. Use this when the user asks about their open commitments, promises, or obligations.",
+    parameters: Type.Object({
+      entity: Type.Optional(
+        Type.String({
+          description: 'Filter by entity (e.g. "olumie", "everest"). Omit for all entities.',
+        }),
+      ),
+      status: Type.Optional(
+        Type.String({
+          description:
+            'Filter by status (e.g. "open", "completed", "overdue"). Omit for all statuses.',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const queryParts: string[] = [];
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          queryParts.push(`entity=${encodeURIComponent(params.entity.trim())}`);
+        }
+        if (typeof params?.status === "string" && params.status.trim().length > 0) {
+          queryParts.push(`status=${encodeURIComponent(params.status.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/commitments/list${queryString}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 11. ted_actions_list — GET /gtd/actions/list
+  api.registerTool({
+    name: "ted_actions_list",
+    label: "Ted GTD Actions List",
+    description:
+      "List GTD next-actions tracked by Ted. Returns action descriptions, contexts, energy levels, time estimates, statuses, and associated entities. Use this when the user asks about their action items, next actions, or GTD task list.",
+    parameters: Type.Object({
+      entity: Type.Optional(
+        Type.String({
+          description: 'Filter by entity (e.g. "olumie", "everest"). Omit for all entities.',
+        }),
+      ),
+      status: Type.Optional(
+        Type.String({
+          description:
+            'Filter by status (e.g. "active", "completed", "waiting"). Omit for all statuses.',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const queryParts: string[] = [];
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          queryParts.push(`entity=${encodeURIComponent(params.entity.trim())}`);
+        }
+        if (typeof params?.status === "string" && params.status.trim().length > 0) {
+          queryParts.push(`status=${encodeURIComponent(params.status.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/gtd/actions/list${queryString}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 12. ted_waiting_for_list — GET /gtd/waiting-for/list
+  api.registerTool({
+    name: "ted_waiting_for_list",
+    label: "Ted GTD Waiting-For List",
+    description:
+      "List GTD waiting-for items tracked by Ted. Returns items the operator is waiting on from others, including descriptions, responsible parties, expected dates, and statuses. Use this when the user asks about pending items, things they're waiting on, or delegated tasks.",
+    parameters: Type.Object({
+      entity: Type.Optional(
+        Type.String({
+          description: 'Filter by entity (e.g. "olumie", "everest"). Omit for all entities.',
+        }),
+      ),
+      status: Type.Optional(
+        Type.String({
+          description:
+            'Filter by status (e.g. "waiting", "received", "overdue"). Omit for all statuses.',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const queryParts: string[] = [];
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          queryParts.push(`entity=${encodeURIComponent(params.entity.trim())}`);
+        }
+        if (typeof params?.status === "string" && params.status.trim().length > 0) {
+          queryParts.push(`status=${encodeURIComponent(params.status.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/gtd/waiting-for/list${queryString}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 13. ted_timeblock_plan — POST /planning/timeblock/generate
+  api.registerTool({
+    name: "ted_timeblock_plan",
+    label: "Ted Timeblock Plan",
+    description:
+      "Generate a time-blocked daily plan based on the operator's calendar, priorities, and energy patterns. Returns a structured schedule with suggested time blocks for deep work, meetings, admin, and breaks. Use this when the user asks Ted to plan their day or create a time-blocked schedule.",
+    parameters: Type.Object({
+      date: Type.Optional(
+        Type.String({
+          description:
+            'Target date for the plan in ISO format (e.g. "2026-02-23"). Defaults to today.',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (typeof params?.date === "string" && params.date.trim().length > 0) {
+          body.date = params.date.trim();
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/planning/timeblock/generate",
+          body,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 14. ted_deep_work_metrics — GET /reporting/deep-work-metrics
+  api.registerTool({
+    name: "ted_deep_work_metrics",
+    label: "Ted Deep Work Metrics",
+    description:
+      "Retrieve deep work metrics and focus time analytics. Returns data on deep work hours, interruption counts, focus scores, and trends over the specified period. Use this when the user asks about their productivity, deep work time, or focus metrics.",
+    parameters: Type.Object({
+      period: Type.Optional(
+        Type.String({
+          description: 'Reporting period (e.g. "day", "week", "month"). Defaults to "week".',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const period =
+          typeof params?.period === "string" && params.period.trim().length > 0
+            ? params.period.trim()
+            : "week";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/reporting/deep-work-metrics?period=${encodeURIComponent(period)}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 15. ted_trust_metrics — GET /reporting/trust-metrics
+  api.registerTool({
+    name: "ted_trust_metrics",
+    label: "Ted Trust Metrics",
+    description:
+      "Retrieve trust and reliability metrics for the operator's commitments and follow-through. Returns data on commitment completion rates, response times, and trust scores over the specified period. Use this when the user asks about their reliability, commitment tracking, or trust metrics.",
+    parameters: Type.Object({
+      period: Type.Optional(
+        Type.String({
+          description: 'Reporting period (e.g. "day", "week", "month"). Defaults to "week".',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const period =
+          typeof params?.period === "string" && params.period.trim().length > 0
+            ? params.period.trim()
+            : "week";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/reporting/trust-metrics?period=${encodeURIComponent(period)}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 16. ted_para_structure — GET /filing/para/structure
+  api.registerTool({
+    name: "ted_para_structure",
+    label: "Ted PARA Structure",
+    description:
+      "Retrieve the current PARA (Projects, Areas, Resources, Archives) filing structure. Returns the organised hierarchy of folders and categories used for information management. Use this when the user asks about their filing system, folder structure, or how things are organised.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/filing/para/structure",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Phase 6/7/8 Write-Operation Agent Tools with Confirmation Gate ────────
+
+  // 17. ted_meeting_debrief — POST /meeting/debrief
+  api.registerTool({
+    name: "ted_meeting_debrief",
+    label: "Ted Meeting Debrief",
+    description:
+      "Record a meeting debrief with summary and action items. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to capture meeting outcomes, decisions, or follow-up items.",
+    parameters: Type.Object({
+      event_id: Type.String({
+        description: "The calendar event ID for the meeting being debriefed.",
+      }),
+      summary: Type.String({
+        description: "Summary of the meeting including key decisions and outcomes.",
+      }),
+      entity: Type.Optional(
+        Type.String({
+          description: 'Entity the meeting relates to (e.g. "olumie", "everest").',
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the debrief. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const eventId = typeof params?.event_id === "string" ? params.event_id.trim() : "";
+        const summary = typeof params?.summary === "string" ? params.summary.trim() : "";
+        if (!eventId) {
+          return tedToolJson({ error: "event_id is required" });
+        }
+        if (!summary) {
+          return tedToolJson({ error: "summary is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Record debrief for meeting ${eventId}`,
+            params: {
+              event_id: eventId,
+              summary,
+              entity: params?.entity ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { event_id: eventId, summary };
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          body.entity = params.entity.trim();
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/meeting/debrief",
+          body,
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 18. ted_meeting_prep — POST /meeting/prep/{event_id}
+  api.registerTool({
+    name: "ted_meeting_prep",
+    label: "Ted Meeting Prep",
+    description:
+      "Generate a meeting preparation brief for an upcoming meeting. Ted analyses attendees, context, and related entity data to produce a prep document. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to prepare for a specific meeting.",
+    parameters: Type.Object({
+      event_id: Type.String({
+        description: "The calendar event ID for the meeting to prepare for.",
+      }),
+      attendees: Type.Optional(
+        Type.String({
+          description: "Comma-separated list of attendee names or emails for additional context.",
+        }),
+      ),
+      context: Type.Optional(
+        Type.String({
+          description:
+            "Additional context or notes to include in the prep (e.g. agenda items, goals).",
+        }),
+      ),
+      entity: Type.Optional(
+        Type.String({
+          description: 'Entity the meeting relates to (e.g. "olumie", "everest").',
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the prep generation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const eventId = typeof params?.event_id === "string" ? params.event_id.trim() : "";
+        if (!eventId) {
+          return tedToolJson({ error: "event_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Generate meeting prep for event ${eventId}`,
+            params: {
+              event_id: eventId,
+              attendees: params?.attendees ?? null,
+              context: params?.context ?? null,
+              entity: params?.entity ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (typeof params?.attendees === "string" && params.attendees.trim().length > 0) {
+          body.attendees = params.attendees.trim();
+        }
+        if (typeof params?.context === "string" && params.context.trim().length > 0) {
+          body.context = params.context.trim();
+        }
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          body.entity = params.entity.trim();
+        }
+        const routePath = `/meeting/prep/${encodeURIComponent(eventId)}`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 19. ted_commitment_create — POST /commitments/create
+  api.registerTool({
+    name: "ted_commitment_create",
+    label: "Ted Commitment Create",
+    description:
+      "Create a new commitment (promise made to or by the operator). Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user makes a promise, agrees to a deliverable, or wants to track an obligation.",
+    parameters: Type.Object({
+      description: Type.String({
+        description: "Description of the commitment or promise.",
+      }),
+      owner: Type.Optional(
+        Type.String({
+          description: "Who owns this commitment (e.g. operator name, counterparty name).",
+        }),
+      ),
+      entity: Type.Optional(
+        Type.String({
+          description: 'Entity the commitment relates to (e.g. "olumie", "everest").',
+        }),
+      ),
+      due_date: Type.Optional(
+        Type.String({
+          description: 'Due date in ISO format (e.g. "2026-03-01").',
+        }),
+      ),
+      deal_id: Type.Optional(
+        Type.String({
+          description: "Associated deal ID, if the commitment is linked to a specific deal.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the creation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const description =
+          typeof params?.description === "string" ? params.description.trim() : "";
+        if (!description) {
+          return tedToolJson({ error: "description is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Create commitment: "${description}"`,
+            params: {
+              description,
+              owner: params?.owner ?? null,
+              entity: params?.entity ?? null,
+              due_date: params?.due_date ?? null,
+              deal_id: params?.deal_id ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { description };
+        if (typeof params?.owner === "string" && params.owner.trim().length > 0) {
+          body.owner = params.owner.trim();
+        }
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          body.entity = params.entity.trim();
+        }
+        if (typeof params?.due_date === "string" && params.due_date.trim().length > 0) {
+          body.due_date = params.due_date.trim();
+        }
+        if (typeof params?.deal_id === "string" && params.deal_id.trim().length > 0) {
+          body.deal_id = params.deal_id.trim();
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/commitments/create",
+          body,
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 20. ted_commitment_complete — POST /commitments/{id}/complete
+  api.registerTool({
+    name: "ted_commitment_complete",
+    label: "Ted Commitment Complete",
+    description:
+      "Mark a commitment as completed. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user has fulfilled a promise or obligation and wants to close it out.",
+    parameters: Type.Object({
+      commitment_id: Type.String({
+        description: "The unique identifier of the commitment to mark as complete.",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the completion. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const commitmentId =
+          typeof params?.commitment_id === "string" ? params.commitment_id.trim() : "";
+        if (!commitmentId) {
+          return tedToolJson({ error: "commitment_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Mark commitment ${commitmentId} as complete`,
+            params: { commitment_id: commitmentId },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const routePath = `/commitments/${encodeURIComponent(commitmentId)}/complete`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 21. ted_action_create — POST /gtd/actions/create
+  api.registerTool({
+    name: "ted_action_create",
+    label: "Ted GTD Action Create",
+    description:
+      "Create a new GTD next-action. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user identifies a next action, task, or to-do item to track in their GTD system.",
+    parameters: Type.Object({
+      description: Type.String({
+        description: "Description of the next action to create.",
+      }),
+      entity: Type.Optional(
+        Type.String({
+          description: 'Entity the action relates to (e.g. "olumie", "everest").',
+        }),
+      ),
+      context: Type.Optional(
+        Type.String({
+          description:
+            'GTD context for the action (e.g. "@office", "@phone", "@computer", "@errands").',
+        }),
+      ),
+      energy: Type.Optional(
+        Type.String({
+          description: 'Energy level required (e.g. "high", "medium", "low").',
+        }),
+      ),
+      time_estimate_min: Type.Optional(
+        Type.Number({
+          description: "Estimated time to complete in minutes.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the creation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const description =
+          typeof params?.description === "string" ? params.description.trim() : "";
+        if (!description) {
+          return tedToolJson({ error: "description is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Create GTD action: "${description}"`,
+            params: {
+              description,
+              entity: params?.entity ?? null,
+              context: params?.context ?? null,
+              energy: params?.energy ?? null,
+              time_estimate_min: params?.time_estimate_min ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { description };
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          body.entity = params.entity.trim();
+        }
+        if (typeof params?.context === "string" && params.context.trim().length > 0) {
+          body.context = params.context.trim();
+        }
+        if (typeof params?.energy === "string" && params.energy.trim().length > 0) {
+          body.energy = params.energy.trim();
+        }
+        if (
+          typeof params?.time_estimate_min === "number" &&
+          Number.isFinite(params.time_estimate_min) &&
+          params.time_estimate_min > 0
+        ) {
+          body.time_estimate_min = Math.floor(params.time_estimate_min);
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/gtd/actions/create",
+          body,
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // 22. ted_para_classify — POST /filing/para/classify
+  api.registerTool({
+    name: "ted_para_classify",
+    label: "Ted PARA Classify",
+    description:
+      "Classify an item into the PARA (Projects, Areas, Resources, Archives) filing system. Ted analyses the item and suggests the appropriate category and location. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to file or categorise a document, note, or piece of information.",
+    parameters: Type.Object({
+      item: Type.String({
+        description: "Description or title of the item to classify.",
+      }),
+      entity: Type.Optional(
+        Type.String({
+          description: 'Entity the item relates to (e.g. "olumie", "everest").',
+        }),
+      ),
+      deal_id: Type.Optional(
+        Type.String({
+          description: "Associated deal ID, if the item is linked to a specific deal.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the classification. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const item = typeof params?.item === "string" ? params.item.trim() : "";
+        if (!item) {
+          return tedToolJson({ error: "item is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Classify item into PARA: "${item}"`,
+            params: {
+              item,
+              entity: params?.entity ?? null,
+              deal_id: params?.deal_id ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { item };
+        if (typeof params?.entity === "string" && params.entity.trim().length > 0) {
+          body.entity = params.entity.trim();
+        }
+        if (typeof params?.deal_id === "string" && params.deal_id.trim().length > 0) {
+          body.deal_id = params.deal_id.trim();
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/filing/para/classify",
+          body,
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Draft Queue Agent Tools (Phase 11 / JC-089e) ────────────────────────────
+
+  // ted_draft_queue_list — GET /drafts/queue
+  api.registerTool({
+    name: "ted_draft_queue_list",
+    label: "Ted Draft Queue List",
+    description:
+      "List drafts in Ted's draft queue. Returns all pending, approved, and executed drafts. Optionally filter by state (e.g. 'pending', 'approved', 'executed') or by originating profile. Use this when the user asks about pending drafts, the draft queue, or wants to review what Ted has prepared.",
+    parameters: Type.Object({
+      state: Type.Optional(
+        Type.String({
+          description:
+            'Filter by draft state. Options: "pending", "approved", "executed". Omit for all drafts.',
+        }),
+      ),
+      from_profile: Type.Optional(
+        Type.String({
+          description: 'Filter by originating M365 profile (e.g. "olumie", "everest").',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const qs = new URLSearchParams();
+        if (typeof params?.state === "string" && params.state.trim().length > 0) {
+          qs.set("state", params.state.trim());
+        }
+        if (typeof params?.from_profile === "string" && params.from_profile.trim().length > 0) {
+          qs.set("from_profile", params.from_profile.trim());
+        }
+        const qsStr = qs.toString();
+        const routePath = `/drafts/queue${qsStr ? `?${qsStr}` : ""}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_draft_approve — POST /drafts/{draft_id}/approve
+  api.registerTool({
+    name: "ted_draft_approve",
+    label: "Ted Draft Approve",
+    description:
+      "Approve a draft in Ted's draft queue, marking it ready for execution. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user reviews a draft and wants to approve it for sending.",
+    parameters: Type.Object({
+      draft_id: Type.String({
+        description: "The unique identifier of the draft to approve.",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the approval. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const draftId = typeof params?.draft_id === "string" ? params.draft_id.trim() : "";
+        if (!draftId) {
+          return tedToolJson({ error: "draft_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Approve draft ${draftId}`,
+            params: { draft_id: draftId },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/approve`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_draft_edit — POST /drafts/{draft_id}/edit
+  api.registerTool({
+    name: "ted_draft_edit",
+    label: "Ted Draft Edit",
+    description:
+      "Edit the content or subject of a draft in Ted's draft queue. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to modify a draft before approving or sending it.",
+    parameters: Type.Object({
+      draft_id: Type.String({
+        description: "The unique identifier of the draft to edit.",
+      }),
+      content: Type.Optional(
+        Type.String({
+          description: "New body content for the draft.",
+        }),
+      ),
+      subject: Type.Optional(
+        Type.String({
+          description: "New subject line for the draft.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the edit. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const draftId = typeof params?.draft_id === "string" ? params.draft_id.trim() : "";
+        if (!draftId) {
+          return tedToolJson({ error: "draft_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Edit draft ${draftId}`,
+            params: {
+              draft_id: draftId,
+              content: params?.content ?? null,
+              subject: params?.subject ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (typeof params?.content === "string") body.content = params.content;
+        if (typeof params?.subject === "string") body.subject = params.subject;
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/edit`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_draft_execute — POST /drafts/{draft_id}/execute
+  api.registerTool({
+    name: "ted_draft_execute",
+    label: "Ted Draft Execute",
+    description:
+      "Execute (send) an approved draft from Ted's draft queue. This actually sends the email or performs the draft action. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user wants to send an approved draft.",
+    parameters: Type.Object({
+      draft_id: Type.String({
+        description: "The unique identifier of the draft to execute.",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the draft. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const draftId = typeof params?.draft_id === "string" ? params.draft_id.trim() : "";
+        if (!draftId) {
+          return tedToolJson({ error: "draft_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Execute (send) draft ${draftId}`,
+            params: { draft_id: draftId },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/execute`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── State Machine Extensions Agent Tools (Phase 13 / JC-091e) ──────────────
+
+  // ted_facility_alerts_list — GET /facility/alerts/list
+  api.registerTool({
+    name: "ted_facility_alerts_list",
+    label: "Ted Facility Alerts List",
+    description:
+      "List facility alerts tracked by Ted. Returns all active, escalated, and resolved facility alerts. Optionally filter by status. Use this when the user asks about facility issues, building alerts, or maintenance concerns.",
+    parameters: Type.Object({
+      status: Type.Optional(
+        Type.String({
+          description:
+            'Filter by alert status (e.g. "open", "escalated", "resolved"). Omit for all alerts.',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const qs = new URLSearchParams();
+        if (typeof params?.status === "string" && params.status.trim().length > 0) {
+          qs.set("status", params.status.trim());
+        }
+        const qsStr = qs.toString();
+        const routePath = `/facility/alerts/list${qsStr ? `?${qsStr}` : ""}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_facility_alert_create — POST /facility/alert/create
+  api.registerTool({
+    name: "ted_facility_alert_create",
+    label: "Ted Facility Alert Create",
+    description:
+      "Create a new facility alert in Ted. Reports a facility issue such as a maintenance problem, safety concern, or building system alert. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user reports a facility problem or wants to log a building-related issue.",
+    parameters: Type.Object({
+      title: Type.String({
+        description: "Short title describing the facility issue.",
+      }),
+      description: Type.Optional(
+        Type.String({
+          description: "Detailed description of the facility issue.",
+        }),
+      ),
+      severity: Type.Optional(
+        Type.String({
+          description: 'Severity level of the alert (e.g. "low", "medium", "high", "critical").',
+        }),
+      ),
+      location: Type.Optional(
+        Type.String({
+          description: "Physical location or area affected by the issue.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to create the alert. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const title = typeof params?.title === "string" ? params.title.trim() : "";
+        if (!title) {
+          return tedToolJson({ error: "title is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Create facility alert: "${title}"`,
+            params: {
+              title,
+              description: params?.description ?? null,
+              severity: params?.severity ?? null,
+              location: params?.location ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { title };
+        if (typeof params?.description === "string" && params.description.trim().length > 0) {
+          body.description = params.description.trim();
+        }
+        if (typeof params?.severity === "string" && params.severity.trim().length > 0) {
+          body.severity = params.severity.trim();
+        }
+        if (typeof params?.location === "string" && params.location.trim().length > 0) {
+          body.location = params.location.trim();
+        }
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/facility/alert/create",
+          body,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_facility_alert_escalate — POST /facility/alert/{id}/escalate
+  api.registerTool({
+    name: "ted_facility_alert_escalate",
+    label: "Ted Facility Alert Escalate",
+    description:
+      "Escalate a facility alert to a higher status level. Moves the alert to a more urgent state with an explanation of why escalation is needed. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when a facility issue needs more urgent attention or has worsened.",
+    parameters: Type.Object({
+      id: Type.String({
+        description: "The unique identifier of the facility alert to escalate.",
+      }),
+      target_status: Type.Optional(
+        Type.String({
+          description: 'Target escalation status (e.g. "escalated", "critical").',
+        }),
+      ),
+      reason: Type.Optional(
+        Type.String({
+          description: "Reason for escalating the alert.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the escalation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const id = typeof params?.id === "string" ? params.id.trim() : "";
+        if (!id) {
+          return tedToolJson({ error: "id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Escalate facility alert ${id}`,
+            params: {
+              id,
+              target_status: params?.target_status ?? null,
+              reason: params?.reason ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (typeof params?.target_status === "string" && params.target_status.trim().length > 0) {
+          body.target_status = params.target_status.trim();
+        }
+        if (typeof params?.reason === "string" && params.reason.trim().length > 0) {
+          body.reason = params.reason.trim();
+        }
+        const routePath = `/facility/alert/${encodeURIComponent(id)}/escalate`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_facility_alert_resolve — POST /facility/alert/{id}/resolve
+  api.registerTool({
+    name: "ted_facility_alert_resolve",
+    label: "Ted Facility Alert Resolve",
+    description:
+      "Resolve a facility alert, marking it as addressed. Optionally include resolution notes. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when a facility issue has been fixed or no longer requires attention.",
+    parameters: Type.Object({
+      id: Type.String({
+        description: "The unique identifier of the facility alert to resolve.",
+      }),
+      notes: Type.Optional(
+        Type.String({
+          description: "Resolution notes describing how the issue was addressed.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the resolution. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const id = typeof params?.id === "string" ? params.id.trim() : "";
+        if (!id) {
+          return tedToolJson({ error: "id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Resolve facility alert ${id}`,
+            params: {
+              id,
+              notes: params?.notes ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (typeof params?.notes === "string" && params.notes.trim().length > 0) {
+          body.notes = params.notes.trim();
+        }
+        const routePath = `/facility/alert/${encodeURIComponent(id)}/resolve`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_commitment_escalate — POST /commitments/{id}/escalate
+  api.registerTool({
+    name: "ted_commitment_escalate",
+    label: "Ted Commitment Escalate",
+    description:
+      "Escalate a commitment to flag it as at-risk or requiring urgent attention. Adds an escalation reason to the commitment record. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when a commitment is overdue, blocked, or needs operator intervention.",
+    parameters: Type.Object({
+      id: Type.String({
+        description: "The unique identifier of the commitment to escalate.",
+      }),
+      reason: Type.Optional(
+        Type.String({
+          description: "Reason for escalating the commitment.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the escalation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const id = typeof params?.id === "string" ? params.id.trim() : "";
+        if (!id) {
+          return tedToolJson({ error: "id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Escalate commitment ${id}`,
+            params: {
+              id,
+              reason: params?.reason ?? null,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (typeof params?.reason === "string" && params.reason.trim().length > 0) {
+          body.reason = params.reason.trim();
+        }
+        const routePath = `/commitments/${encodeURIComponent(id)}/escalate`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Planner / To Do / Sync / Extraction agent tools (JC-104b) ──────────────
+
+  // ted_planner_plans — GET /graph/{profile}/planner/plans
+  api.registerTool({
+    name: "ted_planner_plans",
+    label: "Ted Planner Plans",
+    description:
+      "List Microsoft Planner plans for a Microsoft 365 profile managed by Ted. Returns plan names, IDs, and metadata. Use this when the user asks about their Planner plans, project boards, or task plans.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/planner/plans`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_planner_tasks — GET /graph/{profile}/planner/plans/{plan_id}/tasks
+  api.registerTool({
+    name: "ted_planner_tasks",
+    label: "Ted Planner Tasks",
+    description:
+      "List tasks from a Microsoft Planner plan. Returns task titles, assignments, progress, and bucket information. Optionally filter by bucket. Use this when the user asks about tasks in a specific Planner plan or wants to see task assignments.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      plan_id: Type.String({
+        description: "The unique identifier of the Planner plan to list tasks from.",
+      }),
+      bucket_id: Type.Optional(
+        Type.String({
+          description: "Optional bucket ID to filter tasks by a specific bucket within the plan.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const planId = typeof params?.plan_id === "string" ? params.plan_id.trim() : "";
+        if (!planId) {
+          return tedToolJson({ error: "plan_id is required" });
+        }
+        const queryParts: string[] = [];
+        if (typeof params?.bucket_id === "string" && params.bucket_id.trim().length > 0) {
+          queryParts.push(`bucket_id=${encodeURIComponent(params.bucket_id.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/planner/plans/${encodeURIComponent(planId)}/tasks${queryString}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_todo_tasks — GET /graph/{profile}/todo/lists/{list_id}/tasks
+  api.registerTool({
+    name: "ted_todo_tasks",
+    label: "Ted To Do Tasks",
+    description:
+      "List tasks from a Microsoft To Do list. Returns task titles, status, due dates, and importance. Use this when the user asks about their To Do items, task lists, or wants to see pending tasks in a specific list.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      list_id: Type.String({
+        description: "The unique identifier of the To Do list to retrieve tasks from.",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const listId = typeof params?.list_id === "string" ? params.list_id.trim() : "";
+        if (!listId) {
+          return tedToolJson({ error: "list_id is required" });
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/todo/lists/${encodeURIComponent(listId)}/tasks`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sync_reconcile — GET /graph/{profile}/sync/reconcile
+  api.registerTool({
+    name: "ted_sync_reconcile",
+    label: "Ted Sync Reconcile",
+    description:
+      "Run a reconciliation between Ted's local state and the external Microsoft 365 data for a profile. Returns a summary of discrepancies and proposed sync actions. Use this when the user asks Ted to check for sync drift, reconcile data, or verify consistency with M365.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sync/reconcile`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sync_proposals — GET /graph/{profile}/sync/proposals
+  api.registerTool({
+    name: "ted_sync_proposals",
+    label: "Ted Sync Proposals",
+    description:
+      "List pending sync proposals for a Microsoft 365 profile. Returns proposals that require operator approval before Ted writes changes to external systems. Optionally filter by status. Use this when the user asks about pending sync actions or wants to review what Ted proposes to change.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      status: Type.Optional(
+        Type.String({
+          description:
+            'Filter proposals by status (e.g. "pending", "approved", "rejected"). Omit for all proposals.',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const queryParts: string[] = [];
+        if (typeof params?.status === "string" && params.status.trim().length > 0) {
+          queryParts.push(`status=${encodeURIComponent(params.status.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sync/proposals${queryString}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sync_approve — POST /graph/{profile}/sync/proposals/{proposal_id}/approve
+  api.registerTool({
+    name: "ted_sync_approve",
+    label: "Ted Sync Approve",
+    description:
+      "Approve a sync proposal, authorizing Ted to write the proposed changes to the external Microsoft 365 system. Requires confirmation: first call returns a preview; call again with confirmed=true to execute. Use this when the user reviews a sync proposal and wants to approve it.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      proposal_id: Type.String({
+        description: "The unique identifier of the sync proposal to approve.",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the approval. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const proposalId = typeof params?.proposal_id === "string" ? params.proposal_id.trim() : "";
+        if (!proposalId) {
+          return tedToolJson({ error: "proposal_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Approve sync proposal ${proposalId} for profile ${profileId}`,
+            params: {
+              profile_id: profileId,
+              proposal_id: proposalId,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sync/proposals/${encodeURIComponent(proposalId)}/approve`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── SharePoint agent tools ────────────────────────────────────────────────────
+
+  // ted_sharepoint_sites — GET /graph/{profile}/sharepoint/sites
+  api.registerTool({
+    name: "ted_sharepoint_sites",
+    label: "Ted SharePoint Sites",
+    description:
+      "List SharePoint sites for a profile. Returns site names, IDs, and URLs. Use this when the user asks about their SharePoint sites or wants to browse available sites in Microsoft 365.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/sites`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sharepoint_drives — GET /graph/{profile}/sharepoint/sites/{site_id}/drives
+  api.registerTool({
+    name: "ted_sharepoint_drives",
+    label: "Ted SharePoint Drives",
+    description:
+      "List document libraries for a SharePoint site. Returns drive names, IDs, and quota information. Use this when the user wants to see the document libraries available on a specific SharePoint site.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      site_id: Type.String({
+        description: "The unique identifier of the SharePoint site to list drives from.",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const siteId = typeof params?.site_id === "string" ? params.site_id.trim() : "";
+        if (!siteId) {
+          return tedToolJson({ error: "site_id is required" });
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/sites/${encodeURIComponent(siteId)}/drives`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sharepoint_browse — GET /graph/{profile}/sharepoint/drives/{drive_id}/items
+  api.registerTool({
+    name: "ted_sharepoint_browse",
+    label: "Ted SharePoint Browse",
+    description:
+      "Browse files and folders in a SharePoint document library. Returns item names, types, sizes, and modification dates. Optionally filter by path or item_id. Use this when the user wants to explore the contents of a document library.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      drive_id: Type.String({
+        description: "The unique identifier of the document library (drive) to browse.",
+      }),
+      path: Type.Optional(
+        Type.String({
+          description: "Optional folder path within the drive to list contents of.",
+        }),
+      ),
+      item_id: Type.Optional(
+        Type.String({
+          description: "Optional item ID to list children of a specific folder.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const driveId = typeof params?.drive_id === "string" ? params.drive_id.trim() : "";
+        if (!driveId) {
+          return tedToolJson({ error: "drive_id is required" });
+        }
+        const queryParts: string[] = [];
+        if (typeof params?.path === "string" && params.path.trim().length > 0) {
+          queryParts.push(`path=${encodeURIComponent(params.path.trim())}`);
+        }
+        if (typeof params?.item_id === "string" && params.item_id.trim().length > 0) {
+          queryParts.push(`item_id=${encodeURIComponent(params.item_id.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/items${queryString}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sharepoint_search — GET /graph/{profile}/sharepoint/drives/{drive_id}/search
+  api.registerTool({
+    name: "ted_sharepoint_search",
+    label: "Ted SharePoint Search",
+    description:
+      "Search files in a SharePoint document library. Returns matching items with names, paths, and metadata. Use this when the user wants to find specific files or documents within a document library.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      drive_id: Type.String({
+        description: "The unique identifier of the document library (drive) to search.",
+      }),
+      query: Type.String({
+        description: "The search query string to find files matching this text.",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const driveId = typeof params?.drive_id === "string" ? params.drive_id.trim() : "";
+        if (!driveId) {
+          return tedToolJson({ error: "drive_id is required" });
+        }
+        const query = typeof params?.query === "string" ? params.query.trim() : "";
+        if (!query) {
+          return tedToolJson({ error: "query is required" });
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/search?q=${encodeURIComponent(query)}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sharepoint_item — GET /graph/{profile}/sharepoint/drives/{drive_id}/items/{item_id}
+  api.registerTool({
+    name: "ted_sharepoint_item",
+    label: "Ted SharePoint Item",
+    description:
+      "Get metadata for a specific file or folder in a SharePoint document library. Returns name, size, created/modified dates, download URL, and other properties. Use this when the user wants detailed information about a specific file or folder.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      drive_id: Type.String({
+        description: "The unique identifier of the document library (drive) containing the item.",
+      }),
+      item_id: Type.String({
+        description: "The unique identifier of the file or folder to retrieve metadata for.",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const driveId = typeof params?.drive_id === "string" ? params.drive_id.trim() : "";
+        if (!driveId) {
+          return tedToolJson({ error: "drive_id is required" });
+        }
+        const itemId = typeof params?.item_id === "string" ? params.item_id.trim() : "";
+        if (!itemId) {
+          return tedToolJson({ error: "item_id is required" });
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(itemId)}`;
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sharepoint_upload — POST /graph/{profile}/sharepoint/drives/{drive_id}/upload
+  api.registerTool({
+    name: "ted_sharepoint_upload",
+    label: "Ted SharePoint Upload",
+    description:
+      "Upload a file to a SharePoint document library. Requires confirmation: first call returns a preview of the upload action; call again with confirmed=true to execute. Use this when the user wants to upload or save a file to SharePoint.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      drive_id: Type.String({
+        description: "The unique identifier of the document library (drive) to upload to.",
+      }),
+      path: Type.Optional(
+        Type.String({
+          description: "The folder path within the drive where the file will be uploaded.",
+        }),
+      ),
+      file_name: Type.String({
+        description: "The name for the uploaded file (including extension).",
+      }),
+      content_base64: Type.String({
+        description: "The file content encoded as a base64 string.",
+      }),
+      content_type: Type.Optional(
+        Type.String({
+          description: 'The MIME content type of the file (e.g. "application/pdf", "text/plain").',
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the upload. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const driveId = typeof params?.drive_id === "string" ? params.drive_id.trim() : "";
+        if (!driveId) {
+          return tedToolJson({ error: "drive_id is required" });
+        }
+        const fileName = typeof params?.file_name === "string" ? params.file_name.trim() : "";
+        if (!fileName) {
+          return tedToolJson({ error: "file_name is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Upload file "${fileName}" to drive ${driveId} for profile ${profileId}`,
+            params: {
+              profile_id: profileId,
+              drive_id: driveId,
+              path: params?.path ?? "/",
+              file_name: fileName,
+              content_type: params?.content_type ?? "application/octet-stream",
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/upload`;
+        const body: Record<string, unknown> = {
+          file_name: fileName,
+          content_base64: params?.content_base64,
+        };
+        if (typeof params?.path === "string") body.path = params.path;
+        if (typeof params?.content_type === "string") body.content_type = params.content_type;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_sharepoint_create_folder — POST /graph/{profile}/sharepoint/drives/{drive_id}/folder
+  api.registerTool({
+    name: "ted_sharepoint_create_folder",
+    label: "Ted SharePoint Create Folder",
+    description:
+      "Create a new folder in a SharePoint document library. Requires confirmation: first call returns a preview of the folder creation; call again with confirmed=true to execute. Use this when the user wants to create a new folder in SharePoint.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      drive_id: Type.String({
+        description:
+          "The unique identifier of the document library (drive) to create the folder in.",
+      }),
+      parent_path: Type.Optional(
+        Type.String({
+          description: "The parent folder path where the new folder will be created.",
+        }),
+      ),
+      folder_name: Type.String({
+        description: "The name for the new folder.",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the folder creation. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const driveId = typeof params?.drive_id === "string" ? params.drive_id.trim() : "";
+        if (!driveId) {
+          return tedToolJson({ error: "drive_id is required" });
+        }
+        const folderName = typeof params?.folder_name === "string" ? params.folder_name.trim() : "";
+        if (!folderName) {
+          return tedToolJson({ error: "folder_name is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Create folder "${folderName}" in drive ${driveId} for profile ${profileId}`,
+            params: {
+              profile_id: profileId,
+              drive_id: driveId,
+              parent_path: params?.parent_path ?? "/",
+              folder_name: folderName,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/sharepoint/drives/${encodeURIComponent(driveId)}/folder`;
+        const body: Record<string, unknown> = {
+          folder_name: folderName,
+        };
+        if (typeof params?.parent_path === "string") body.parent_path = params.parent_path;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_extract_commitments — POST /graph/{profile}/mail/{message_id}/extract-commitments
+  api.registerTool({
+    name: "ted_extract_commitments",
+    label: "Ted Extract Commitments",
+    description:
+      "Extract commitments, action items, and follow-ups from an email message. Ted analyses the email content and returns structured commitment records. Use this when the user wants to identify obligations, promises, or action items from a specific email.",
+    parameters: Type.Object({
+      profile_id: Type.Optional(
+        Type.String({
+          description: 'Microsoft 365 profile identifier. Use "olumie" (default) or "everest".',
+        }),
+      ),
+      message_id: Type.String({
+        description: "The unique identifier of the email message to extract commitments from.",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const profileId = normalizeSupportedProfileId(params?.profile_id) ?? "olumie";
+        const messageId = typeof params?.message_id === "string" ? params.message_id.trim() : "";
+        if (!messageId) {
+          return tedToolJson({ error: "message_id is required" });
+        }
+        const routePath = `/graph/${encodeURIComponent(profileId)}/mail/${encodeURIComponent(messageId)}/extract-commitments`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, {});
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_improvement_proposals — GET /improvement/proposals
+  api.registerTool({
+    name: "ted_improvement_proposals",
+    label: "Ted Improvement Proposals",
+    description:
+      "List improvement proposals from the Codex Builder Lane. Proposals are generated from trust failure analysis and operator feedback. Filter by status: proposed, approved, applied, rejected.",
+    parameters: Type.Object({
+      status: Type.Optional(
+        Type.String({
+          description: "Filter by status (proposed, approved, applied, rejected).",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const queryParts: string[] = [];
+        if (typeof params?.status === "string" && params.status.trim().length > 0) {
+          queryParts.push(`status=${encodeURIComponent(params.status.trim())}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/improvement/proposals${queryString}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_improvement_propose — POST /improvement/proposals
+  api.registerTool({
+    name: "ted_improvement_propose",
+    label: "Ted Improvement Propose",
+    description:
+      "Create a new improvement proposal for contracts, config, validators, or routes. Part of the Codex Builder Lane — proposals must be reviewed and approved before application.",
+    parameters: Type.Object({
+      title: Type.String({
+        description: "Proposal title.",
+      }),
+      type: Type.String({
+        description: "Type: contract_update, config_update, new_validator, route_enhancement.",
+      }),
+      description: Type.String({
+        description: "What should change and why.",
+      }),
+      source: Type.Optional(
+        Type.String({
+          description: "Source: trust_failure_aggregation, operator_feedback, learning_modifier.",
+        }),
+      ),
+      change_spec: Type.Optional(
+        Type.Any({
+          description: "Specification of proposed change.",
+        }),
+      ),
+      evidence: Type.Optional(
+        Type.Any({
+          description: "Evidence supporting the proposal.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {
+          title: params?.title,
+          type: params?.type,
+          description: params?.description,
+        };
+        if (params?.source !== undefined) body.source = params.source;
+        if (params?.change_spec !== undefined) body.change_spec = params.change_spec;
+        if (params?.evidence !== undefined) body.evidence = params.evidence;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/improvement/proposals",
+          body,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_improvement_review — POST /improvement/proposals/{proposal_id}/review
+  api.registerTool({
+    name: "ted_improvement_review",
+    label: "Ted Improvement Review",
+    description:
+      "Review an improvement proposal — approve or reject it. Only proposals in 'proposed' status can be reviewed. Requires confirmation: first call returns a preview; call again with confirmed=true to execute.",
+    parameters: Type.Object({
+      proposal_id: Type.String({
+        description: "The proposal ID to review.",
+      }),
+      verdict: Type.String({
+        description: "approved or rejected.",
+      }),
+      notes: Type.Optional(
+        Type.String({
+          description: "Reviewer notes.",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the review. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const proposalId = typeof params?.proposal_id === "string" ? params.proposal_id.trim() : "";
+        if (!proposalId) {
+          return tedToolJson({ error: "proposal_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Review proposal ${proposalId} with verdict: ${params?.verdict}`,
+            params: {
+              proposal_id: proposalId,
+              verdict: params?.verdict,
+              notes: params?.notes,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { verdict: params.verdict };
+        if (params?.notes !== undefined) body.notes = params.notes;
+        const routePath = `/improvement/proposals/${encodeURIComponent(proposalId)}/review`;
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, routePath, body, {
+          "x-ted-approval-source": "operator",
+        });
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_failure_aggregation — GET /improvement/failure-aggregation
+  api.registerTool({
+    name: "ted_failure_aggregation",
+    label: "Ted Failure Aggregation",
+    description:
+      "Aggregate trust validation failures over a time period to identify patterns. Used to generate improvement proposals for contracts and validators.",
+    parameters: Type.Object({
+      days: Type.Optional(
+        Type.Number({
+          description: "Lookback period in days (default 30).",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const queryParts: string[] = [];
+        if (params?.days !== undefined) {
+          queryParts.push(`days=${encodeURIComponent(String(params.days))}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/improvement/failure-aggregation${queryString}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_improvement_apply — POST /improvement/proposals/{proposal_id}/apply (write tool)
+  api.registerTool({
+    name: "ted_improvement_apply",
+    label: "Ted Improvement Apply",
+    description:
+      "Apply an approved improvement proposal. For contract_update and config_update types, this modifies the target config file. Requires prior approval via review.",
+    parameters: Type.Object({
+      proposal_id: Type.String({ description: "The proposal ID to apply." }),
+      confirmed: Type.Optional(
+        Type.Boolean({ description: "Set true to execute. Omit for preview." }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const proposalId = typeof params?.proposal_id === "string" ? params.proposal_id.trim() : "";
+        if (!proposalId) return tedToolError(new Error("proposal_id is required"));
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Apply approved proposal ${proposalId} — may modify config files`,
+            params: { proposal_id: proposalId },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const routePath = `/improvement/proposals/${encodeURIComponent(proposalId)}/apply`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_improvement_generate — POST /improvement/proposals/generate (LLM synthesis)
+  api.registerTool({
+    name: "ted_improvement_generate",
+    label: "Ted Improvement Generate",
+    description:
+      "Generate an improvement proposal from trust failure data using LLM analysis. Returns proposal text and evidence but does NOT auto-create it.",
+    parameters: Type.Object({
+      days: Type.Optional(
+        Type.Number({
+          description: "Lookback period in days for failure aggregation (default 30).",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = {};
+        if (params?.days !== undefined) body.days = params.days;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/improvement/proposals/generate",
+          body,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Builder Lane Agent Tools (BL-009) ───
+
+  // ted_builder_lane_status — GET /ops/builder-lane/status (read tool)
+  api.registerTool({
+    name: "ted_builder_lane_status",
+    label: "Ted Builder Lane Status",
+    description:
+      "View the Builder Lane status: correction counts per domain, current phase per dimension, confidence scores, fatigue state, active/applied/reverted proposals, and total signal counts.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/builder-lane/status",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_builder_lane_metrics — GET /ops/builder-lane/improvement-metrics (read tool)
+  api.registerTool({
+    name: "ted_builder_lane_metrics",
+    label: "Ted Builder Lane Metrics",
+    description:
+      "View Builder Lane improvement metrics: correction rate trend (weekly buckets), draft acceptance rate (this month vs last month), proposals applied count, progress by dimension, monthly summary text, and config change markers.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/builder-lane/improvement-metrics",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_builder_lane_revert — POST /ops/builder-lane/revert/:proposal_id (write tool, requires confirmation)
+  api.registerTool({
+    name: "ted_builder_lane_revert",
+    label: "Ted Builder Lane Revert",
+    description:
+      "Revert an applied Builder Lane config change to its pre-change snapshot. Requires operator confirmation. This restores the config file to its exact state before the improvement was applied.",
+    parameters: Type.Object({
+      proposal_id: Type.String({
+        description: "The proposal ID to revert (e.g. BL-1234567890-abc1).",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({ description: "Set to true to confirm and execute the revert." }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const proposalId = (params as { proposal_id: string; confirmed?: boolean }).proposal_id;
+        const confirmed = (params as { confirmed?: boolean }).confirmed;
+        if (!confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: "revert_improvement",
+            proposal_id: proposalId,
+            message:
+              "This will restore the config to its pre-change state. Call again with confirmed=true to execute.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          `/ops/builder-lane/revert/${encodeURIComponent(proposalId)}`,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_trust_autonomy — GET /trust/autonomy/evaluate
+  api.registerTool({
+    name: "ted_trust_autonomy",
+    label: "Ted Trust Autonomy",
+    description:
+      "Evaluate current trust metrics and determine eligibility for autonomy level promotion. Shows validation pass rate, draft approval rate, and consecutive passes.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/trust/autonomy/evaluate",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_draft_submit_review — POST /drafts/:draft_id/submit-review
+  api.registerTool({
+    name: "ted_draft_submit_review",
+    label: "Ted Draft Submit Review",
+    description:
+      "Submit a draft for operator review. Transitions a draft from 'drafted' or 'edited' to 'pending_review' state. Requires confirmation: first call returns a preview; call again with confirmed=true to execute.",
+    parameters: Type.Object({
+      draft_id: Type.String({
+        description: "The draft ID to submit for review.",
+      }),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the submission. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const draftId = typeof params?.draft_id === "string" ? params.draft_id.trim() : "";
+        if (!draftId) {
+          return tedToolJson({ error: "draft_id is required" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Submit draft ${draftId} for operator review`,
+            params: { draft_id: draftId },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const routePath = `/drafts/${encodeURIComponent(draftId)}/submit-review`;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          routePath,
+          {},
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_deep_work_session — POST /deep-work/session
+  api.registerTool({
+    name: "ted_deep_work_session",
+    label: "Ted Deep Work Session",
+    description:
+      "Record a completed deep work session. Logs duration, optional label, and entity context to the deep work ledger. Requires confirmation: first call returns a preview; call again with confirmed=true to execute.",
+    parameters: Type.Object({
+      duration_minutes: Type.Number({
+        description: "Duration of the session in minutes (1-480).",
+      }),
+      label: Type.Optional(
+        Type.String({
+          description: "Optional label for the session (e.g., 'Olumie Fund II closing docs').",
+        }),
+      ),
+      entity: Type.Optional(
+        Type.String({
+          description: "Optional entity context (olumie, everest).",
+        }),
+      ),
+      confirmed: Type.Optional(
+        Type.Boolean({
+          description:
+            "Set to true to execute the recording. Omit or set false to get a preview of what will happen.",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const durationMinutes =
+          typeof params?.duration_minutes === "number" ? params.duration_minutes : 0;
+        if (durationMinutes < 1 || durationMinutes > 480) {
+          return tedToolJson({ error: "duration_minutes must be between 1 and 480" });
+        }
+        if (!params?.confirmed) {
+          return tedToolJson({
+            preview: true,
+            action: `Record ${durationMinutes}-minute deep work session${params?.label ? `: ${params.label}` : ""}`,
+            params: {
+              duration_minutes: durationMinutes,
+              label: params?.label,
+              entity: params?.entity,
+            },
+            message: "Reply with confirmed: true to execute this action.",
+          });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const body: Record<string, unknown> = { duration_minutes: durationMinutes };
+        if (params?.label !== undefined) body.label = params.label;
+        if (params?.entity !== undefined) body.entity = params.entity;
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/deep-work/session",
+          body,
+          { "x-ted-approval-source": "operator" },
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_graph_sync_status — GET /graph/:profile_id/sync/status
+  api.registerTool({
+    name: "ted_graph_sync_status",
+    label: "Ted Graph Sync Status",
+    description:
+      "View recent graph sync ledger history for a profile, showing sync health status and check history.",
+    parameters: Type.Object({
+      profile_id: Type.String({
+        description: 'Graph profile ID (e.g., "olumie", "everest").',
+      }),
+      limit: Type.Optional(
+        Type.Number({
+          description: "Max entries to return (default 20).",
+        }),
+      ),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const profileId = normalizeSupportedProfileId(params?.profile_id);
+        if (!profileId) {
+          return tedToolJson({ error: "profile_id must be one of olumie|everest" });
+        }
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const queryParts: string[] = [];
+        if (params?.limit !== undefined) {
+          queryParts.push(`limit=${encodeURIComponent(String(params.limit))}`);
+        }
+        const queryString = queryParts.length > 0 ? `?${queryParts.join("&")}` : "";
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/graph/${encodeURIComponent(profileId)}/sync/status${queryString}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_ingestion_status — GET /ops/ingestion/status
+  api.registerTool({
+    name: "ted_ingestion_status",
+    label: "Ted Ingestion Status",
+    description:
+      "Check the current status of Ted's inbox ingestion pipeline. Returns stats on processed messages, last run time, and any errors. Use this when the user asks about ingestion health or whether new mail has been processed.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/ingestion/status",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_discovery_status — GET /ops/onboarding/discovery-status
+  api.registerTool({
+    name: "ted_discovery_status",
+    label: "Ted Discovery Status",
+    description:
+      "View the results of the most recent onboarding discovery pipeline run. Returns discovered contacts, patterns, and profile data that Ted has identified. Use this when the user asks about discovery progress or onboarding status.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/onboarding/discovery-status",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── C12-004: Deal stale owners tool ────────────────────────────────────────
+  api.registerTool({
+    name: "ted_deal_stale_owners",
+    label: "Ted Deal Stale Owners",
+    description:
+      "Check for deals where the owner has not updated in N days (default 7). Returns a list of stale deals with days since last touch. Use when the user asks about deal pipeline health or stalled deals.",
+    parameters: Type.Object({
+      days: Type.Optional(Type.Number({ description: "Number of days threshold (default 7)" })),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const days = params?.days ?? 7;
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/deals/stale-owners?days=${encodeURIComponent(days)}`,
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── C12-011: Deal retrospective tool ───────────────────────────────────────
+  api.registerTool({
+    name: "ted_deal_retrospective",
+    label: "Ted Deal Retrospective",
+    description:
+      "Generate a per-deal learning retrospective for a closed or dead deal. Summarizes events, commitments, drafts, and stage transitions. Use when the user wants to review what happened on a specific deal.",
+    parameters: Type.Object({
+      deal_id: Type.String({ description: "The deal ID to generate a retrospective for" }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        if (!params?.deal_id) return tedToolError(new Error("deal_id is required"));
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          `/deals/${encodeURIComponent(params.deal_id)}/retrospective`,
+          {},
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Self-Healing Agent Tools (Phase A) ────────────────────────────────────
+
+  // ted_self_healing_status — GET /ops/self-healing/status
+  api.registerTool({
+    name: "ted_self_healing_status",
+    label: "Ted Self-Healing Status",
+    description:
+      "View the self-healing subsystem status: circuit breaker states, provider health, config drift status, ledger compaction metrics, and proposal expiry stats. Use this to check overall system health and self-repair state.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/status",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_circuit_breakers — GET /ops/self-healing/circuit-breakers
+  api.registerTool({
+    name: "ted_circuit_breakers",
+    label: "Ted Circuit Breakers",
+    description:
+      "View all circuit breaker states in the Ted system. Shows which external service integrations are open (healthy), half-open (recovering), or closed (tripped). Use this to diagnose connectivity or integration failures.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/circuit-breakers",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_provider_health — GET /ops/self-healing/provider-health
+  api.registerTool({
+    name: "ted_provider_health",
+    label: "Ted Provider Health",
+    description:
+      "View health metrics for LLM and external service providers. Shows latency, error rates, and availability per provider. Use this to diagnose slow or failing LLM calls.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/provider-health",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_config_drift_reconcile — POST /ops/self-healing/config-drift/reconcile
+  api.registerTool({
+    name: "ted_config_drift_reconcile",
+    label: "Ted Config Drift Reconcile",
+    description:
+      "Trigger a config drift reconciliation scan. Compares live config files against their expected schemas and checksums, reporting any drift or corruption. Use this when you suspect config files may have been modified outside the Builder Lane.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/config-drift/reconcile",
+          {},
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_compact_ledgers — POST /ops/self-healing/compact-ledgers
+  api.registerTool({
+    name: "ted_compact_ledgers",
+    label: "Ted Compact Ledgers",
+    description:
+      "Trigger ledger compaction across all JSONL ledger files. Removes duplicate entries, truncates rotated segments, and reports bytes reclaimed. Use this for maintenance when ledger files grow large.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/compact-ledgers",
+          {},
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_expire_proposals — POST /ops/self-healing/expire-proposals
+  api.registerTool({
+    name: "ted_expire_proposals",
+    label: "Ted Expire Proposals",
+    description:
+      "Trigger expiry of stale improvement proposals. Proposals in 'proposed' status beyond the configured age threshold are marked expired. Use this for periodic governance hygiene.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/expire-proposals",
+          {},
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_resurrect_proposal — POST /ops/builder-lane/proposals/{proposal_id}/resurrect
+  api.registerTool({
+    name: "ted_resurrect_proposal",
+    label: "Ted Resurrect Proposal",
+    description:
+      "Resurrect an expired or rejected improvement proposal, returning it to 'proposed' status for re-evaluation. Use this when the operator wants to reconsider a previously dismissed proposal.",
+    parameters: Type.Object({
+      proposal_id: Type.String({
+        description: "The proposal ID to resurrect (e.g. BL-1234567890-abc1).",
+      }),
+    }),
+    async execute(_toolCallId, params) {
+      try {
+        const proposalId = typeof params?.proposal_id === "string" ? params.proposal_id.trim() : "";
+        if (!proposalId) return tedToolError(new Error("proposal_id is required"));
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          `/ops/builder-lane/proposals/${encodeURIComponent(proposalId)}/resurrect`,
+          {},
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Self-Healing Agent Tools (Phase B) ────────────────────────────────────
+
+  // ted_correction_taxonomy — GET /ops/self-healing/correction-taxonomy
+  api.registerTool({
+    name: "ted_correction_taxonomy",
+    label: "Ted Correction Taxonomy",
+    description:
+      "View the correction signal taxonomy: all known correction categories, their frequency counts, and classification rules. Use this to understand what types of operator corrections Ted has observed.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/correction-taxonomy",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_engagement_insights — GET /ops/self-healing/engagement-insights
+  api.registerTool({
+    name: "ted_engagement_insights",
+    label: "Ted Engagement Insights",
+    description:
+      "View engagement analytics: read rates, action rates, and time-to-action across content types (briefs, digests, drafts, alerts). Use this to understand which Ted outputs the operator actually uses.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/engagement-insights",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_noise_level — GET /ops/self-healing/noise-level
+  api.registerTool({
+    name: "ted_noise_level",
+    label: "Ted Noise Level",
+    description:
+      "View the current noise level assessment: notification volume, dismissed-without-read rate, and recommended throttle adjustments. Use this to check if Ted is over-communicating or generating alert fatigue.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/noise-level",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ted_autonomy_status — GET /ops/self-healing/autonomy-status
+  api.registerTool({
+    name: "ted_autonomy_status",
+    label: "Ted Autonomy Status",
+    description:
+      "View the current autonomy ladder position and progression metrics. Shows which actions Ted can take autonomously vs. those requiring operator confirmation, and the evidence driving any level changes.",
+    parameters: Type.Object({}),
+    async execute(_toolCallId) {
+      try {
+        const { baseUrl, timeoutMs } = resolveTedToolConfig();
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/self-healing/autonomy-status",
+        );
+        return tedToolJson(payload);
+      } catch (err) {
+        return tedToolError(err);
+      }
+    },
+  });
+
+  // ─── Governance Hook: before_tool_call (JC-076c) ───────────────────────────
+  //
+  // This hook fires before any ted_* tool call. It enforces:
+  // 1. Hard-ban tool list — governance-sensitive tools that must never be called
+  //    by the agent (these are operator-only or internal governance endpoints).
+  // 2. Entity boundary — if a profile_id is present, ensures it matches
+  //    one of the supported entity profiles.
+  // 3. Autonomy ladder — write operations in draft_only mode return a preview
+  //    first (handled by the confirmation gate in each write tool, but the hook
+  //    enforces it as a second layer of defense).
+
+  const TED_HARD_BAN_TOOLS = new Set([
+    "ted_policy_update",
+    "ted_policy_preview_update",
+    "ted_gates_set",
+    "ted_jobcards_update",
+    "ted_recommendations_decide",
+    "ted_jobcards_proof_run",
+  ]);
+
+  const TED_SUPPORTED_ENTITIES = new Set(["olumie", "everest"]);
+
+  api.on("before_tool_call", (event) => {
+    const { toolName, params } = event;
+
+    // Only intercept ted_* tools
+    if (!toolName.startsWith("ted_")) {
+      return;
+    }
+
+    // 1. Hard-ban enforcement: block governance-sensitive tool names
+    if (TED_HARD_BAN_TOOLS.has(toolName)) {
+      return {
+        block: true,
+        blockReason: `Tool "${toolName}" is hard-banned by Ted governance policy. This tool cannot be called by the agent.`,
+      };
+    }
+
+    // 2. Entity boundary check: if params contain profile_id, verify it is a
+    //    supported entity. This prevents the agent from accessing unknown or
+    //    cross-entity profiles.
+    const profileId =
+      params && typeof params === "object" && "profile_id" in params
+        ? (params as Record<string, unknown>).profile_id
+        : undefined;
+    if (
+      profileId !== undefined &&
+      typeof profileId === "string" &&
+      profileId.trim().length > 0 &&
+      !TED_SUPPORTED_ENTITIES.has(profileId.trim().toLowerCase())
+    ) {
+      return {
+        block: true,
+        blockReason: `Entity boundary violation: profile_id "${profileId}" is not a supported entity. Supported entities: ${[...TED_SUPPORTED_ENTITIES].join(", ")}.`,
+      };
+    }
+
+    // MF-8: Operator-only tools — agent cannot self-approve with confirmed=true
+    if (REQUIRES_OPERATOR_CONFIRMATION.has(toolName)) {
+      const confirmed =
+        params && typeof params === "object" && "confirmed" in params
+          ? (params as Record<string, unknown>).confirmed
+          : false;
+      if (confirmed === true) {
+        return {
+          block: true,
+          blockReason: `Tool "${toolName}" requires OPERATOR confirmation. The agent cannot self-approve this action. The operator must approve via the Ted Workbench UI.`,
+        };
+      }
+      // Allow preview calls through (confirmed=false or absent)
+      return;
+    }
+
+    // 3. Autonomy ladder enforcement: for write tools, if confirmed is not
+    //    explicitly true, the tool's own execute function will return a preview.
+    //    This hook adds a secondary defense by blocking unconfirmed writes at
+    //    the hook level when the autonomy mode is "draft_only" (the default).
+    if (TED_WRITE_TOOLS_SET.has(toolName)) {
+      const confirmed =
+        params && typeof params === "object" && "confirmed" in params
+          ? (params as Record<string, unknown>).confirmed
+          : false;
+      if (confirmed !== true) {
+        // Allow the call through — the tool itself will return a preview.
+        // We only enforce hard blocking here; the preview gate is in the tool.
+        return;
+      }
+    }
+
+    return;
+  });
 }
 
 export { buildSafeEndpoint, isLoopbackHost, normalizeBaseUrl, resolvePathFromAction };

@@ -687,6 +687,327 @@ export type TedConnectorAuthRevokeResponse = {
   message?: string;
 };
 
+export type TedMailMessage = {
+  id: string | null;
+  subject: string;
+  from: { name: string; address: string };
+  received_at: string | null;
+  is_read: boolean;
+  preview: string;
+  has_attachments: boolean;
+  importance: string;
+};
+
+export type TedMailListResponse = {
+  profile_id: string;
+  folder: string;
+  messages: TedMailMessage[];
+  total_count: number | null;
+};
+
+export type TedMorningBriefResponse = {
+  generated_at: string;
+  headline: string;
+  summary: string;
+  detail: {
+    triage_open: number;
+    deals_active: number;
+    filing_pending_count: number;
+    automation_paused: boolean;
+  };
+  deals_summary: Array<{
+    deal_id: string | null;
+    deal_name?: string;
+    status?: string;
+  }>;
+  recent_activity: Array<{
+    action: string;
+    at: string | null;
+    summary: string | null;
+  }>;
+  recommendations: string[];
+  source: "template" | "llm" | "hybrid";
+};
+
+export type TedEodDigestResponse = {
+  generated_at: string;
+  date: string;
+  headline: string;
+  summary: string;
+  detail: {
+    actions_count: number;
+    approvals_count: number;
+    blocks_count: number;
+    triage_resolved: number;
+    triage_still_open: number;
+    filing_approved: number;
+    filing_pending: number;
+  };
+  activity_log: Array<{ action: string; count: number }>;
+  unresolved: Array<{
+    type: string;
+    count: number;
+    items: Array<Record<string, unknown>>;
+  }>;
+  source: "template" | "llm" | "hybrid";
+};
+
+// ── Meeting + Commitments + GTD Types (Phase 6) ─────────────────────
+
+export interface TedMeetingEvent {
+  event_id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  attendees: Array<{ name: string; email: string; entity: string }>;
+  entity: string;
+  prep_ready: boolean;
+  open_commitments: number;
+}
+
+export interface TedMeetingUpcomingResponse {
+  meetings: TedMeetingEvent[];
+  generated_at: string;
+  hours_window: number;
+}
+
+export interface TedCommitment {
+  id: string;
+  who_owes: string;
+  who_to: string;
+  what: string;
+  entity: string;
+  deal_id: string | null;
+  due_date: string | null;
+  status: string;
+  follow_up_count: number;
+  created_at: string;
+}
+
+export interface TedCommitmentsListResponse {
+  commitments: TedCommitment[];
+  total_count: number;
+}
+
+export interface TedGtdAction {
+  id: string;
+  description: string;
+  entity: string;
+  deal_id: string | null;
+  context: string | null;
+  energy: string;
+  time_estimate_min: number | null;
+  due_date: string | null;
+  status: string;
+  created_at: string;
+}
+
+export interface TedActionsListResponse {
+  actions: TedGtdAction[];
+  total_count: number;
+}
+
+export interface TedWaitingForItem {
+  id: string;
+  description: string;
+  delegated_to: string;
+  entity: string;
+  expected_by: string | null;
+  status: string;
+  follow_up_count: number;
+  created_at: string;
+}
+
+export interface TedWaitingForListResponse {
+  waiting_for: TedWaitingForItem[];
+  total_count: number;
+}
+
+// ── Trust + Deep Work Metrics Types (Phase 8) ───────────────────────
+
+export interface TedTrustMetricsResponse {
+  period: string;
+  approval_rate: number;
+  total_decisions: number;
+  approvals: number;
+  edits: number;
+  time_saved_estimate: string;
+  time_saved_minutes: number;
+  actions_completed: number;
+  commitments_completed: number;
+  generated_at: string;
+}
+
+export interface TedDeepWorkMetricsResponse {
+  period: string;
+  deep_work_hours: number;
+  target_hours: number;
+  adherence_pct: number;
+  plans_generated: number;
+  actions_completed: number;
+  generated_at: string;
+}
+
+// ── Draft Queue (JC-089f) ────────────────────────────────────────────
+
+export interface TedDraftQueueResponse {
+  drafts: Array<{
+    draft_id: string;
+    draft_kind: string;
+    state: string;
+    subject: string;
+    to: string;
+    content: string;
+    from_profile: string | null;
+    related_deal_id: string | null;
+    related_meeting_id: string | null;
+    entity: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  count: number;
+}
+
+// ── Event Log Stats (JC-087e) ────────────────────────────────────────
+
+export interface TedEventLogStatsResponse {
+  total_events: number;
+  last_event_at: string | null;
+  event_type_counts: Record<string, number>;
+}
+
+// ── LLM Provider Types (JC-072a) ────────────────────────────────────
+
+export type LlmProviderName = "openai_direct" | "azure_openai" | "copilot_extension" | "disabled";
+
+export type TedLlmProviderConfig = {
+  default_provider: LlmProviderName;
+  default_model: string;
+  timeout_ms: number;
+  providers: Record<
+    string,
+    {
+      enabled: boolean;
+      hipaa_cleared: boolean;
+      notes: string;
+      api_key_set?: boolean;
+      endpoint_set?: boolean;
+    }
+  >;
+  entity_overrides: Record<
+    string,
+    {
+      provider: LlmProviderName | null;
+      required_hipaa_cleared?: boolean;
+      notes?: string;
+    }
+  >;
+  per_job_overrides: Record<string, { provider: LlmProviderName }>;
+};
+
+export type TedNotificationBudgetResponse = {
+  budget: {
+    daily_push_max: number;
+    crisis_override: boolean;
+    quiet_hours: { start: string; end: string; timezone: string };
+    batch_window_minutes: number;
+  };
+  onboarding: {
+    phase: string | null;
+    features: string[];
+    push_max?: number;
+    day?: number;
+  };
+  today_count: number;
+  today_date: string;
+};
+
+// ── Deal Workflow Types ──────────────────────────────────────────────
+
+export type TedDealType = "SNF_ALF" | "SOFTWARE" | "ANCILLARY_HEALTHCARE";
+
+export type TedDealStage =
+  | "deal_identified"
+  | "nda_signed"
+  | "data_room_access"
+  | "dd_active"
+  | "psa_in_progress"
+  | "investor_onboarding"
+  | "closing"
+  | "closed"
+  | "archived";
+
+export type TedDealStatus = "active" | "paused" | "closed" | "archived";
+
+export type TedDealImportantDate = {
+  label: string;
+  date: string;
+  type: "deposit_deadline" | "dd_period_end" | "closing_date" | "psa_milestone" | "custom";
+};
+
+export type TedDealInvestor = {
+  name: string;
+  oig_status: "pending" | "clear" | "hit";
+  oig_checked_at: string | null;
+  state_exclusion_status: "pending" | "clear" | "hit";
+  state_exclusion_checked_at: string | null;
+  disclosure_form_sent: boolean;
+};
+
+export type TedDealCounselInvoice = {
+  amount: number;
+  date: string;
+  description: string;
+};
+
+export type TedDealCounsel = {
+  firm_name: string;
+  matter: string;
+  total_spend: number;
+  invoices: TedDealCounselInvoice[];
+};
+
+export type TedDealTask = {
+  task: string;
+  owner: "Clint" | "Isaac" | "Ted";
+  status: "open" | "done";
+  due_date: string | null;
+  created_at: string;
+};
+
+export type TedDealChecklistItem = {
+  item: string;
+  status: "pending" | "complete" | "na";
+  notes: string;
+};
+
+export type TedDealNote = {
+  text: string;
+  created_at: string;
+  author: string;
+};
+
+export type TedDealSummary = {
+  deal_id: string;
+  deal_name: string;
+  deal_type: TedDealType | null;
+  stage: TedDealStage;
+  status: TedDealStatus;
+  entity: string;
+  next_milestone: TedDealImportantDate | null;
+  updated_at: string;
+};
+
+export type TedDealFull = TedDealSummary & {
+  important_dates: TedDealImportantDate[];
+  investors: TedDealInvestor[];
+  outside_counsel: TedDealCounsel[];
+  team_tasks: TedDealTask[];
+  dd_checklist: TedDealChecklistItem[];
+  notes: TedDealNote[];
+  created_at: string;
+};
+
 export type TedWorkbenchSnapshot = {
   generated_at: string;
   data_sources: {
@@ -863,3 +1184,454 @@ export type TedWorkbenchSnapshot = {
     interrogation_cycle: string;
   };
 };
+
+// ─── Planner Types (Phase 16-21) ───
+
+export interface TedPlannerTask {
+  id: string;
+  title: string;
+  plan_id: string;
+  bucket_id: string;
+  bucket_name: string | null;
+  assigned_to: string[];
+  percent_complete: number;
+  priority: number;
+  due_date: string | null;
+  start_date: string | null;
+  etag: string;
+  entity: string;
+  deal_id: string | null;
+  created_at: string;
+}
+
+export interface TedPlannerBucket {
+  id: string;
+  name: string;
+  plan_id: string;
+  tasks_count: number;
+}
+
+export interface TedPlannerPlanSummary {
+  plan_id: string;
+  title: string;
+  entity: string;
+  buckets: TedPlannerBucket[];
+  tasks_total: number;
+  tasks_complete: number;
+}
+
+export interface TedPlannerListResponse {
+  profile_id: string;
+  plans: TedPlannerPlanSummary[];
+  generated_at: string;
+}
+
+export interface TedPlannerTasksResponse {
+  profile_id: string;
+  plan_id: string;
+  bucket_id: string | null;
+  tasks: TedPlannerTask[];
+  total_count: number;
+}
+
+// ─── To Do Types ───
+
+export interface TedTodoTask {
+  id: string;
+  title: string;
+  body: string | null;
+  status: string;
+  importance: string;
+  due_date: string | null;
+  list_id: string;
+  list_name: string | null;
+  linked_resources: Array<{
+    id: string;
+    application_name: string;
+    external_id: string;
+    display_name: string;
+  }>;
+  created_at: string;
+  last_modified_at: string;
+}
+
+export interface TedTodoListSummary {
+  id: string;
+  display_name: string;
+  is_owner: boolean;
+  tasks_count: number;
+}
+
+export interface TedTodoListsResponse {
+  profile_id: string;
+  lists: TedTodoListSummary[];
+}
+
+export interface TedTodoTasksResponse {
+  profile_id: string;
+  list_id: string;
+  list_name: string;
+  tasks: TedTodoTask[];
+  total_count: number;
+}
+
+// ─── Sync / Reconciliation Types ───
+
+export interface TedSyncDriftItem {
+  source: string;
+  target: string;
+  local_id: string | null;
+  remote_id: string | null;
+  field: string;
+  local_value: string | null;
+  remote_value: string | null;
+  recommendation: string;
+}
+
+export interface TedSyncProposal {
+  proposal_id: string;
+  target_system: "planner" | "todo";
+  action: "create" | "update" | "complete";
+  entity: string;
+  local_id: string;
+  title: string;
+  payload: Record<string, unknown>;
+  status: "pending" | "approved" | "executed" | "rejected" | "conflict";
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface TedSyncReconciliationResponse {
+  profile_id: string;
+  drift_items: TedSyncDriftItem[];
+  proposed_writes: TedSyncProposal[];
+  local_counts: { commitments: number; gtd_actions: number; deal_tasks: number };
+  remote_counts: { planner_tasks: number; todo_tasks: number };
+  generated_at: string;
+}
+
+export interface TedSyncProposalsResponse {
+  profile_id: string;
+  proposals: TedSyncProposal[];
+  total_count: number;
+}
+
+// ─── Commitment Extraction Types ───
+
+export interface TedExtractedCommitment {
+  who_owes: string;
+  who_to: string;
+  what: string;
+  due_date: string | null;
+  confidence: number;
+  source_text: string;
+}
+
+export interface TedCommitmentExtractionResponse {
+  profile_id: string;
+  source_email_id: string;
+  source_subject: string | null;
+  detected: TedExtractedCommitment[];
+  generated_at: string;
+  extraction_source?: string;
+  extraction_status?: "ok" | "none_found" | "extraction_failed";
+}
+
+// ─── Improvement Proposal Types (Codex Builder Lane) ───
+
+export interface TedImprovementProposal {
+  proposal_id: string;
+  type: "contract_update" | "config_update" | "new_validator" | "route_enhancement";
+  title: string;
+  description: string;
+  source: "trust_failure_aggregation" | "operator_feedback" | "learning_modifier";
+  status: "proposed" | "reviewed" | "approved" | "applied" | "rejected";
+  created_at: string;
+  reviewed_at?: string;
+  applied_at?: string;
+  change_spec: Record<string, unknown>;
+  evidence: { failure_count: number; failure_rate: number; sample_failures: string[] };
+}
+
+export interface TedImprovementProposalsResponse {
+  ok: boolean;
+  proposals: TedImprovementProposal[];
+  total: number;
+}
+
+export interface TedImprovementGenerateResponse {
+  ok: boolean;
+  generated: boolean;
+  reason?: string;
+  proposal_text?: string;
+  evidence?: {
+    total_failures: number;
+    failure_by_intent: Record<string, number>;
+    top_missing: Record<string, number>;
+    top_banned: Record<string, number>;
+    sample_failures: Array<{ intent: string; missing: string[]; banned: string[]; ts: string }>;
+  };
+  source?: "llm" | "template" | "hybrid";
+  days?: number;
+}
+
+export interface TedImprovementApplyResponse {
+  ok: boolean;
+  proposal_id: string;
+  status: string;
+  config_applied: boolean;
+  config_key: string | null;
+  config_error: string | null;
+  applied_at: string;
+}
+
+// ─── Trust Autonomy Evaluation Types ───
+
+export interface TedTrustAutonomyEvaluation {
+  current_level: string;
+  eligible_for_promotion: boolean;
+  metrics: {
+    validation_pass_rate: number;
+    draft_approval_rate: number;
+    total_validations: number;
+    total_drafts_approved: number;
+    consecutive_passes: number;
+  };
+  promotion_threshold: Record<string, number>;
+  recommendation: string;
+}
+
+// ─── Failure Aggregation Types ───
+
+export interface TedFailureAggregation {
+  period_start: string;
+  period_end: string;
+  total_failures: number;
+  failure_by_intent: Record<string, number>;
+  top_banned_phrases: string[];
+  top_missing_sections: string[];
+  recommendation: string;
+}
+
+export interface TedFailureAggregationResponse {
+  aggregation: TedFailureAggregation;
+  generated_at: string;
+}
+
+// JC-110: Architecture closure types
+
+export type TedGraphSyncStatusEntry = {
+  kind: string;
+  profile_id: string;
+  status: string;
+  at: string;
+};
+
+export type TedGraphSyncStatusResponse = {
+  profile_id: string;
+  entries: TedGraphSyncStatusEntry[];
+  count: number;
+};
+
+export type TedTrustFailureReason = {
+  count: number;
+  missing_sections: Record<string, number>;
+  banned_phrases: Record<string, number>;
+};
+
+// ─── SharePoint Types ───
+
+export interface TedSharePointSite {
+  id: string;
+  displayName: string;
+  webUrl: string;
+  name: string;
+}
+
+export interface TedSharePointDrive {
+  id: string;
+  name: string;
+  driveType: string;
+  webUrl: string;
+  description: string | null;
+}
+
+export interface TedSharePointItem {
+  id: string;
+  name: string;
+  size: number;
+  lastModifiedDateTime: string;
+  webUrl: string;
+  isFolder: boolean;
+  mimeType: string | null;
+  createdBy: string | null;
+  lastModifiedBy: string | null;
+  parentPath: string | null;
+}
+
+export interface TedSharePointSitesResponse {
+  profile_id: string;
+  sites: TedSharePointSite[];
+  generated_at: string;
+}
+
+export interface TedSharePointDrivesResponse {
+  profile_id: string;
+  site_id: string;
+  drives: TedSharePointDrive[];
+  generated_at: string;
+}
+
+export interface TedSharePointItemsResponse {
+  profile_id: string;
+  drive_id: string;
+  path: string;
+  items: TedSharePointItem[];
+  generated_at: string;
+}
+
+export interface TedSharePointSearchResponse {
+  profile_id: string;
+  drive_id: string;
+  query: string;
+  results: TedSharePointItem[];
+  generated_at: string;
+}
+
+export interface TedSharePointUploadResponse {
+  ok: boolean;
+  item: TedSharePointItem | null;
+  message: string;
+}
+
+export interface TedSharePointFolderResponse {
+  ok: boolean;
+  item: TedSharePointItem | null;
+  message: string;
+}
+
+// C12-004: Stale deal owner tracking
+export interface TedStaleDeal {
+  deal_id: string;
+  name: string;
+  stage: string;
+  last_touched_by: string;
+  last_touched_at: string;
+  days_since_touch: number;
+}
+
+export interface TedStaleDealResponse {
+  stale_deals: TedStaleDeal[];
+  threshold_days: number;
+  checked_at: string;
+}
+
+// C12-011: Deal retrospective
+export interface TedDealRetrospective {
+  deal_id: string;
+  generated_at: string;
+  source: string;
+  total_events: number;
+  total_commitments: number;
+  commitments_completed: number;
+  commitments_open: number;
+  total_drafts: number;
+  drafts_executed: number;
+  drafts_archived: number;
+  stage_transitions: { from: string; to: string; at: string }[];
+  timeline_days: number;
+}
+
+// ── Self-Healing Types (SDD 60) ──────────────────────────────────────
+
+export interface TedCircuitBreakerState {
+  workload_group: string;
+  state: "closed" | "open" | "half-open";
+  failure_rate: number;
+  call_count: number;
+  slow_call_count: number;
+  opened_at: string | null;
+  cooldown_ms: number;
+  probe_in_flight: boolean;
+}
+
+export interface TedProviderHealth {
+  provider: string;
+  ewma_latency_ms: number;
+  ewma_success_rate: number;
+  composite_score: number;
+  circuit_state: "closed" | "open" | "half-open";
+  call_count: number;
+  last_fallback_at: string | null;
+}
+
+export interface TedConfigDriftStatus {
+  file: string;
+  hash: string;
+  last_checked: string;
+  drift_detected: boolean;
+  last_reload_at: string | null;
+  validation_ok: boolean;
+}
+
+export interface TedCompactionResult {
+  ledger: string;
+  archived: number;
+  retained: number;
+  archive_path: string;
+  archive_hash: string;
+}
+
+export interface TedSelfHealingStatus {
+  ok: boolean;
+  circuit_breakers: TedCircuitBreakerState[];
+  provider_health: TedProviderHealth[];
+  config_hashes: TedConfigDriftStatus[];
+  last_compaction: { ran_at: string | null; results: TedCompactionResult[] };
+  proposal_expiry: { expired_count: number; last_run: string | null };
+  archive_manifest: { total_archives: number; total_bytes: number };
+}
+
+export interface TedEngagementInsights {
+  ok: boolean;
+  windows: Array<{
+    content_type: string;
+    optimal_hour: number;
+    optimal_day_range: string;
+    confidence: number;
+    sample_size: number;
+    batch_preference: boolean;
+    median_read_latency_ms: number;
+    median_action_latency_ms: number;
+  }>;
+}
+
+export interface TedNoiseLevel {
+  ok: boolean;
+  level: number;
+  level_label: string;
+  days_in_state: number;
+  trigger_signals: string[];
+}
+
+export interface TedAutonomyStatus {
+  ok: boolean;
+  tasks: Array<{
+    task_type: string;
+    current_level: number;
+    correction_rate: number;
+    engagement_rate: number;
+    executions: number;
+    eligible: boolean;
+    blocking_reasons: string[];
+    shadow_until: string | null;
+  }>;
+}
+
+export interface TedCorrectionClassification {
+  category: string;
+  subcategory: string;
+  confidence: number;
+  evidence: string;
+  spans: Array<{ start: number; end: number; type: string }>;
+}

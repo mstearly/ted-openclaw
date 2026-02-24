@@ -1,0 +1,45 @@
+# Ted Engine Sidecar — systemd unit file (C12-003)
+# Install: sudo cp ted-engine.service /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable ted-engine
+#          sudo systemctl start ted-engine
+#
+# Logs:    journalctl -u ted-engine -f
+
+[Unit]
+Description=Ted Engine Sidecar (OpenClaw co-work kernel)
+After=network.target
+Documentation=file:///home/mattstearly/GitRepos/ted-openclaw/docs/ted-profile/sdd-pack/42_TED_SYSTEM_BLUEPRINT.md
+
+[Service]
+Type=simple
+User=mattstearly
+WorkingDirectory=/home/mattstearly/GitRepos/ted-openclaw/sidecars/ted-engine
+ExecStart=/usr/bin/node server.mjs
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+# Health check
+ExecStartPost=/bin/sh -c 'sleep 2 && curl -sf --max-time 5 http://127.0.0.1:48080/status || exit 1'
+
+# Environment
+Environment=NODE_ENV=production
+Environment=TED_PORT=48080
+Environment=TED_HOST=127.0.0.1
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/home/mattstearly/GitRepos/ted-openclaw/sidecars/ted-engine/data
+ProtectHome=read-only
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ted-engine
+
+[Install]
+WantedBy=multi-user.target

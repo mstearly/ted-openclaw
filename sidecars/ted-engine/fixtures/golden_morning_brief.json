@@ -1,0 +1,17 @@
+{
+  "description": "Expected response shape for GET /reporting/morning-brief (template mode)",
+  "required_fields": ["narrative", "source", "snapshot"],
+  "snapshot_required_fields": [
+    "inbox_count",
+    "commitments_snapshot",
+    "meetings_snapshot",
+    "actions_snapshot"
+  ],
+  "source_values": ["llm", "template"],
+  "narrative_must_not_be_null": true,
+  "validation": {
+    "status_code": 200,
+    "content_type": "application/json"
+  },
+  "_note": "snapshot is a virtual check: inbox_count maps to detail.triage_open, commitments_snapshot and actions_snapshot are top-level fields, meetings_snapshot maps to meetings_today"
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Expected response shape for GET /reporting/eod-digest (template mode)",
+  "required_fields": ["narrative", "source", "snapshot"],
+  "source_values": ["llm", "template"],
+  "narrative_must_not_be_null": true,
+  "validation": {
+    "status_code": 200,
+    "content_type": "application/json"
+  },
+  "_note": "snapshot is a virtual check: detail contains actions_count, triage_resolved, etc."
+}

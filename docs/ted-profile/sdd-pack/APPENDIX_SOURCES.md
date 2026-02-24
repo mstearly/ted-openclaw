@@ -24,3 +24,8 @@ OpenClaw/Ted council & operator docs:
 - SUPERVISOR_MODE_JOB_BOARD.md
 - JOB_FAMILIES.md
 - COUNCIL_CONTROL_PLANE_GOVERNANCE_BLUEPRINT.md
+
+Operator intake forms:
+
+- `docs/ted-profile/client_intake_COMPLETED.md` — Clint's completed client intake questionnaire (2026-02-20)
+- `docs/ted-profile/STYLE_GUIDE.md` — Grounded Sophistication design system and UI guidelines (v1.1)

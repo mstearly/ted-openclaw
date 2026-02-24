@@ -28,6 +28,14 @@ Ted Engine is a loopback-only HTTP server.
 - Filing suggestions: `/filing/suggestions/propose`, `/filing/suggestions/list`, `/filing/suggestions/:id/approve` (`sidecars/ted-engine/server.mjs:1430`, `sidecars/ted-engine/server.mjs:1435`, `sidecars/ted-engine/server.mjs:1440`).
 - Graph: `/graph/*` status/auth/calendar/draft endpoints and diagnostics classify (`sidecars/ted-engine/server.mjs:1478`, `sidecars/ted-engine/server.mjs:1496`, `sidecars/ted-engine/server.mjs:1503`, `sidecars/ted-engine/server.mjs:1533`, `sidecars/ted-engine/server.mjs:1540`).
 
+## Canonical architecture docs (must-read before changes)
+
+- `docs/architecture/Future-State-Framing.md` — Design Laws + North Star framing
+- `docs/council/Planes-Artifacts-Owners.md` — Planes → Artifacts → Owners mapping
+- `docs/ted-profile/sdd-pack/42_TED_SYSTEM_BLUEPRINT.md` — Full 5-plane architecture reference
+
+**Rule:** Proposals must name the plane(s) they affect and which ledgers/events they read/write.
+
 ## Validation (run from repo root)
 
 - `pnpm build`

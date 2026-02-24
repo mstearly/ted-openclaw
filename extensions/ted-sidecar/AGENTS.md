@@ -36,6 +36,14 @@ This extension wires OpenClaw to a local Ted sidecar over loopback HTTP.
   - Endpoint construction enforces allowlist and loopback host (`extensions/ted-sidecar/index.ts:89`).
   - When sidecar is unhealthy, non-governed `/ted` usage is denied (`extensions/ted-sidecar/index.ts:291`).
 
+## Canonical architecture docs (must-read before changes)
+
+- `docs/architecture/Future-State-Framing.md` — Design Laws + North Star framing
+- `docs/council/Planes-Artifacts-Owners.md` — Planes → Artifacts → Owners mapping
+- `docs/ted-profile/sdd-pack/42_TED_SYSTEM_BLUEPRINT.md` — Full 5-plane architecture reference
+
+**Rule:** Proposals must name the plane(s) they affect and which ledgers/events they read/write.
+
 ## Config behavior (do not guess)
 
 - Base URL precedence is plugin config -> `TED_SIDECAR_BASE_URL` env -> default (`extensions/ted-sidecar/index.ts:59`).

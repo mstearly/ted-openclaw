@@ -1,0 +1,64 @@
+{
+  "_sdd": {
+    "source": "51_COUNCIL_EXTERNAL_PANEL_REVIEW_CYCLE_012.md",
+    "finding": "C12-005",
+    "description": "Structured intake template for external deal updates (e.g., Maurice weekly update)"
+  },
+  "intake_template": {
+    "version": "1.0.0",
+    "description": "Lightweight intake template for deal pipeline updates. External contacts (Maurice, brokers, counsel) can use this format for structured updates. Ted also accepts freeform email as fallback.",
+    "fields": {
+      "deal_name": {
+        "required": true,
+        "type": "string",
+        "description": "Name of the deal being updated"
+      },
+      "stage_update": {
+        "required": false,
+        "type": "string",
+        "enum": [
+          "lead",
+          "nda",
+          "loi",
+          "due_diligence",
+          "oa_negotiation",
+          "closing",
+          "closed",
+          "dead"
+        ],
+        "description": "New stage if changed"
+      },
+      "key_update": {
+        "required": true,
+        "type": "string",
+        "description": "One-paragraph summary of what changed this week"
+      },
+      "next_actions": {
+        "required": false,
+        "type": "array",
+        "items": "string",
+        "description": "List of next steps with owner names"
+      },
+      "blockers": {
+        "required": false,
+        "type": "array",
+        "items": "string",
+        "description": "Any blockers or risks"
+      },
+      "key_dates": {
+        "required": false,
+        "type": "array",
+        "items": { "date": "YYYY-MM-DD", "description": "string" },
+        "description": "New or updated key dates"
+      },
+      "contacts_updated": {
+        "required": false,
+        "type": "array",
+        "items": { "name": "string", "role": "string", "email": "string" },
+        "description": "New or updated contacts"
+      }
+    },
+    "email_format_example": "Subject: [DEAL UPDATE] Sunrise SNF Portfolio\n\nDeal: Sunrise SNF Portfolio\nStage: due_diligence\nUpdate: Received Phase I environmental reports for 3 of 5 facilities. Awaiting reports on remaining 2 (expected by 3/1). Census data shows 87% average occupancy across portfolio.\n\nNext Actions:\n- Clint: Review environmental reports by 2/28\n- Maurice: Follow up on remaining 2 Phase I reports\n- Isaac: Update financial model with census data\n\nBlockers:\n- Seller counsel slow to respond on indemnification language\n\nKey Dates:\n- 2026-03-01: Phase I reports due (remaining 2)\n- 2026-03-15: LOI expiration",
+    "fallback_behavior": "If email does not match this template, Ted auto-triages via LLM classification (runInboxIngestionCycle). Structured format preferred but not required."
+  }
+}

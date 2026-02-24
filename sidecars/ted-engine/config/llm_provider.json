@@ -1,0 +1,43 @@
+{
+  "_sdd": {
+    "source": "docs/ted-profile/sdd-pack/43_LLM_INTEGRATION_IMPLEMENTATION_PLAN.md",
+    "section": "Phase A: LLM Provider Infrastructure",
+    "record_id": "jc-070a"
+  },
+  "default_provider": "openai_direct",
+  "default_model": "gpt-4o",
+  "timeout_ms": 12000,
+  "providers": {
+    "openai_direct": {
+      "enabled": true,
+      "endpoint": "https://api.openai.com/v1/chat/completions",
+      "api_key_env": "OPENAI_API_KEY",
+      "model": "gpt-4o",
+      "hipaa_cleared": false,
+      "notes": "Clint's ChatGPT Pro account — Day 1 default"
+    },
+    "azure_openai": {
+      "enabled": false,
+      "endpoint_env": "AZURE_OPENAI_ENDPOINT",
+      "api_key_env": "AZURE_OPENAI_API_KEY",
+      "model": "gpt-4o",
+      "api_version": "2024-12-01-preview",
+      "hipaa_cleared": true,
+      "notes": "Required for Everest PHI operations — blocked until provisioned"
+    },
+    "copilot_extension": {
+      "enabled": false,
+      "endpoint": "https://api.githubcopilot.com/chat/completions",
+      "hipaa_cleared": false,
+      "notes": "Uses X-GitHub-Token from Copilot webhook — legacy path"
+    }
+  },
+  "entity_overrides": {
+    "Everest": {
+      "provider": "azure_openai",
+      "required_hipaa_cleared": true,
+      "notes": "HIPAA mandate — only BAA-covered providers allowed for Everest PHI"
+    }
+  },
+  "per_job_overrides": {}
+}

@@ -98,3 +98,18 @@ Existing seats remain active. Add these seats as permanent council roles:
 ## Interrogation Cycles
 
 - Cycle 001 completed: `17_COUNCIL_INTERROGATION_CYCLE_001.md`
+- Cycle 002 completed: `21_COUNCIL_UI_INTERROGATION_CYCLE_002.md`
+- Cycle 003 completed: `27_COUNCIL_CONTROL_CRAWL_CYCLE_003.md`
+- Cycle 004 completed: `31_COUNCIL_END_TO_END_INTERROGATION_CYCLE_004.md`
+- **Cycle 005 — STOP THE LINE:** `36_COUNCIL_CRITICAL_REVIEW_CYCLE_005.md`
+
+## Enhanced Seat Profiles
+
+Interrogation questions and seat definitions have been expanded in:
+
+- `35_COUNCIL_SEAT_PROFILES_ENHANCED.md`
+
+This document supersedes the interrogation questions listed above for all future cycles.
+Two new permanent seats are added: **Data Privacy and Information Governance** (Seat 7)
+and **Platform Reliability Engineer** (Seat 8). All future interrogation cycles must score
+all eight seats.
