@@ -7032,7 +7032,7 @@ function _generateReengagementSummary() {
 }
 
 // ── Self-Healing: Dynamic Autonomy Ladder (SH-010) ──
-const autonomyPerTaskPath = path.join(configDir, "autonomy_per_task.json");
+const autonomyPerTaskPath = path.join(__dirname, "config", "autonomy_per_task.json");
 
 function getAutonomyPerTask() {
   try {
