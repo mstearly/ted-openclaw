@@ -1,0 +1,15 @@
+{
+  "suite": "draft_quality",
+  "version": "1",
+  "cases": [
+    {
+      "id": "dq-001",
+      "input": "Routine follow-up email",
+      "expected": {
+        "has_subject": true,
+        "has_next_step": true,
+        "draft_only": true
+      }
+    }
+  ]
+}

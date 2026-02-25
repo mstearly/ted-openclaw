@@ -1,0 +1,21 @@
+{
+  "_config_version": 1,
+  "_sdd": {
+    "source": "docs/ted-profile/sdd-pack/44_OPERATOR_COMMAND_CENTER_ARCHITECTURE.md",
+    "section": "4.1 JC-084: Notification Budget + Onboarding Ramp",
+    "record_id": "jc-084a"
+  },
+  "daily_push_max": 3,
+  "crisis_override": true,
+  "quiet_hours": {
+    "start": "20:00",
+    "end": "07:00",
+    "timezone": "America/Indiana/Indianapolis"
+  },
+  "batch_window_minutes": 15,
+  "decay_policy": "no_resend_non_critical",
+  "auto_reduce_threshold": {
+    "action_rate_below": 0.5,
+    "window_days": 7
+  }
+}

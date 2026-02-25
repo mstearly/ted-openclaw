@@ -4,6 +4,13 @@
 
 Ted Engine can propose, list, and approve filing suggestions that are linked to deal context. No auto-filing; approvals are required.
 
+## Promotion State
+
+- Current: PREVIEW
+- Promotion rule:
+  - queue-only behavior may become GA once proof is stable and no execution side effects occur
+  - any future apply/move execution requires a separate job card and starts at SHADOW/PREVIEW
+
 This is the bridge between:
 
 - triage ingest + deal linkage (JC-004)
@@ -75,3 +82,10 @@ Execution (apply/move) is a later increment and will require:
 ### Notes (2)
 
 - docs/ted-profile/planning/ remains local scratch and intentionally not committed.
+
+## Friction KPI Evidence
+
+- linked artifacts rate
+- triage queue size at end of day
+- deal transition latency
+- evidence citation completeness

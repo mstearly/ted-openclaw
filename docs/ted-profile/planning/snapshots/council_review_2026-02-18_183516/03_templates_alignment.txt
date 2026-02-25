@@ -1,0 +1,78 @@
+Evidence used:
+- Constitution VI requires Ted Sidecar loopback-only boundary, stable `/status` + `/doctor`, unhealthy-mode allowlist behavior, and contract update + verification evidence for boundary changes (`.specify/memory/constitution.md:64`, `.specify/memory/constitution.md:84`, `.specify/memory/constitution.md:85`, `.specify/memory/constitution.md:86`, `.specify/memory/constitution.md:87`).
+- Plans must pass Constitution Check gates before major coding (`.specify/memory/constitution.md:100`).
+- CI runs `pnpm check` in `check` job (`.github/workflows/ci.yml:234`, `.github/workflows/ci.yml:249`).
+- CI runs `pnpm check:docs` in `check-docs` when docs changed (`.github/workflows/ci.yml:252`, `.github/workflows/ci.yml:254`, `.github/workflows/ci.yml:266`).
+- CI install smoke runs for non-doc-only changes via `pnpm test:install:smoke` (`.github/workflows/install-smoke.yml:28`, `.github/workflows/install-smoke.yml:30`, `.github/workflows/install-smoke.yml:59`).
+- Script commands exist in root scripts (`package.json:57`, `package.json:58`, `package.json:116`).
+
+```diff
+diff --git a/.specify/templates/plan-template.md b/.specify/templates/plan-template.md
+index 2693d6a..f3b21b4 100644
+--- a/.specify/templates/plan-template.md
++++ b/.specify/templates/plan-template.md
+@@ -37,6 +37,15 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
+ - [ ] CLI/operator output compatibility reviewed (stable scripting surface, shared table/progress primitives)
+ - [ ] Documentation and changelog impact captured for user-visible behavior changes
++- [ ] Ted Sidecar boundary discipline reviewed when touched (loopback-only base URL/bind, stable `/status` + `/doctor`, unhealthy-mode allowlist, contract update + verification evidence)
++
++## Required CI Gates
++
++_Record required local pre-merge validation for this feature._
++
++- [ ] `pnpm check` (mirrors CI `check` job)
++- [ ] `pnpm check:docs` when docs files change (mirrors CI `check-docs` job)
++- [ ] `pnpm test:install:smoke` for non-doc-only changes (mirrors CI `install-smoke` workflow)
+ 
+ ## Project Structure
+ 
+diff --git a/.specify/templates/spec-template.md b/.specify/templates/spec-template.md
+index 6e2ef61..0f5cc57 100644
+--- a/.specify/templates/spec-template.md
++++ b/.specify/templates/spec-template.md
+@@ -104,6 +104,12 @@ _Example of marking unclear requirements:_
+ - **CA-003 Operator Surface**: Specify any CLI/status output changes and compatibility impact.
+ - **CA-004 Docs and Release Notes**: List docs/changelog updates required for user-visible
+   behavior.
++- **CA-005 Ted Sidecar Boundary Discipline (when touched)**: Preserve loopback-only base URL/bind,
++  preserve stable `/status` + `/doctor`, preserve unhealthy-mode allowlist behavior, and require
++  contract updates plus verification evidence.
++- **CA-006 CI Gate Plan**: Identify required gates for this change: `pnpm check`,
++  `pnpm check:docs` (docs changes), and `pnpm test:install:smoke` (non-doc-only changes).
+ 
+ ### Key Entities _(include if feature involves data)_
+ 
+diff --git a/.specify/templates/tasks-template.md b/.specify/templates/tasks-template.md
+index d593777..343ff3f 100644
+--- a/.specify/templates/tasks-template.md
++++ b/.specify/templates/tasks-template.md
+@@ -9,6 +9,8 @@ description: "Task list template for feature implementation"
+ 
+ **Tests**: Include test tasks for all behavioral changes. Test tasks are optional only for
+ documentation-only or non-behavioral maintenance work, and the omission must be justified.
++Include explicit CI-gate tasks in the final phase: `pnpm check`, conditional `pnpm check:docs`,
++and `pnpm test:install:smoke` for non-doc-only changes.
+ 
+ **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
+@@ -51,7 +53,8 @@ documentation-only or non-behavioral maintenance work, and the omission must be
+ - [ ] T001 Create project structure per implementation plan
+ - [ ] T002 Initialize [language] project with [framework] dependencies
+ - [ ] T003 [P] Configure linting and formatting tools
+-- [ ] T004 Add a cross-channel impact checklist for built-in channels and impacted `extensions/*`
++- [ ] T004 Add constitution impact checklist for cross-channel parity and Ted Sidecar boundary discipline
++      (when touched: loopback-only, `/status` + `/doctor` stability, unhealthy-mode allowlist, contract update/evidence)
+ 
+ ---
+ 
+@@ -154,6 +157,10 @@ documentation-only or non-behavioral maintenance work, and the omission must be
+ **Purpose**: Improvements that affect multiple user stories
+ 
+ - [ ] TXXX [P] Documentation updates in docs/
++- [ ] TXXX [P] Run `pnpm check` and record results
++- [ ] TXXX [P] Run `pnpm check:docs` when docs files changed
++- [ ] TXXX [P] Run `pnpm test:install:smoke` for non-doc-only changes
++- [ ] TXXX [P] If Ted Sidecar boundary changed, update `docs/integration/ted-sidecar-contract.md` and attach verification evidence
+ - [ ] TXXX [P] Changelog update for user-visible behavior changes
+ - [ ] TXXX Code cleanup and refactoring
+ - [ ] TXXX Performance optimization across all stories
+```

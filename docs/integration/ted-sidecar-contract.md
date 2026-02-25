@@ -47,6 +47,55 @@ Authoritative sources:
 - Both currently return the same payload handler (`sidecars/ted-engine/server.mjs:1471`, `sidecars/ted-engine/server.mjs:1472`).
 - Ted plugin expects payload with `version`, `uptime`, `profiles_count` (`extensions/ted-sidecar/index.ts:126`, `extensions/ted-sidecar/index.ts:127`, `extensions/ted-sidecar/index.ts:128`).
 - Doctor checker validates the same payload fields (`src/commands/doctor-gateway-services.ts:83`, `src/commands/doctor-gateway-services.ts:84`, `src/commands/doctor-gateway-services.ts:85`).
+- Ted command surface includes discoverability via `/ted catalog` (implemented as a read of `/status` additive payload fields).
+
+## Contract surface and stability policy
+
+### Stable external contract (MUST remain backward compatible)
+
+Only these endpoints are considered **stable external contract**:
+
+- `GET /status`
+- `GET /doctor`
+
+### Internal routes (NON-CONTRACT)
+
+All other sidecar routes (including route families like `/deals/*`, `/triage/*`, `/filing/suggestions/*`, `/graph/*`, etc.) are **internal** and may change without notice unless explicitly promoted.
+
+**Promotion rule (to make a route “stable external contract”):**
+
+- Update this contract doc to move the route into “Stable external contract”
+- Add/extend tests proving compatibility and payload expectations
+- Note the change in release notes (per Constitution)
+
+## Health payload schema (stable contract)
+
+### Required fields
+
+`/status` and `/doctor` MUST continue to include:
+
+- `version`
+- `uptime`
+- `profiles_count`
+
+### Optional/additive fields
+
+Additional fields are allowed but MUST be additive and optional (e.g., `deals_count`, `triage_open_count`, `catalog`, etc.).
+
+### Payload parity
+
+`/status` and `/doctor` MUST remain payload-identical unless an explicit breaking decision is made and test-backed.
+
+## Host policy nuance
+
+Validator logic allows loopback hosts (`127.0.0.1`, `localhost`, `::1`), while the server currently binds IPv4 loopback (`127.0.0.1:48080`). Prefer the default base URL. If you change the base URL host, ensure it remains reachable given the server bind behavior.
+
+## Timeout policy (explicit)
+
+Plugin command path and doctor probes use different timeouts today. Any PR touching timeout behavior MUST:
+
+- state whether the mismatch is kept or aligned
+- include an explicit rationale in the PR
 
 ## Observed route families (sidecar)
 
@@ -80,6 +129,14 @@ Authoritative sources:
 - Doctor probe timeout is `2000` ms (`src/commands/doctor-gateway-services.ts:23`).
 - Treat this as a deliberate decision: either keep the mismatch (document why) or align them.
 
+## Command contract
+
+- `/ted doctor` -> reads `/doctor`
+- `/ted status` -> reads `/status`
+- `/ted catalog` -> reads `/status` and renders discoverability metadata when present
+
+Catalog metadata is additive and informational only; it does not relax auth or policy boundaries.
+
 ## Verification expectations (run from repo root)
 
 - `pnpm install --frozen-lockfile`
@@ -89,3 +146,7 @@ Authoritative sources:
 - `pnpm test`
 - `bunx vitest run --config vitest.unit.config.ts`
 - `pnpm test:install:smoke`
+
+## Evidence citations
+
+Where this doc references `file:line`, treat it as best-effort evidence. If referenced files change and line numbers drift, update the citations as part of the same PR.

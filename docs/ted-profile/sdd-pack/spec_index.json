@@ -1,5 +1,5 @@
 {
-  "generated": "2026-02-17",
+  "generated": "2026-02-21",
   "pack": "openclaw_ted_sdd_pack",
   "specs": [
     {
@@ -71,6 +71,111 @@
       "id": "QUESTIONS",
       "file": "13_OPEN_QUESTIONS.md",
       "title": "Open Questions"
+    },
+    {
+      "id": "PROMOTION",
+      "file": "14_DAY1_PROMOTION_POLICY.md",
+      "title": "Day-1 Promotion Policy"
+    },
+    {
+      "id": "VALUE_FRICTION",
+      "file": "15_VALUE_AND_FRICTION_GATES.md",
+      "title": "Value and Friction Gates"
+    },
+    {
+      "id": "COUNCIL_COWORK",
+      "file": "16_COUNCIL_EXPANSION_AND_COWORK_REVIEW.md",
+      "title": "Council Expansion and Co-Work Review"
+    },
+    {
+      "id": "COUNCIL_CYCLE_001",
+      "file": "17_COUNCIL_INTERROGATION_CYCLE_001.md",
+      "title": "Council Interrogation Cycle 001"
+    },
+    {
+      "id": "BOUNDARY_CONTRACT",
+      "file": "18_WORKFLOW_AGENT_BOUNDARY_CONTRACT.md",
+      "title": "Workflow Agent Boundary Contract"
+    },
+    {
+      "id": "JC017_DARWIN_RUNBOOK",
+      "file": "19_JC017_DARWIN_RUNBOOK.md",
+      "title": "JC-017 Darwin Runbook"
+    },
+    {
+      "id": "CONSOLE_AUTH_DISCOVERABILITY",
+      "file": "20_CONSOLE_AUTH_AND_DISCOVERABILITY_RUNBOOK.md",
+      "title": "Console Auth and Ted Discoverability Runbook"
+    },
+    {
+      "id": "COUNCIL_UI_CYCLE_002",
+      "file": "21_COUNCIL_UI_INTERROGATION_CYCLE_002.md",
+      "title": "Council UI Interrogation Cycle 002"
+    },
+    {
+      "id": "TED_UI_SURFACE_INVENTORY",
+      "file": "22_TED_UI_SURFACE_INVENTORY.md",
+      "title": "Ted UI Surface Inventory"
+    },
+    {
+      "id": "TED_UI_TASK_AUDIT",
+      "file": "23_TED_UI_TASK_AUDIT.md",
+      "title": "Ted UI Task Audit"
+    },
+    {
+      "id": "TED_UI_GOVERNANCE_AUDIT",
+      "file": "24_TED_UI_GOVERNANCE_AUDIT.md",
+      "title": "Ted UI Governance Audit"
+    },
+    {
+      "id": "TED_UI_STRATEGY",
+      "file": "25_TED_UI_STRATEGY.md",
+      "title": "Ted UI Strategy"
+    },
+    {
+      "id": "TED_UI_EXECUTION_PLAN",
+      "file": "26_TED_UI_GOVERNED_EXECUTION_PLAN.md",
+      "title": "Ted UI Governed Execution Plan"
+    },
+    {
+      "id": "COUNCIL_CRAWL_CYCLE_003",
+      "file": "27_COUNCIL_CONTROL_CRAWL_CYCLE_003.md",
+      "title": "Council Control Crawl Cycle 003"
+    },
+    {
+      "id": "TED_OPERATOR_EXPERIENCE_REMEDIATION_PLAN",
+      "file": "28_TED_OPERATOR_EXPERIENCE_REMEDIATION_PLAN.md",
+      "title": "Ted Operator Experience Remediation Plan"
+    },
+    {
+      "id": "LEARNING_LOOP_GAP_AUDIT",
+      "file": "29_LEARNING_LOOP_GAP_AUDIT.md",
+      "title": "Learning Loop Gap Audit"
+    },
+    {
+      "id": "ATTRIBUTION_PROMOTION_CONFIDENCE",
+      "file": "30_RECOMMENDATION_ATTRIBUTION_AND_PROMOTION_CONFIDENCE.md",
+      "title": "Recommendation Attribution and Promotion Confidence"
+    },
+    {
+      "id": "COUNCIL_E2E_CYCLE_004",
+      "file": "31_COUNCIL_END_TO_END_INTERROGATION_CYCLE_004.md",
+      "title": "Council End-to-End Interrogation Cycle 004"
+    },
+    {
+      "id": "E2E_TRACE_MATRIX",
+      "file": "32_OPENCLAW_TED_END_TO_END_TRACE_MATRIX.md",
+      "title": "OpenClaw Ted End-to-End Trace Matrix"
+    },
+    {
+      "id": "CLINT_CONTROL_PLANES",
+      "file": "33_CLINT_CONTROL_PLANES_AND_APPROVAL_PATHS.md",
+      "title": "Clint Control Planes and Approval Paths"
+    },
+    {
+      "id": "REMEDIATION_PROGRAM_JC046_055",
+      "file": "34_REMEDIATION_PROGRAM_JC046_055.md",
+      "title": "Remediation Program JC-046 through JC-055"
     },
     {
       "id": "SOURCES",

@@ -1,0 +1,86 @@
+{
+  "_config_version": 1,
+  "_sdd": {
+    "source": "docs/ted-profile/client_intake_COMPLETED.md",
+    "record_id": "clint-olumie-everest-2026-02-20",
+    "schema_version": "1.0"
+  },
+  "operator": {
+    "name": "Clint",
+    "organization": "Olumie Capital, LLC / Everest Management Solutions, LLC",
+    "timezone": "America/Indiana/Indianapolis",
+    "emergency_pause_contact": "205-913-0550"
+  },
+  "contexts": {
+    "list": ["Olumie", "Everest", "Prestige", "Personal"],
+    "default_context": "Olumie",
+    "entity_separation": {
+      "Olumie": {
+        "email_domains": ["olumiecapital.com"],
+        "primary_email": "CPhillips@olumiecapital.com",
+        "never_mix_with": ["Everest", "Prestige", "Personal"],
+        "special_rules": [
+          "Multi-investor deals require OIG + state exclusion list checks on all investors",
+          "Investor disclosure forms required per deal",
+          "Org chart maintenance per deal"
+        ],
+        "classification_signals": ["deal-related content", "@olumiecapital.com sender domain"]
+      },
+      "Everest": {
+        "email_domains": ["everestmgt.com"],
+        "primary_email": "CPhillips@Everestmgt.com",
+        "never_mix_with": ["Olumie", "Prestige", "Personal"],
+        "special_rules": [
+          "HIPAA required — auto-redact PHI (resident names, room numbers, medical conditions, DOB, SSN, medical record numbers)",
+          "Facility admins are HIPAA-cleared; facility owners are NOT",
+          "COO communications routed through Clint first"
+        ],
+        "classification_signals": ["facility-related content", "@everestmgt.com sender domain"],
+        "phi_auto_redact": true
+      },
+      "Prestige": {
+        "email_domains": [],
+        "primary_email": null,
+        "never_mix_with": ["Olumie", "Everest", "Personal"],
+        "special_rules": [
+          "Vendor pricing is entity-confidential — for Clint only",
+          "Never share Prestige vendor pricing with Everest or Olumie personnel"
+        ],
+        "classification_signals": ["Prestige keyword in subject or sender"]
+      },
+      "Personal": {
+        "email_domains": [],
+        "primary_email": null,
+        "never_mix_with": ["Olumie", "Everest", "Prestige"],
+        "special_rules": [
+          "Ted has NO access to personal email or personal calendar",
+          "Work calendar is the single source of truth — personal items placed on work calendar",
+          "Katie calendar items: Clint creates work calendar event with Katie's personal email as invitee"
+        ],
+        "classification_signals": []
+      }
+    },
+    "default_classification_rule": "Olumie if deal-related; Everest if facility-related; Prestige if Prestige keyword present; else surface for Clint classification in daily brief triage queue"
+  },
+  "confidentiality": {
+    "contains_phi": true,
+    "contains_privileged": true,
+    "phi_redaction_fields": [
+      "resident names",
+      "room numbers",
+      "medical conditions",
+      "DOB",
+      "SSN",
+      "medical record numbers"
+    ],
+    "privilege_approved_lists": {
+      "Olumie": ["Maurice", "Samantha", "Isaac"],
+      "Everest": [],
+      "Prestige": []
+    }
+  },
+  "graph_profile_mapping": {
+    "olumie": "Olumie",
+    "everest": "Everest"
+  }
+}

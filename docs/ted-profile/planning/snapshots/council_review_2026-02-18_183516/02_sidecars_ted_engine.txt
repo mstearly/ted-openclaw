@@ -1,0 +1,103 @@
+```diff
+diff --git a/docs/integration/ted-sidecar-contract.md b/docs/integration/ted-sidecar-contract.md
+index 1111111..2222222 100644
+--- a/docs/integration/ted-sidecar-contract.md
++++ b/docs/integration/ted-sidecar-contract.md
+@@ -53,23 +53,50 @@
+ - `false` disables startup spawn (`extensions/ted-sidecar/index.ts:231`).
+ 
+-## Stable endpoint contract
++## Route surface classification (contract vs internal)
+ 
+-- `GET /status` (`sidecars/ted-engine/server.mjs:1471`)
+-- `GET /doctor` (`sidecars/ted-engine/server.mjs:1471`)
+-- Both currently return the same payload handler (`sidecars/ted-engine/server.mjs:1471`, `sidecars/ted-engine/server.mjs:1472`).
+-- Ted plugin expects payload with `version`, `uptime`, `profiles_count` (`extensions/ted-sidecar/index.ts:126`, `extensions/ted-sidecar/index.ts:127`, `extensions/ted-sidecar/index.ts:128`).
+-- Doctor checker validates the same payload fields (`src/commands/doctor-gateway-services.ts:83`, `src/commands/doctor-gateway-services.ts:84`, `src/commands/doctor-gateway-services.ts:85`).
+-
+-## Observed route families (sidecar)
+-
+-- Deals (`sidecars/ted-engine/server.mjs:1403`, `sidecars/ted-engine/server.mjs:1408`, `sidecars/ted-engine/server.mjs:1413`)
+-- Triage (`sidecars/ted-engine/server.mjs:1420`, `sidecars/ted-engine/server.mjs:1425`, `sidecars/ted-engine/server.mjs:1464`, `sidecars/ted-engine/server.mjs:1447`)
+-- Filing suggestions (`sidecars/ted-engine/server.mjs:1430`, `sidecars/ted-engine/server.mjs:1435`, `sidecars/ted-engine/server.mjs:1440`)
+-- Graph + diagnostics (`sidecars/ted-engine/server.mjs:1478`, `sidecars/ted-engine/server.mjs:1496`, `sidecars/ted-engine/server.mjs:1503`, `sidecars/ted-engine/server.mjs:1533`, `sidecars/ted-engine/server.mjs:1540`)
++- Stable contract surface:
++  - `GET /status` (`sidecars/ted-engine/server.mjs:1471`)
++  - `GET /doctor` (`sidecars/ted-engine/server.mjs:1471`)
++  - Shared handler and shared payload source (`sidecars/ted-engine/server.mjs:1471`, `sidecars/ted-engine/server.mjs:1472`, `sidecars/ted-engine/server.mjs:45`)
++  - Plugin allowlist includes only these paths (`extensions/ted-sidecar/index.ts:8`)
++  - Plugin probing uses only these paths (`extensions/ted-sidecar/index.ts:151`, `extensions/ted-sidecar/index.ts:152`)
++  - Doctor probing uses only these paths (`src/commands/doctor-gateway-services.ts:60`, `src/commands/doctor-gateway-services.ts:65`)
++- Internal sidecar routes (not part of the stable OpenClaw contract):
++  - Deals: `/deals/create`, `/deals/list`, `/deals/:deal_id` (`sidecars/ted-engine/server.mjs:1403`, `sidecars/ted-engine/server.mjs:1408`, `sidecars/ted-engine/server.mjs:1413`)
++  - Triage: `/triage/list`, `/triage/ingest`, `/triage/patterns`, `/triage/patterns/propose`, `/triage/patterns/:pattern_id/approve`, `/triage/:item_id/link` (`sidecars/ted-engine/server.mjs:1420`, `sidecars/ted-engine/server.mjs:1425`, `sidecars/ted-engine/server.mjs:1447`, `sidecars/ted-engine/server.mjs:1452`, `sidecars/ted-engine/server.mjs:1457`, `sidecars/ted-engine/server.mjs:1464`)
++  - Filing suggestions: `/filing/suggestions/propose`, `/filing/suggestions/list`, `/filing/suggestions/:id/approve` (`sidecars/ted-engine/server.mjs:1430`, `sidecars/ted-engine/server.mjs:1435`, `sidecars/ted-engine/server.mjs:1440`)
++  - Graph/auth/calendar/draft/diagnostics: `/graph/*` (`sidecars/ted-engine/server.mjs:1478`, `sidecars/ted-engine/server.mjs:1496`, `sidecars/ted-engine/server.mjs:1503`, `sidecars/ted-engine/server.mjs:1510`, `sidecars/ted-engine/server.mjs:1517`, `sidecars/ted-engine/server.mjs:1533`, `sidecars/ted-engine/server.mjs:1540`)
++
++## Frozen health schema (`/status`, `/doctor`)
++
++Required fields (must remain present and type-stable):
++
++- `version: string` (`sidecars/ted-engine/server.mjs:47`, `extensions/ted-sidecar/index.ts:126`, `src/commands/doctor-gateway-services.ts:83`)
++- `uptime: number` (`sidecars/ted-engine/server.mjs:48`, `extensions/ted-sidecar/index.ts:127`, `src/commands/doctor-gateway-services.ts:84`)
++- `profiles_count: number` (`sidecars/ted-engine/server.mjs:49`, `extensions/ted-sidecar/index.ts:128`, `src/commands/doctor-gateway-services.ts:85`)
++
++Additive fields:
++
++- Additional keys are allowed, but optional for consumers.
++- Current additive keys emitted by sidecar:
++  - `deals_count` (`sidecars/ted-engine/server.mjs:50`)
++  - `triage_open_count` (`sidecars/ted-engine/server.mjs:51`)
++- Plugin parser already ignores unknown keys by projecting only required fields in its return object (`extensions/ted-sidecar/index.ts:124`, `extensions/ted-sidecar/index.ts:133`).
+ 
+ ## Safety invariants (NON-NEGOTIABLE)
+ 
+ - Sidecar must remain loopback-bound (`sidecars/ted-engine/server.mjs:1564`).
+ - Ted plugin endpoint construction must remain allowlisted and loopback-constrained (`extensions/ted-sidecar/index.ts:89`, `extensions/ted-sidecar/index.ts:94`, `extensions/ted-sidecar/index.ts:97`).
+ - Allowlist is currently `/status` and `/doctor` only (`extensions/ted-sidecar/index.ts:8`).
++- Health contract required fields remain `version`, `uptime`, `profiles_count` with unchanged types (`extensions/ted-sidecar/index.ts:126`, `extensions/ted-sidecar/index.ts:127`, `extensions/ted-sidecar/index.ts:128`, `src/commands/doctor-gateway-services.ts:83`, `src/commands/doctor-gateway-services.ts:84`, `src/commands/doctor-gateway-services.ts:85`).
++- Additive health keys remain optional from consumer perspective (`extensions/ted-sidecar/index.ts:124`, `extensions/ted-sidecar/index.ts:133`).
+ - In unhealthy mode, `/ted` blocks non-health actions (`extensions/ted-sidecar/index.ts:291`, `extensions/ted-sidecar/index.ts:295`).
+diff --git a/sidecars/ted-engine/AGENTS.md b/sidecars/ted-engine/AGENTS.md
+index 3333333..4444444 100644
+--- a/sidecars/ted-engine/AGENTS.md
++++ b/sidecars/ted-engine/AGENTS.md
+@@ -10,16 +10,32 @@
+ - Must remain loopback-bound (`sidecars/ted-engine/server.mjs:1564`).
+ - `/status` and `/doctor` must remain stable and safe.
+ - `/status` and `/doctor` currently share one handler and one payload shape (`sidecars/ted-engine/server.mjs:1471`).
++- Stable external contract surface is `GET /status` and `GET /doctor`; treat all other routes as internal sidecar APIs (`sidecars/ted-engine/server.mjs:1471`, `sidecars/ted-engine/server.mjs:1403`, `sidecars/ted-engine/server.mjs:1478`).
++- Freeze required health schema fields and types: `version:string`, `uptime:number`, `profiles_count:number` (`sidecars/ted-engine/server.mjs:47`, `sidecars/ted-engine/server.mjs:48`, `sidecars/ted-engine/server.mjs:49`).
++- Additive health fields are allowed but must be optional for consumers (`sidecars/ted-engine/server.mjs:50`, `sidecars/ted-engine/server.mjs:51`).
+ 
+-## Observed route families
++## Route surface classification
+ 
+-- Health: `/status`, `/doctor` (`sidecars/ted-engine/server.mjs:1471`).
+-- Deals: `/deals/create`, `/deals/list`, `/deals/:deal_id` (`sidecars/ted-engine/server.mjs:1403`, `sidecars/ted-engine/server.mjs:1408`, `sidecars/ted-engine/server.mjs:1413`).
+-- Triage: `/triage/list`, `/triage/ingest`, `/triage/:item_id/link`, `/triage/patterns*` (`sidecars/ted-engine/server.mjs:1420`, `sidecars/ted-engine/server.mjs:1425`, `sidecars/ted-engine/server.mjs:1464`, `sidecars/ted-engine/server.mjs:1447`).
+-- Filing suggestions: `/filing/suggestions/propose`, `/filing/suggestions/list`, `/filing/suggestions/:id/approve` (`sidecars/ted-engine/server.mjs:1430`, `sidecars/ted-engine/server.mjs:1435`, `sidecars/ted-engine/server.mjs:1440`).
+-- Graph: `/graph/*` status/auth/calendar/draft endpoints and diagnostics classify (`sidecars/ted-engine/server.mjs:1478`, `sidecars/ted-engine/server.mjs:1496`, `sidecars/ted-engine/server.mjs:1503`, `sidecars/ted-engine/server.mjs:1533`, `sidecars/ted-engine/server.mjs:1540`).
++- Stable contract:
++  - `GET /status`
++  - `GET /doctor`
++  - Shared handler/payload source (`sidecars/ted-engine/server.mjs:1471`, `sidecars/ted-engine/server.mjs:1472`, `sidecars/ted-engine/server.mjs:45`)
++- Internal routes:
++  - Deals: `/deals/create`, `/deals/list`, `/deals/:deal_id` (`sidecars/ted-engine/server.mjs:1403`, `sidecars/ted-engine/server.mjs:1408`, `sidecars/ted-engine/server.mjs:1413`)
++  - Triage: `/triage/list`, `/triage/ingest`, `/triage/patterns`, `/triage/patterns/propose`, `/triage/patterns/:pattern_id/approve`, `/triage/:item_id/link` (`sidecars/ted-engine/server.mjs:1420`, `sidecars/ted-engine/server.mjs:1425`, `sidecars/ted-engine/server.mjs:1447`, `sidecars/ted-engine/server.mjs:1452`, `sidecars/ted-engine/server.mjs:1457`, `sidecars/ted-engine/server.mjs:1464`)
++  - Filing suggestions: `/filing/suggestions/propose`, `/filing/suggestions/list`, `/filing/suggestions/:id/approve` (`sidecars/ted-engine/server.mjs:1430`, `sidecars/ted-engine/server.mjs:1435`, `sidecars/ted-engine/server.mjs:1440`)
++  - Graph/auth/calendar/draft/diagnostics: `/graph/*` (`sidecars/ted-engine/server.mjs:1478`, `sidecars/ted-engine/server.mjs:1496`, `sidecars/ted-engine/server.mjs:1503`, `sidecars/ted-engine/server.mjs:1510`, `sidecars/ted-engine/server.mjs:1517`, `sidecars/ted-engine/server.mjs:1533`, `sidecars/ted-engine/server.mjs:1540`)
++
++## Frozen health schema (`/status`, `/doctor`)
++
++- Required keys:
++  - `version` (string) (`sidecars/ted-engine/server.mjs:47`)
++  - `uptime` (number) (`sidecars/ted-engine/server.mjs:48`)
++  - `profiles_count` (number) (`sidecars/ted-engine/server.mjs:49`)
++- Additive optional keys currently present:
++  - `deals_count` (`sidecars/ted-engine/server.mjs:50`)
++  - `triage_open_count` (`sidecars/ted-engine/server.mjs:51`)
+ 
+ ## Validation (run from repo root)
+ 
+```

@@ -1,0 +1,51 @@
+{
+  "_config_version": 1,
+  "_sdd": {
+    "source": "docs/ted-profile/client_intake_COMPLETED.md",
+    "sections": ["4) Daily brief preferences", "D) Isaac nightly report"],
+    "record_id": "clint-olumie-everest-2026-02-20"
+  },
+  "daily_briefs": {
+    "personal": {
+      "delivery_time": "07:00",
+      "timezone": "America/Indiana/Indianapolis",
+      "format": "decision_ready",
+      "must_include": [
+        "Health and fitness (workout plan for the day, sleep debt if applicable)",
+        "Personal calendar holds and family items",
+        "Travel prep if trip within 48 hours"
+      ],
+      "separation_rule": "Must never mix personal and work data"
+    },
+    "work": {
+      "delivery_time": "07:30",
+      "timezone": "America/Indiana/Indianapolis",
+      "format": "decision_ready",
+      "must_include": [
+        "Deadlines due in next 7 days (all entities)",
+        "Meetings today + prep notes",
+        "Inbox items needing reply",
+        "Follow-ups Clint owes",
+        "Risks / anomalies (Everest facility alerts, deal flags, investment thesis breaks)",
+        "Draft queue count (how many drafts are waiting for review)",
+        "Post-call deliverable summary (what came out of yesterday's calls; what Ted owns vs. what Clint owns)",
+        "Deal status snapshot (top 3-5 active deals: status + next action + owner)"
+      ],
+      "separation_rule": "Must never mix personal and work data"
+    }
+  },
+  "isaac_nightly_report": {
+    "delivery_time": "17:30",
+    "timezone": "America/Indiana/Indianapolis",
+    "mode": "draft_only",
+    "approver": "Clint",
+    "tone": "Matter-of-fact. Confident and organized. Clint is the operator reporting to the owner.",
+    "required_sections": [
+      "What got done today (completed items with deal/entity reference)",
+      "What's in progress (active items, current status, estimated completion)",
+      "Deal status snapshot (each active deal: stage, last development, next milestone)",
+      "Next steps and ownership (clear list: item → owner → target date)",
+      "Flags / items needing Isaac's awareness or decision"
+    ]
+  }
+}

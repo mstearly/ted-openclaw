@@ -9,6 +9,13 @@ Ted Engine is a loopback-only HTTP server.
 
 ## Non-negotiables
 
+- Contract surface policy:
+  - Only `/status` and `/doctor` are stable external contract.
+  - All other routes are internal unless explicitly promoted via the contract doc + tests.
+- Health schema policy:
+  - `/status` and `/doctor` must include required fields: `version`, `uptime`, `profiles_count`.
+  - Additive fields are allowed but must remain optional.
+
 - Must remain loopback-bound (`sidecars/ted-engine/server.mjs:1564`).
 - `/status` and `/doctor` must remain stable and safe.
 - `/status` and `/doctor` currently share one handler and one payload shape (`sidecars/ted-engine/server.mjs:1471`).
@@ -20,6 +27,14 @@ Ted Engine is a loopback-only HTTP server.
 - Triage: `/triage/list`, `/triage/ingest`, `/triage/:item_id/link`, `/triage/patterns*` (`sidecars/ted-engine/server.mjs:1420`, `sidecars/ted-engine/server.mjs:1425`, `sidecars/ted-engine/server.mjs:1464`, `sidecars/ted-engine/server.mjs:1447`).
 - Filing suggestions: `/filing/suggestions/propose`, `/filing/suggestions/list`, `/filing/suggestions/:id/approve` (`sidecars/ted-engine/server.mjs:1430`, `sidecars/ted-engine/server.mjs:1435`, `sidecars/ted-engine/server.mjs:1440`).
 - Graph: `/graph/*` status/auth/calendar/draft endpoints and diagnostics classify (`sidecars/ted-engine/server.mjs:1478`, `sidecars/ted-engine/server.mjs:1496`, `sidecars/ted-engine/server.mjs:1503`, `sidecars/ted-engine/server.mjs:1533`, `sidecars/ted-engine/server.mjs:1540`).
+
+## Canonical architecture docs (must-read before changes)
+
+- `docs/architecture/Future-State-Framing.md` — Design Laws + North Star framing
+- `docs/council/Planes-Artifacts-Owners.md` — Planes → Artifacts → Owners mapping
+- `docs/ted-profile/sdd-pack/42_TED_SYSTEM_BLUEPRINT.md` — Full 5-plane architecture reference
+
+**Rule:** Proposals must name the plane(s) they affect and which ledgers/events they read/write.
 
 ## Validation (run from repo root)
 

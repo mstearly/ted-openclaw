@@ -1,0 +1,56 @@
+{
+  "_config_version": 1,
+  "_sdd": {
+    "source": "docs/ted-profile/sdd-pack/44_OPERATOR_COMMAND_CENTER_ARCHITECTURE.md",
+    "section": "4.1 JC-084: Notification Budget + Onboarding Ramp",
+    "record_id": "jc-084a"
+  },
+  "phases": [
+    {
+      "days": [1, 3],
+      "features": ["morning_brief"],
+      "push_max": 1,
+      "label": "Brief only — establish the habit of reading the brief"
+    },
+    {
+      "days": [4, 7],
+      "features": ["morning_brief", "draft_queue"],
+      "push_max": 2,
+      "label": "Add draft approvals — establish the approve/reject loop"
+    },
+    {
+      "days": [8, 14],
+      "features": ["morning_brief", "draft_queue", "isaac_report"],
+      "push_max": 3,
+      "label": "Add Isaac nightly report — close the daily loop"
+    },
+    {
+      "days": [15, 21],
+      "features": ["morning_brief", "draft_queue", "isaac_report", "triage"],
+      "push_max": 3,
+      "label": "Add triage + filing suggestions — build classification trust"
+    },
+    {
+      "days": [22, 42],
+      "features": [
+        "morning_brief",
+        "draft_queue",
+        "isaac_report",
+        "triage",
+        "deals",
+        "deadlines",
+        "calendar"
+      ],
+      "push_max": 3,
+      "label": "Full operations except autonomy promotion"
+    },
+    {
+      "days": [43, null],
+      "features": ["full"],
+      "push_max": 3,
+      "label": "Full feature set — evaluate for autonomy promotion"
+    }
+  ],
+  "start_date": "2026-02-24",
+  "notes": "Operator sets start_date on first use. Null means onboarding has not started."
+}

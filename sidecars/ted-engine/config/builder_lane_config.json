@@ -1,0 +1,58 @@
+{
+  "_config_version": 1,
+  "_sdd": {
+    "source": "docs/ted-profile/sdd-pack/56_BUILDER_LANE_IMPLEMENTATION_PLAN.md",
+    "sections": ["BL-004"],
+    "record_id": "builder-lane-config-2026-02-24"
+  },
+  "phases": {
+    "silent": { "min_corrections": 0, "max_corrections": 5, "action": "log_only" },
+    "observation": { "min_corrections": 5, "max_corrections": 10, "action": "surface_in_digest" },
+    "proposal": { "min_corrections": 10, "max_corrections": 25, "action": "create_proposal" },
+    "auto_apply": { "min_corrections": 25, "max_corrections": 50, "action": "auto_apply_low_risk" },
+    "mature": { "min_corrections": 50, "action": "maintenance" }
+  },
+  "confidence_threshold": 0.8,
+  "max_proposals_per_digest": 3,
+  "max_proposals_per_scan": 3,
+  "proposal_expiry_days": 14,
+  "rejection_cooldown_days": 30,
+  "fatigue_detection": {
+    "correction_rate_drop_threshold": 0.5,
+    "fatigue_window_days": 7,
+    "prompt_cooldown_days": 14
+  },
+  "rubber_stamping": {
+    "approval_rate_threshold": 0.95,
+    "max_decision_time_ms": 30000,
+    "consecutive_days_threshold": 14
+  },
+  "calibration": {
+    "max_prompts_per_day": 3,
+    "enabled_moments": ["post_meeting_debrief", "post_draft_send_with_edit", "eod_digest"]
+  },
+  "cold_start": {
+    "archetypes": {
+      "direct_dealmaker": {
+        "tone": "Direct, concise, action-first",
+        "structure": "bullets",
+        "formality": 0.7
+      },
+      "thorough_analyst": {
+        "tone": "Detailed, evidence-backed, comprehensive",
+        "structure": "narrative",
+        "formality": 0.85
+      },
+      "relationship_builder": {
+        "tone": "Warm, context-rich, personal",
+        "structure": "prose",
+        "formality": 0.6
+      }
+    },
+    "voice_extraction_email_count": 30
+  },
+  "time_decay": {
+    "half_life_days": 30,
+    "conflict_window_days": 14
+  }
+}

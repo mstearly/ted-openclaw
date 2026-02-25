@@ -1,0 +1,91 @@
+{
+  "_config_version": 1,
+  "_sdd": {
+    "source": "docs/ted-profile/client_intake_COMPLETED.md",
+    "sections": ["B) Autonomy ladder"],
+    "record_id": "clint-olumie-everest-2026-02-20"
+  },
+  "default_mode": "draft_only",
+  "approver": "Clint",
+  "action_categories": [
+    {
+      "action": "Send external emails",
+      "mode": "draft_only",
+      "notes": "No exceptions until 90%+ approval rate proven over 3-6 months",
+      "promotion_threshold": { "approval_rate": 0.9, "min_duration_months": 3 }
+    },
+    {
+      "action": "Schedule meetings (external attendees)",
+      "mode": "draft_only",
+      "notes": "Always Tier 3"
+    },
+    {
+      "action": "Create internal tasks",
+      "mode": "autonomous",
+      "confidence_threshold": 0.8,
+      "notes": "Autonomous above 80% confidence threshold"
+    },
+    {
+      "action": "File / move documents",
+      "mode": "draft_only",
+      "notes": "Day-1: suggestions + approval only; no apply/move"
+    },
+    {
+      "action": "Create calendar holds (personal, no external attendees)",
+      "mode": "autonomous",
+      "notes": "Work calendar personal holds only; no external attendees"
+    },
+    {
+      "action": "Create calendar holds (external attendees)",
+      "mode": "propose_certify_apply",
+      "notes": "Propose → Certify → Apply"
+    },
+    {
+      "action": "Payments / trades / contracts",
+      "mode": "never",
+      "notes": "Analysis only for investments; Clint places all orders manually"
+    },
+    {
+      "action": "Everest facility alerts",
+      "mode": "autonomous",
+      "notes": "Alert generation is autonomous; response requires Clint"
+    },
+    {
+      "action": "Isaac nightly report",
+      "mode": "draft_only",
+      "notes": "Clint approves before every send"
+    },
+    {
+      "action": "Collections (non-disputed invoices)",
+      "mode": "draft_only",
+      "notes": "Draft reminders; Clint approves"
+    },
+    {
+      "action": "Collections (disputed invoices)",
+      "mode": "blocked",
+      "notes": "BLOCKED — never contact disputed invoices"
+    }
+  ],
+  "success_criteria": {
+    "first_2_weeks": {
+      "criteria": [
+        "Clint reads the daily brief every morning and finds it useful",
+        "Email draft queue has drafts waiting — approval rate above 75%",
+        "At least one deal has an organized data room and active deal ledger",
+        "Zero governance violations (entity mixing, PHI exposure, unauthorized sends)",
+        "Post-call deliverables captured from at least 3 calls"
+      ]
+    },
+    "first_8_weeks": {
+      "criteria": [
+        "Email draft approval rate at 90%+",
+        "Isaac nightly report running — Clint approving and sending daily",
+        "Everest daily brief active — Clint has visibility into portfolio health",
+        "Deal operations module active on at least 3 deals",
+        "Time savings measurably felt — Clint's subjective report: 'I couldn't work without this'",
+        "Calendar has protected work time blocks that are being respected",
+        "OIG/state exclusion checks running on all active investors"
+      ]
+    }
+  }
+}

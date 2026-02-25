@@ -56,6 +56,88 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
+import {
+  applyTedThresholds,
+  decideTedRecommendation,
+  loadTedDealDetail,
+  loadTedDealList,
+  loadTedEodDigest,
+  loadTedLlmProvider,
+  loadTedMail,
+  loadTedMorningBrief,
+  loadTedMeetingsUpcoming,
+  loadTedCommitments,
+  loadTedActions,
+  loadTedWaitingFor,
+  loadTedTrustMetrics,
+  loadTedDeepWorkMetrics,
+  loadTedDraftQueue,
+  loadTedEventLogStats,
+  loadTedPlannerPlans,
+  loadTedPlannerTasks,
+  loadTedTodoLists,
+  loadTedTodoTasks,
+  loadTedSyncReconciliation,
+  loadTedSyncProposals,
+  approveTedSyncProposal,
+  rejectTedSyncProposal,
+  extractTedCommitments,
+  loadTedImprovementProposals,
+  createTedImprovementProposal,
+  reviewTedImprovementProposal,
+  applyTedImprovementProposal,
+  generateTedImprovementProposal,
+  loadTedTrustAutonomy,
+  loadTedFailureAggregation,
+  submitTedDraftForReviewById,
+  recordTedDeepWorkSession,
+  loadTedGraphSyncStatus,
+  loadTedIngestionStatus,
+  triggerTedIngestion,
+  loadTedDiscoveryStatus,
+  triggerTedDiscovery,
+  loadTedPolicyDocument,
+  loadTedSourceDocument,
+  loadTedJobCardDetail,
+  loadTedWorkbench,
+  updateTedDeal,
+  updateTedLlmProvider,
+  pollTedConnectorAuth,
+  previewTedPolicyUpdate,
+  previewTedJobCardUpdate,
+  revokeTedConnectorAuth,
+  runTedIntakeRecommendation,
+  saveTedIntakeJobCard,
+  runTedProof,
+  saveTedPolicyUpdate,
+  saveTedJobCardDetail,
+  startTedConnectorAuth,
+  suggestTedJobCardKpis,
+  validateTedRoleCard,
+  loadBuilderLanePatterns,
+  loadBuilderLaneStatus,
+  loadBuilderLaneMetrics,
+  generateFromPattern,
+  revertAppliedProposal,
+  submitCalibrationResponse,
+  fetchSelfHealingStatus,
+  fetchCorrectionTaxonomy,
+  fetchEngagementInsights,
+  fetchNoiseLevel,
+  fetchAutonomyStatus,
+  loadTedEvaluationStatus,
+  triggerTedEvaluationRun,
+  loadTedQaDashboard,
+  triggerTedCanaryRun,
+  loadTedStaleDeals,
+  generateTedDealRetrospective,
+  loadTedSharePointSites,
+  loadTedSharePointDrives,
+  loadTedSharePointItems,
+  searchTedSharePoint,
+  uploadTedSharePointFile,
+  createTedSharePointFolder,
+} from "./controllers/ted.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
@@ -75,6 +157,14 @@ import type {
   PresenceEntry,
   ChannelsStatusSnapshot,
   SessionsListResult,
+  TedWorkbenchSnapshot,
+  TedIntakeRecommendation,
+  TedDealFull,
+  TedDealSummary,
+  TedJobCardDetail,
+  TedImprovementProposal,
+  TedTrustAutonomyEvaluation,
+  TedFailureAggregationResponse,
   SkillStatusReport,
   StatusSummary,
   NostrProfile,
@@ -317,6 +407,311 @@ export class OpenClawApp extends LitElement {
   @state() debugCallParams = "{}";
   @state() debugCallResult: string | null = null;
   @state() debugCallError: string | null = null;
+  @state() tedLoading = false;
+  @state() tedSnapshot: TedWorkbenchSnapshot | null = null;
+  @state() tedError: string | null = null;
+  @state() tedRoleCardJson =
+    '{\n  "role_id": "sample-operator",\n  "domain": "Draft-only operator support",\n  "inputs": ["messages"],\n  "outputs": ["drafts"],\n  "definition_of_done": ["review-ready draft"],\n  "hard_bans": ["No direct send"],\n  "escalation": ["sensitive claims"]\n}';
+  @state() tedRoleCardBusy = false;
+  @state() tedRoleCardResult: string | null = null;
+  @state() tedRoleCardError: string | null = null;
+  @state() tedProofBusyKey: string | null = null;
+  @state() tedProofResult: string | null = null;
+  @state() tedProofError: string | null = null;
+  @state() tedJobCardDetailLoading = false;
+  @state() tedJobCardDetail: TedJobCardDetail | null = null;
+  @state() tedJobCardDetailError: string | null = null;
+  @state() tedJobCardEditorMarkdown = "";
+  @state() tedJobCardSaveBusy = false;
+  @state() tedJobCardSaveError: string | null = null;
+  @state() tedJobCardSaveResult: string | null = null;
+  @state() tedJobCardPreviewBusy = false;
+  @state() tedJobCardPreviewError: string | null = null;
+  @state() tedJobCardPreview: import("./types.js").TedJobCardImpactPreview | null = null;
+  @state() tedJobCardKpiSuggestBusy = false;
+  @state() tedJobCardKpiSuggestError: string | null = null;
+  @state() tedJobCardKpiSuggestion: import("./types.js").TedKpiSuggestion | null = null;
+  @state() tedRecommendationBusyId: string | null = null;
+  @state() tedRecommendationError: string | null = null;
+  @state() tedIntakeTitle = "";
+  @state() tedIntakeOutcome = "";
+  @state() tedIntakeJobFamily = "MNT";
+  @state() tedIntakeRiskLevel = "medium";
+  @state() tedIntakeAutomationLevel = "draft-only";
+  @state() tedIntakeBusy = false;
+  @state() tedIntakeError: string | null = null;
+  @state() tedIntakeRecommendation: TedIntakeRecommendation | null = null;
+  @state() tedIntakeSaveBusy = false;
+  @state() tedIntakeSaveError: string | null = null;
+  @state() tedIntakeSaveResult: Record<string, unknown> | null = null;
+  @state() tedThresholdManual = "45";
+  @state() tedThresholdApprovalAge = "120";
+  @state() tedThresholdTriageEod = "12";
+  @state() tedThresholdBlockedExplainability = "0";
+  @state() tedThresholdAcknowledgeRisk = false;
+  @state() tedThresholdBusy = false;
+  @state() tedThresholdError: string | null = null;
+  @state() tedThresholdResult: string | null = null;
+  @state() tedSourceDocLoading = false;
+  @state() tedSourceDocError: string | null = null;
+  @state() tedSourceDoc: import("./types.js").TedSourceDocument | null = null;
+  @state() tedPolicyLoading = false;
+  @state() tedPolicyError: string | null = null;
+  @state() tedPolicyDoc: import("./types.js").TedPolicyDocument | null = null;
+  @state() tedPolicyPreviewBusy = false;
+  @state() tedPolicyPreviewError: string | null = null;
+  @state() tedPolicyPreview: import("./types.js").TedPolicyImpactPreview | null = null;
+  @state() tedPolicySaveBusy = false;
+  @state() tedPolicySaveError: string | null = null;
+  @state() tedPolicySaveResult: string | null = null;
+  @state() tedConnectorAuthBusyProfile: string | null = null;
+  @state() tedConnectorAuthError: string | null = null;
+  @state() tedConnectorAuthResult: string | null = null;
+  @state() tedConnectorDeviceCodeByProfile: Record<string, string> = {};
+  @state() tedMailLoading = false;
+  @state() tedMailMessages: import("./types.js").TedMailMessage[] = [];
+  @state() tedMailError: string | null = null;
+  @state() tedMailFolder = "inbox";
+  @state() tedMorningBriefLoading = false;
+  @state() tedMorningBrief: import("./types.js").TedMorningBriefResponse | null = null;
+  @state() tedMorningBriefError: string | null = null;
+  @state() tedEodDigestLoading = false;
+  @state() tedEodDigest: import("./types.js").TedEodDigestResponse | null = null;
+  @state() tedEodDigestError: string | null = null;
+  @state() tedDealListLoading = false;
+  @state() tedDealList: TedDealSummary[] = [];
+  @state() tedDealListError: string | null = null;
+  @state() tedDealDetailLoading = false;
+  @state() tedDealDetail: TedDealFull | null = null;
+  @state() tedDealDetailError: string | null = null;
+  @state() tedDealActionBusy = false;
+  @state() tedDealActionError: string | null = null;
+  @state() tedDealActionResult: string | null = null;
+  @state() tedLlmProviderConfig: import("./types.ts").TedLlmProviderConfig | null = null;
+  @state() tedLlmProviderLoading = false;
+  @state() tedLlmProviderError: string | null = null;
+  // Phase 6: Meetings + Commitments + GTD
+  @state() tedMeetingsUpcoming: import("./types.ts").TedMeetingUpcomingResponse | null = null;
+  @state() tedMeetingsLoading = false;
+  @state() tedMeetingsError: string | null = null;
+  @state() tedCommitments: import("./types.ts").TedCommitmentsListResponse | null = null;
+  @state() tedCommitmentsLoading = false;
+  @state() tedCommitmentsError: string | null = null;
+  @state() tedActions: import("./types.ts").TedActionsListResponse | null = null;
+  @state() tedActionsLoading = false;
+  @state() tedActionsError: string | null = null;
+  @state() tedWaitingFor: import("./types.ts").TedWaitingForListResponse | null = null;
+  @state() tedWaitingForLoading = false;
+  @state() tedWaitingForError: string | null = null;
+  // Phase 8: Trust + Deep Work
+  @state() tedTrustMetrics: import("./types.ts").TedTrustMetricsResponse | null = null;
+  @state() tedTrustMetricsLoading = false;
+  @state() tedTrustMetricsError: string | null = null;
+  @state() tedDeepWorkMetrics: import("./types.ts").TedDeepWorkMetricsResponse | null = null;
+  @state() tedDeepWorkMetricsLoading = false;
+  @state() tedDeepWorkMetricsError: string | null = null;
+  // Draft Queue (JC-089f)
+  @state() tedDraftQueue: import("./types.ts").TedDraftQueueResponse | null = null;
+  @state() tedDraftQueueLoading = false;
+  @state() tedDraftQueueError: string | null = null;
+  // Event Log Stats (JC-087e)
+  @state() tedEventLogStats: import("./types.ts").TedEventLogStatsResponse | null = null;
+  @state() tedEventLogStatsLoading = false;
+  @state() tedEventLogStatsError: string | null = null;
+  // Planner
+  @state() tedPlannerPlans: import("./types.ts").TedPlannerListResponse | null = null;
+  @state() tedPlannerPlansLoading = false;
+  @state() tedPlannerPlansError: string | null = null;
+  @state() tedPlannerTasks: import("./types.ts").TedPlannerTasksResponse | null = null;
+  @state() tedPlannerTasksLoading = false;
+  @state() tedPlannerTasksError: string | null = null;
+  // To Do
+  @state() tedTodoLists: import("./types.ts").TedTodoListsResponse | null = null;
+  @state() tedTodoListsLoading = false;
+  @state() tedTodoListsError: string | null = null;
+  @state() tedTodoTasks: import("./types.ts").TedTodoTasksResponse | null = null;
+  @state() tedTodoTasksLoading = false;
+  @state() tedTodoTasksError: string | null = null;
+  // Sync
+  @state() tedSyncReconciliation: import("./types.ts").TedSyncReconciliationResponse | null = null;
+  @state() tedSyncReconciliationLoading = false;
+  @state() tedSyncReconciliationError: string | null = null;
+  @state() tedSyncProposals: import("./types.ts").TedSyncProposalsResponse | null = null;
+  @state() tedSyncProposalsLoading = false;
+  @state() tedSyncProposalsError: string | null = null;
+  @state() tedSyncApproveBusy: string | null = null;
+  @state() tedSyncApproveError: string | null = null;
+  @state() tedSyncApproveResult: string | null = null;
+  @state() tedSyncRejectBusy: string | null = null;
+  @state() tedSyncRejectError: string | null = null;
+  @state() tedSyncRejectResult: string | null = null;
+  // Extraction
+  @state() tedExtractionResult: import("./types.ts").TedCommitmentExtractionResponse | null = null;
+  @state() tedExtractionLoading = false;
+  @state() tedExtractionError: string | null = null;
+  // Improvement Proposals (Codex Builder Lane)
+  @state() tedImprovementProposals: TedImprovementProposal[] = [];
+  @state() tedImprovementProposalsLoading = false;
+  @state() tedImprovementProposalsError: string | null = null;
+  @state() tedImprovementCreateBusy = false;
+  @state() tedImprovementCreateError: string | null = null;
+  @state() tedImprovementCreateResult: string | null = null;
+  @state() tedImprovementReviewBusy = false;
+  @state() tedImprovementReviewError: string | null = null;
+  @state() tedImprovementReviewResult: string | null = null;
+  @state() tedImprovementApplyBusy = false;
+  @state() tedImprovementApplyError: string | null = null;
+  @state() tedImprovementApplyResult: string | null = null;
+  @state() tedImprovementGenerateBusy = false;
+  @state() tedImprovementGenerateError: string | null = null;
+  @state() tedImprovementGenerateResult:
+    | import("./types.ts").TedImprovementGenerateResponse
+    | null = null;
+  // Trust Autonomy Evaluation
+  @state() tedTrustAutonomy: TedTrustAutonomyEvaluation | null = null;
+  @state() tedTrustAutonomyLoading = false;
+  @state() tedTrustAutonomyError: string | null = null;
+  // Failure Aggregation
+  @state() tedFailureAggregation: TedFailureAggregationResponse | null = null;
+  @state() tedFailureAggregationLoading = false;
+  @state() tedFailureAggregationError: string | null = null;
+  // JC-110: Architecture closure
+  @state() tedDraftSubmitReviewLoading = false;
+  @state() tedDraftSubmitReviewError: string | null = null;
+  @state() tedDeepWorkSessionLoading = false;
+  @state() tedDeepWorkSessionError: string | null = null;
+  @state() tedDeepWorkSessionResult: Record<string, unknown> | null = null;
+  @state() tedGraphSyncStatusLoading = false;
+  @state() tedGraphSyncStatusError: string | null = null;
+  @state() tedGraphSyncStatusResult: Record<string, unknown> | null = null;
+  // Inline form state for deep work session input
+  @state() showDeepWorkInput = false;
+  @state() deepWorkInputMinutes = "";
+  @state() deepWorkInputLabel = "";
+  // Inline form state for graph sync profile input
+  @state() showGraphSyncInput = false;
+  @state() graphSyncInputProfileId = "olumie";
+  // Ingestion
+  @state() tedIngestionStatusLoading = false;
+  @state() tedIngestionStatusError: string | null = null;
+  @state() tedIngestionStatus: Record<string, unknown> | null = null;
+  @state() tedIngestionRunBusy = false;
+  @state() tedIngestionRunError: string | null = null;
+  @state() tedIngestionRunResult: Record<string, unknown> | null = null;
+  // Discovery
+  @state() tedDiscoveryStatusLoading = false;
+  @state() tedDiscoveryStatusError: string | null = null;
+  @state() tedDiscoveryStatus: Record<string, unknown> | null = null;
+  @state() tedDiscoveryRunBusy = false;
+  @state() tedDiscoveryRunError: string | null = null;
+  @state() tedDiscoveryRunResult: Record<string, unknown> | null = null;
+  // SharePoint state
+  @state() tedSharePointSites: Array<{
+    id: string;
+    displayName: string;
+    webUrl: string;
+    name: string;
+  }> | null = null;
+  @state() tedSharePointSitesLoading = false;
+  @state() tedSharePointSitesError: string | null = null;
+  @state() tedSharePointDrives: Array<{
+    id: string;
+    name: string;
+    driveType: string;
+    webUrl: string;
+    description: string | null;
+  }> | null = null;
+  @state() tedSharePointDrivesLoading = false;
+  @state() tedSharePointDrivesError: string | null = null;
+  @state() tedSharePointItems: Array<{
+    id: string;
+    name: string;
+    size: number;
+    lastModifiedDateTime: string;
+    webUrl: string;
+    isFolder: boolean;
+    mimeType: string | null;
+    createdBy: string | null;
+    lastModifiedBy: string | null;
+    parentPath: string | null;
+  }> | null = null;
+  @state() tedSharePointItemsLoading = false;
+  @state() tedSharePointItemsError: string | null = null;
+  @state() tedSharePointItemsPath = "/";
+  @state() tedSharePointSearchResults: Array<{
+    id: string;
+    name: string;
+    size: number;
+    lastModifiedDateTime: string;
+    webUrl: string;
+    isFolder: boolean;
+    mimeType: string | null;
+    createdBy: string | null;
+    lastModifiedBy: string | null;
+    parentPath: string | null;
+  }> | null = null;
+  @state() tedSharePointSearchLoading = false;
+  @state() tedSharePointSearchError: string | null = null;
+  @state() tedSharePointUploadResult: string | null = null;
+  @state() tedSharePointUploadLoading = false;
+  @state() tedSharePointUploadError: string | null = null;
+  @state() tedSharePointFolderResult: string | null = null;
+  @state() tedSharePointFolderLoading = false;
+  @state() tedSharePointFolderError: string | null = null;
+  @state() tedSharePointSelectedProfile = "olumie";
+  @state() tedSharePointSelectedSiteId = "";
+  @state() tedSharePointSelectedDriveId = "";
+  @state() tedSharePointSearchQuery = "";
+  @state() tedStaleDealsList: import("./types.ts").TedStaleDeal[] = [];
+  @state() tedStaleDealsLoading = false;
+  @state() tedStaleDealsError: string | null = null;
+  @state() tedDealRetrospective: import("./types.ts").TedDealRetrospective | null = null;
+  @state() tedDealRetrospectiveLoading = false;
+  @state() tedDealRetrospectiveError: string | null = null;
+  // Builder Lane (Codex)
+  @state() tedBuilderLanePatterns: Record<string, unknown> | null = null;
+  @state() tedBuilderLanePatternsLoading = false;
+  @state() tedBuilderLanePatternsError: string | null = null;
+  @state() tedBuilderLaneStatus: Record<string, unknown> | null = null;
+  @state() tedBuilderLaneStatusLoading = false;
+  @state() tedBuilderLaneMetrics: Record<string, unknown> | null = null;
+  @state() tedBuilderLaneMetricsLoading = false;
+  @state() tedBuilderLaneRevertBusy = false;
+  @state() tedBuilderLaneRevertError: string | null = null;
+  @state() tedBuilderLaneRevertResult: string | null = null;
+  @state() tedBuilderLaneGenerateBusy = false;
+  @state() tedBuilderLaneCalibrationBusy = false;
+  @state() tedActiveSection: "all" | "operate" | "build" | "govern" | "intake" | "evals" = "all";
+  // Self-Healing Dashboard
+  @state() selfHealingStatus: Record<string, unknown> | null = null;
+  @state() selfHealingStatusLoading = false;
+  @state() selfHealingStatusError: string | null = null;
+  @state() correctionTaxonomy: Record<string, unknown> | null = null;
+  @state() correctionTaxonomyLoading = false;
+  @state() correctionTaxonomyError: string | null = null;
+  @state() engagementInsights: Record<string, unknown> | null = null;
+  @state() engagementInsightsLoading = false;
+  @state() engagementInsightsError: string | null = null;
+  @state() noiseLevel: Record<string, unknown> | null = null;
+  @state() noiseLevelLoading = false;
+  @state() noiseLevelError: string | null = null;
+  @state() autonomyStatus: Record<string, unknown> | null = null;
+  @state() autonomyStatusLoading = false;
+  @state() autonomyStatusError: string | null = null;
+  // Sprint 2 (SDD 72): Evaluation Pipeline
+  @state() tedEvaluationStatus: Record<string, unknown> | null = null;
+  @state() tedEvaluationStatusLoading = false;
+  @state() tedEvaluationStatusError: string | null = null;
+  @state() tedEvaluationRunBusy = false;
+  @state() tedEvaluationRunError: string | null = null;
+  @state() tedEvaluationRunResult: Record<string, unknown> | null = null;
+  // QA Dashboard (SDD 75)
+  @state() tedQaDashboard: Record<string, unknown> | null = null;
+  @state() tedQaDashboardLoading = false;
+  @state() tedQaDashboardError: string | null = null;
+  @state() tedCanaryRunBusy = false;
+  @state() tedCanaryRunError: string | null = null;
+  @state() tedCanaryRunResult: Record<string, unknown> | null = null;
 
   @state() logsLoading = false;
   @state() logsError: string | null = null;
@@ -437,6 +832,391 @@ export class OpenClawApp extends LitElement {
 
   async loadCron() {
     await loadCronInternal(this as unknown as Parameters<typeof loadCronInternal>[0]);
+  }
+
+  async loadTedWorkbench() {
+    await loadTedWorkbench(this);
+  }
+
+  async validateTedRoleCard() {
+    await validateTedRoleCard(this);
+  }
+
+  async runTedProof(proofScript: string) {
+    await runTedProof(this, proofScript);
+  }
+
+  async loadTedJobCardDetail(id: string) {
+    await loadTedJobCardDetail(this, id);
+  }
+
+  async saveTedJobCardDetail() {
+    await saveTedJobCardDetail(this);
+  }
+
+  async previewTedJobCardUpdate() {
+    await previewTedJobCardUpdate(this);
+  }
+
+  async suggestTedJobCardKpis() {
+    await suggestTedJobCardKpis(this);
+  }
+
+  async decideTedRecommendation(id: string, decision: "approved" | "dismissed") {
+    await decideTedRecommendation(this, id, decision);
+  }
+
+  async runTedIntakeRecommendation() {
+    await runTedIntakeRecommendation(this);
+  }
+
+  async saveTedIntakeJobCard() {
+    await saveTedIntakeJobCard(this);
+  }
+
+  async applyTedThresholds(reset = false) {
+    await applyTedThresholds(this, reset);
+  }
+
+  async loadTedSourceDocument(
+    key: "job_board" | "promotion_policy" | "value_friction" | "interrogation_cycle",
+  ) {
+    await loadTedSourceDocument(this, key);
+  }
+
+  async loadTedPolicyDocument(key: import("./types.js").TedPolicyKey) {
+    await loadTedPolicyDocument(this, key);
+  }
+
+  async previewTedPolicyUpdate() {
+    await previewTedPolicyUpdate(this);
+  }
+
+  async saveTedPolicyUpdate() {
+    await saveTedPolicyUpdate(this);
+  }
+
+  async startTedConnectorAuth(profileId: "olumie" | "everest") {
+    await startTedConnectorAuth(this, profileId);
+  }
+
+  async pollTedConnectorAuth(profileId: "olumie" | "everest") {
+    await pollTedConnectorAuth(this, profileId);
+  }
+
+  async revokeTedConnectorAuth(profileId: "olumie" | "everest") {
+    await revokeTedConnectorAuth(this, profileId);
+  }
+
+  async loadTedMail(profileId?: string, folder?: string) {
+    await loadTedMail(this, profileId, folder);
+  }
+
+  async loadTedMorningBrief() {
+    await loadTedMorningBrief(this);
+  }
+
+  async loadTedEodDigest() {
+    await loadTedEodDigest(this);
+  }
+
+  async loadTedDealList() {
+    await loadTedDealList(this);
+  }
+
+  async loadTedDealDetail(dealId: string) {
+    await loadTedDealDetail(this, dealId);
+  }
+
+  async updateTedDeal(dealId: string, fields: Record<string, unknown>) {
+    await updateTedDeal(this, dealId, fields);
+  }
+
+  async loadTedLlmProvider() {
+    await loadTedLlmProvider(this);
+  }
+
+  async updateTedLlmProvider(
+    newDefault: import("./types.ts").LlmProviderName,
+    perJobOverrides?: Record<string, { provider: import("./types.ts").LlmProviderName }>,
+  ) {
+    await updateTedLlmProvider(this, newDefault, perJobOverrides);
+  }
+
+  async loadTedMeetingsUpcoming() {
+    await loadTedMeetingsUpcoming(this);
+  }
+
+  async loadTedCommitments() {
+    await loadTedCommitments(this);
+  }
+
+  async loadTedActions() {
+    await loadTedActions(this);
+  }
+
+  async loadTedWaitingFor() {
+    await loadTedWaitingFor(this);
+  }
+
+  async loadTedTrustMetrics() {
+    await loadTedTrustMetrics(this);
+  }
+
+  async loadTedDeepWorkMetrics() {
+    await loadTedDeepWorkMetrics(this);
+  }
+
+  async loadTedDraftQueue() {
+    await loadTedDraftQueue(this);
+  }
+
+  async loadTedEventLogStats() {
+    await loadTedEventLogStats(this);
+  }
+
+  async loadTedPlannerPlans(profileId?: string) {
+    await loadTedPlannerPlans(this, profileId);
+  }
+
+  async loadTedPlannerTasks(profileId: string, planId: string, bucketId?: string) {
+    await loadTedPlannerTasks(this, profileId, planId, bucketId);
+  }
+
+  async loadTedTodoLists(profileId?: string) {
+    await loadTedTodoLists(this, profileId);
+  }
+
+  async loadTedTodoTasks(profileId: string, listId: string) {
+    await loadTedTodoTasks(this, profileId, listId);
+  }
+
+  async loadTedSyncReconciliation(profileId?: string) {
+    await loadTedSyncReconciliation(this, profileId);
+  }
+
+  async loadTedSyncProposals(profileId?: string) {
+    await loadTedSyncProposals(this, profileId);
+  }
+
+  async approveTedSyncProposal(profileId: string, proposalId: string) {
+    await approveTedSyncProposal(this, profileId, proposalId);
+  }
+
+  async rejectTedSyncProposal(profileId: string, proposalId: string) {
+    await rejectTedSyncProposal(this, profileId, proposalId);
+  }
+
+  async extractTedCommitments(profileId: string, messageId: string) {
+    await extractTedCommitments(this, profileId, messageId);
+  }
+
+  onLoadImprovementProposals = (status?: string) => loadTedImprovementProposals(this, status);
+  onCreateImprovementProposal = (params: { title: string; type: string; description: string }) =>
+    createTedImprovementProposal(this, params);
+  onReviewImprovementProposal = (proposalId: string, verdict: string, notes?: string) =>
+    reviewTedImprovementProposal(this, proposalId, verdict, notes);
+  onApplyImprovementProposal = (proposalId: string) =>
+    applyTedImprovementProposal(this, proposalId);
+  onGenerateImprovementProposal = (days?: number) => generateTedImprovementProposal(this, days);
+  onLoadTrustAutonomy = () => loadTedTrustAutonomy(this);
+  onLoadFailureAggregation = (days?: number) => loadTedFailureAggregation(this, days);
+  onTedDraftSubmitReview = (draftId: string) => {
+    void submitTedDraftForReviewById(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      draftId,
+    );
+  };
+  onTedDeepWorkSession = (durationMinutes: number, label?: string, entity?: string) => {
+    void recordTedDeepWorkSession(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      durationMinutes,
+      label,
+      entity,
+    );
+  };
+  onTedGraphSyncStatus = (profileId: string) => {
+    void loadTedGraphSyncStatus(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      profileId,
+    );
+  };
+
+  onLoadBuilderLanePatterns = () =>
+    loadBuilderLanePatterns(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  onLoadBuilderLaneStatus = () =>
+    loadBuilderLaneStatus(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  onLoadBuilderLaneMetrics = () =>
+    loadBuilderLaneMetrics(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  onGenerateFromPattern = (domain: string, contextBucket?: Record<string, unknown>) =>
+    generateFromPattern(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      domain,
+      contextBucket,
+    );
+  onRevertAppliedProposal = (proposalId: string) =>
+    revertAppliedProposal(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      proposalId,
+    );
+  onSubmitCalibrationResponse = (
+    promptId: string,
+    response: string,
+    domain?: string,
+    moment?: string,
+  ) =>
+    submitCalibrationResponse(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      promptId,
+      response,
+      domain,
+      moment,
+    );
+
+  // Self-Healing Dashboard
+  async fetchSelfHealingStatus() {
+    await fetchSelfHealingStatus(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async fetchCorrectionTaxonomy() {
+    await fetchCorrectionTaxonomy(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async fetchEngagementInsights() {
+    await fetchEngagementInsights(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async fetchNoiseLevel() {
+    await fetchNoiseLevel(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  }
+
+  async fetchAutonomyStatus() {
+    await fetchAutonomyStatus(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  }
+
+  async loadTedEvaluationStatus() {
+    await loadTedEvaluationStatus(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async triggerTedEvaluationRun() {
+    await triggerTedEvaluationRun(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async loadTedQaDashboard() {
+    await loadTedQaDashboard(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  }
+
+  async triggerTedCanaryRun() {
+    await triggerTedCanaryRun(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  }
+
+  async loadTedIngestionStatus() {
+    await loadTedIngestionStatus(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async triggerTedIngestion() {
+    await triggerTedIngestion(this as unknown as import("./controllers/ted.ts").TedWorkbenchState);
+  }
+
+  async loadTedDiscoveryStatus() {
+    await loadTedDiscoveryStatus(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async triggerTedDiscovery(profileId: string) {
+    await triggerTedDiscovery(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      profileId,
+    );
+  }
+
+  // C12-004: Stale deals
+  async loadTedStaleDeals(days?: number) {
+    await loadTedStaleDeals(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      days,
+    );
+  }
+
+  // C12-011: Deal retrospective
+  async generateTedDealRetrospective(dealId: string) {
+    await generateTedDealRetrospective(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      dealId,
+    );
+  }
+
+  // SharePoint
+  async loadTedSharePointSites() {
+    await loadTedSharePointSites(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState & {
+        client: import("./gateway.ts").GatewayBrowserClient;
+        connected: boolean;
+      },
+    );
+  }
+
+  async loadTedSharePointDrives() {
+    await loadTedSharePointDrives(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState & {
+        client: import("./gateway.ts").GatewayBrowserClient;
+        connected: boolean;
+      },
+    );
+  }
+
+  async loadTedSharePointItems(itemId?: string) {
+    await loadTedSharePointItems(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState & {
+        client: import("./gateway.ts").GatewayBrowserClient;
+        connected: boolean;
+      },
+      itemId,
+    );
+  }
+
+  async searchTedSharePoint() {
+    await searchTedSharePoint(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState & {
+        client: import("./gateway.ts").GatewayBrowserClient;
+        connected: boolean;
+      },
+    );
+  }
+
+  async uploadTedSharePointFile(fileName: string, contentBase64: string, contentType: string) {
+    await uploadTedSharePointFile(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState & {
+        client: import("./gateway.ts").GatewayBrowserClient;
+        connected: boolean;
+      },
+      fileName,
+      contentBase64,
+      contentType,
+    );
+  }
+
+  async createTedSharePointFolder(folderName: string) {
+    await createTedSharePointFolder(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState & {
+        client: import("./gateway.ts").GatewayBrowserClient;
+        connected: boolean;
+      },
+      folderName,
+    );
   }
 
   async handleAbortChat() {

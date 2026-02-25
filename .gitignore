@@ -105,6 +105,10 @@ sidecars/ted-engine/config/graph.profiles.json
 
 # sidecar runtime artifacts
 sidecars/ted-engine/artifacts/
+sidecars/ted-engine/config_backups/
+
+# specify runtime state (not templates/specs)
+.specify/runtime/
 
 # Spec Kit / SDD artifacts (track in this repo)
 !.specify/
@@ -113,3 +117,6 @@ sidecars/ted-engine/artifacts/
 !.specify/templates/
 !.specify/templates/**
 !.specify/specs/**
+
+# Windows ADS metadata
+*:Zone.Identifier

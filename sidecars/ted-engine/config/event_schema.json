@@ -1,0 +1,327 @@
+{
+  "_config_version": 1,
+  "version": "1.0.0",
+  "description": "Canonical event schema for Ted event_log. All writes should emit an event via appendEvent().",
+  "event_envelope": {
+    "event_id": "UUID v4 — unique per event",
+    "event_type": "Dotted namespace from taxonomy below",
+    "timestamp": "ISO 8601",
+    "source": "Route or function that produced the event (e.g. '/triage/ingest', 'appendAudit')",
+    "trace_id": "Optional correlation ID linking related events across a single request",
+    "plane": "Which architectural plane originated the event (control, connector, state, contract, experience)",
+    "payload": "Event-specific data (domain object)"
+  },
+  "event_types": {
+    "audit": {
+      "audit.action": "Generic governance/ops audit trail event (migrated from appendAudit)"
+    },
+    "triage": {
+      "triage.ingested": "New item ingested into triage queue",
+      "triage.classified": "Item classified by LLM or pattern match",
+      "triage.linked": "Triage item linked to deal/task",
+      "triage.resolved": "Triage item resolved",
+      "triage.listed": "Triage queue listed by operator or agent"
+    },
+    "commitment": {
+      "commitment.created": "New commitment created",
+      "commitment.completed": "Commitment marked complete",
+      "commitment.updated": "Commitment fields updated",
+      "commitment.escalated": "Commitment escalated (future)",
+      "commitment.listed": "Commitment ledger listed by operator or agent"
+    },
+    "deal": {
+      "deal.created": "New deal created",
+      "deal.updated": "Deal fields updated",
+      "deal.stage.changed": "Deal stage transition",
+      "deal.date.added": "Key date added to deal",
+      "deal.investor.added": "Investor added to deal",
+      "deal.investor.updated": "Investor record updated",
+      "deal.investor.oig_updated": "Investor OIG exclusion status updated",
+      "deal.counsel.added": "Counsel added to deal",
+      "deal.counsel.invoice.added": "Counsel invoice recorded for deal",
+      "deal.task.added": "Task added to deal",
+      "deal.task.updated": "Task status changed",
+      "deal.checklist.item.added": "Checklist item added to deal",
+      "deal.checklist.item.updated": "Checklist item updated on deal",
+      "deal.checklist.item.removed": "Checklist item removed from deal",
+      "deal.note.added": "Note added to deal",
+      "deal.owner.stale_check": "Deal owner responsiveness check — stale deals flagged",
+      "deal.listed": "Deal pipeline listed by operator or agent",
+      "deal.brief.auto_generated": "Skeleton brief auto-generated on deal creation",
+      "deal.retrospective.generated": "Per-deal learning retrospective generated"
+    },
+    "meeting": {
+      "meeting.upcoming.listed": "Upcoming meetings queried",
+      "meeting.prep.generated": "Meeting prep packet generated",
+      "meeting.debrief.processed": "Meeting debrief processed"
+    },
+    "gtd": {
+      "gtd.action.created": "GTD next action created",
+      "gtd.action.completed": "GTD action completed",
+      "gtd.waiting_for.created": "Waiting-for item created"
+    },
+    "draft": {
+      "draft.created": "Draft created (in Outlook or queue)",
+      "draft.queued": "Draft added to draft queue",
+      "draft.pending_review": "Draft submitted for operator review",
+      "draft.edited": "Draft content edited",
+      "draft.approved": "Draft approved for execution",
+      "draft.executed": "Draft sent/executed",
+      "draft.archived": "Draft archived without sending",
+      "draft.execute_failed": "Draft execution failed (Graph send error)"
+    },
+    "mail": {
+      "mail.fetched": "Mail list fetched from Graph",
+      "mail.moved": "Mail moved between folders",
+      "mail.received": "Normalized inbound mail event (future)",
+      "mail.thread.updated": "Thread updated (future)"
+    },
+    "calendar": {
+      "calendar.fetched": "Calendar events fetched from Graph",
+      "calendar.event.created": "Calendar event created",
+      "calendar.meeting.ending": "Meeting about to end (future)"
+    },
+    "planning": {
+      "planning.timeblock.generated": "Time-block plan generated",
+      "planning.timeblock.applied": "Plan applied to calendar (future)"
+    },
+    "filing": {
+      "filing.suggestion.proposed": "Filing suggestion proposed",
+      "filing.suggestion.approved": "Filing suggestion approved",
+      "filing.para.classified": "PARA classification performed"
+    },
+    "pattern": {
+      "pattern.proposed": "Triage pattern proposed",
+      "pattern.approved": "Triage pattern approved"
+    },
+    "governance": {
+      "governance.hard_ban.blocked": "Hard ban prevented action",
+      "governance.hard_ban.passed": "Hard ban check passed",
+      "governance.role_card.blocked": "Role card check blocked",
+      "governance.role_card.passed": "Role card check passed",
+      "governance.output_contract.blocked": "Output contract check blocked",
+      "governance.output_contract.passed": "Output contract check passed",
+      "governance.output_contract.hybrid": "Output contract partially met — fallback sections injected",
+      "governance.rubber_stamping.detected": "Rubber-stamping detected — operator approval rate exceeds safety threshold",
+      "governance.entity_check.blocked": "Entity boundary check blocked",
+      "governance.entity_check.passed": "Entity boundary check passed",
+      "governance.confidence.evaluated": "Confidence level evaluated",
+      "governance.contradiction.blocked": "Contradiction detected",
+      "governance.contradiction.passed": "No contradiction found",
+      "governance.escalation.routed": "Escalation routed",
+      "governance.repair.simulated": "Fast-repair simulation run",
+      "governance.operator_required.blocked": "Operator confirmation required but not provided — action blocked"
+    },
+    "ops": {
+      "ops.paused": "Automation paused",
+      "ops.resumed": "Automation resumed",
+      "ops.dispatch.allowed": "Dispatch permitted",
+      "ops.dispatch.queued": "Dispatch queued (paused state)",
+      "ops.rate.evaluated": "Rate policy evaluated",
+      "ops.retry.evaluated": "Retry policy evaluated"
+    },
+    "llm": {
+      "llm.call": "LLM provider call made",
+      "llm.provider.updated": "LLM provider config changed"
+    },
+    "graph": {
+      "graph.auth.started": "Graph device auth started",
+      "graph.auth.completed": "Graph device auth completed",
+      "graph.auth.revoked": "Graph auth revoked",
+      "graph.auth.refreshed": "Graph access token refreshed successfully",
+      "graph.auth.refresh_failed": "Graph access token refresh failed",
+      "graph.sync.started": "Graph sync started (future)",
+      "graph.sync.completed": "Graph sync completed (future)",
+      "graph.sync.failed": "Graph sync failed (future)",
+      "graph.network_retry": "Graph API call retried after network error",
+      "graph.rate_limited": "Graph API returned 429 — rate limited, backing off",
+      "graph.retry": "Graph API call retried after transient HTTP error",
+      "graph.pagination.truncated": "Graph paginated response truncated at max page limit"
+    },
+    "learning": {
+      "learning.modifiers.evaluated": "Learning modifiers evaluated",
+      "learning.affinity.routed": "Affinity signal routed",
+      "learning.meeting.captured": "Meeting learning captured"
+    },
+    "mcp": {
+      "mcp.request": "MCP JSON-RPC request received",
+      "mcp.tool.called": "MCP tool invoked"
+    },
+    "policy": {
+      "policy.config.changed": "Policy config changed (hard_bans, autonomy, urgency, etc.)",
+      "policy.config.snapshot": "Policy config snapshot on startup"
+    },
+    "facility": {
+      "facility.alert.created": "Facility alert created",
+      "facility.alert.escalated": "Facility alert escalated",
+      "facility.alert.resolved": "Facility alert resolved"
+    },
+    "trust": {
+      "trust.validation.passed": "LLM output validation passed",
+      "trust.validation.failed": "LLM output validation failed",
+      "trust.override": "Operator override of validation (future)",
+      "trust.autonomy.evaluated": "Trust-driven autonomy evaluation performed",
+      "trust.autonomy.promoted": "Autonomy level promoted based on trust metrics"
+    },
+    "planner": {
+      "planner.plan.discovered": "Planner plan discovered for entity",
+      "planner.bucket.discovered": "Planner bucket discovered",
+      "planner.task.listed": "Planner tasks listed",
+      "planner.task.created": "Task created in Planner (synced from TED)",
+      "planner.task.updated": "Task updated in Planner (synced from TED)",
+      "planner.task.completed": "Task completed in Planner"
+    },
+    "todo": {
+      "todo.list.discovered": "To Do list discovered",
+      "todo.task.listed": "To Do tasks listed",
+      "todo.task.created": "Task created in To Do (synced from TED)",
+      "todo.task.updated": "Task updated in To Do (synced from TED)",
+      "todo.task.completed": "Task completed in To Do",
+      "todo.linked_resource.created": "Linked resource backlink created on To Do task"
+    },
+    "sync": {
+      "sync.reconciliation.started": "Reconciliation started between TED ledgers and M365",
+      "sync.reconciliation.completed": "Reconciliation completed with drift report",
+      "sync.drift.detected": "Drift detected between TED and external system",
+      "sync.write.proposed": "Sync write proposed (pending operator approval)",
+      "sync.write.approved": "Sync write approved by operator",
+      "sync.write.executed": "Sync write executed against external system",
+      "sync.write.rejected": "Sync write rejected by operator",
+      "sync.conflict.detected": "ETag conflict detected during Planner write",
+      "sync.reconciliation.service_failed": "Reconciliation failed to reach an external service (Planner or To Do)"
+    },
+    "extraction": {
+      "extraction.commitment.detected": "Commitment candidates detected in email via LLM",
+      "extraction.commitment.blocked": "Commitment extraction blocked — LLM unavailable, fallback returned",
+      "extraction.commitment.confirmed": "Extracted commitment confirmed by operator",
+      "extraction.commitment.rejected": "Extracted commitment rejected by operator"
+    },
+    "reporting": {
+      "reporting.morning_brief.generated": "Morning brief generated",
+      "reporting.eod_digest.generated": "EOD digest generated",
+      "reporting.deep_work.metrics.queried": "Deep work metrics dashboard queried",
+      "reporting.deep_work.session.recorded": "Deep work session recorded via operator log"
+    },
+    "improvement": {
+      "improvement.failure.aggregated": "Trust failures aggregated for analysis",
+      "improvement.proposal.created": "Improvement proposal generated from failure analysis",
+      "improvement.proposal.reviewed": "Improvement proposal reviewed by operator",
+      "improvement.proposal.approved": "Improvement proposal approved for application",
+      "improvement.proposal.applied": "Improvement proposal applied to config/contracts",
+      "improvement.proposal.rejected": "Improvement proposal rejected by operator",
+      "improvement.correction.recorded": "Operator correction signal captured (edit, accept, reject, reclassify, override)",
+      "improvement.pattern.detected": "Correction pattern identified by Builder Lane detection engine",
+      "improvement.proposal.generated_from_pattern": "Proposal created from correction pattern evidence",
+      "improvement.proposal.reverted": "Applied proposal reverted via config snapshot",
+      "improvement.proposal.blocked_by_constitution": "Proposal failed constitution check against hard_bans.json",
+      "improvement.config.snapshot": "Config file snapshot created before AI-applied change",
+      "improvement.shadow.started": "Shadow mode run started for proposal (7-day parallel config eval)",
+      "improvement.shadow.completed": "Shadow mode run completed with impact summary",
+      "improvement.correction.amplified": "Correction applied to multiple similar items via amplification",
+      "improvement.fatigue.suspected": "Correction fatigue detected — operator may have stopped checking",
+      "improvement.calibration.response": "Operator responded to proactive calibration prompt",
+      "improvement.rubber_stamping.suspected": "Rubber-stamping detected — proposals approved too quickly",
+      "improvement.archetype.applied": "Archetype selected and applied during onboarding cold-start",
+      "improvement.voice_extraction.started": "Voice/style extraction pipeline started from Graph sent items",
+      "improvement.voice_extraction.completed": "Voice/style extraction pipeline completed with style deltas",
+      "improvement.shadow.eval_recorded": "Individual shadow evaluation data point recorded during LLM call"
+    },
+    "scheduler": {
+      "scheduler.started": "Scheduler started (cron tick loop active)",
+      "scheduler.stopped": "Scheduler stopped",
+      "scheduler.tick.completed": "Scheduler tick completed successfully",
+      "scheduler.tick.error": "Scheduler tick encountered an error",
+      "scheduler.tick.paused": "Scheduler tick skipped — automation paused",
+      "scheduler.dispatch.success": "Scheduler dispatched job successfully",
+      "scheduler.dispatch.failed": "Scheduler job dispatch failed",
+      "scheduler.job.started": "Scheduler job started execution",
+      "scheduler.job.completed": "Scheduler job completed and delivery recorded",
+      "scheduler.job.failed": "Scheduler job failed after dispatch",
+      "scheduler.job.skipped": "Scheduler job skipped (gate check, budget, or backoff)",
+      "scheduler.config.changed": "Scheduler enabled/disabled config changed"
+    },
+    "server": {
+      "server.uncaught_exception": "Uncaught exception at process level",
+      "server.unhandled_rejection": "Unhandled promise rejection at process level",
+      "server.unhandled_error": "Unhandled error in HTTP request handler",
+      "server.startup_recovery": "Startup recovery check for incomplete scheduled deliveries"
+    },
+    "contracts": {
+      "contracts.startup_validation": "LLM output contract golden-fixture validation at startup"
+    },
+    "ingestion": {
+      "ingestion.cycle.completed": "Inbox ingestion cycle completed with summary stats",
+      "ingestion.message.processed": "Individual message processed during inbox ingestion"
+    },
+    "discovery": {
+      "discovery.completed": "First-run discovery pipeline completed"
+    },
+    "onboarding": {
+      "onboarding.activated": "Operator onboarding activated"
+    },
+    "setup": {
+      "setup.validated": "Setup validation checks executed"
+    },
+    "delivery": {
+      "delivery.acknowledged": "Scheduled delivery acknowledged by operator"
+    },
+    "deep_work": {
+      "deep_work.metrics.queried": "Deep work metrics dashboard queried"
+    },
+    "sharepoint": {
+      "sharepoint.sites.listed": "SharePoint sites listed for profile",
+      "sharepoint.drives.listed": "SharePoint document libraries listed for site",
+      "sharepoint.items.listed": "SharePoint items listed (folder browse)",
+      "sharepoint.item.metadata": "SharePoint item metadata retrieved",
+      "sharepoint.file.downloaded": "SharePoint file content downloaded",
+      "sharepoint.file.uploaded": "File uploaded to SharePoint (operator-approved)",
+      "sharepoint.folder.created": "Folder created in SharePoint (operator-approved)",
+      "sharepoint.search.executed": "SharePoint search query executed"
+    },
+    "builder_lane": {
+      "builder_lane.style_delta.recorded": "Style delta recorded from draft edit — voice/style drift tracking"
+    },
+    "self_healing": {
+      "self_healing.circuit_breaker.tripped": "Graph workload group circuit breaker tripped after failure rate exceeded threshold",
+      "self_healing.circuit_breaker.recovered": "Graph workload group circuit breaker recovered (half-open probe succeeded)",
+      "self_healing.circuit_breaker.slow_call": "Graph API call exceeded slow-call threshold (>10s)",
+      "self_healing.provider.fallback": "LLM request routed to fallback provider after primary failure or circuit open",
+      "self_healing.provider.recovered": "Primary LLM provider health restored (probe succeeded)",
+      "self_healing.provider.slow": "LLM provider response exceeded latency threshold",
+      "self_healing.config.drift_detected": "Config file on disk differs from last known hash",
+      "self_healing.config.auto_reloaded": "Config file validated and auto-reloaded after drift detection",
+      "self_healing.config.validation_failed": "Config file drift detected but reload blocked due to invalid schema",
+      "self_healing.config.restored_from_snapshot": "Missing or corrupted config restored from snapshot directory via atomic replacement",
+      "self_healing.ledger.compacted": "JSONL ledger entries older than retention period archived to compressed storage",
+      "self_healing.proposal.auto_expired": "Improvement proposal auto-expired after 30 days in proposed status",
+      "self_healing.proposal.resurrected": "Expired proposal re-opened within 14-day grace period",
+      "self_healing.correction.classified": "Correction signal classified by 12-category taxonomy",
+      "self_healing.engagement.recorded": "Operator engagement signal recorded (e.g. draft edit, triage action, correction made)",
+      "self_healing.engagement.window_computed": "Optimal delivery window computed from engagement data",
+      "self_healing.engagement.batch_preference_detected": "Operator batch vs drip notification preference detected",
+      "self_healing.disengagement.level_changed": "Noise reduction level changed based on fatigue monitor and engagement signals",
+      "self_healing.reengagement.summary_generated": "Re-engagement summary generated for returning operator after fatigue period",
+      "self_healing.autonomy.promotion_proposed": "Autonomy level increase proposed based on dual-signal low corrections plus high engagement",
+      "self_healing.autonomy.demotion_triggered": "Autonomy level decreased after factual error or override or correction spike",
+      "self_healing.autonomy.calibration_challenge": "Periodic calibration challenge presented to verify operator engagement at high autonomy",
+      "self_healing.draft.zombie_detected": "Draft stuck in approved state for over 1 hour detected by scheduler",
+      "self_healing.draft.auto_retried": "Zombie draft retry attempted after draft-existence verification",
+      "self_healing.draft.dead_lettered": "Draft moved to dead letter after max retries or non-transient error"
+    },
+    "system": {
+      "system.startup_validation": "Pre-upgrade startup integrity check — validates ledger JSONL and config JSON files on boot",
+      "system.shutdown": "Graceful shutdown initiated — logs signal, in-flight request count, and drain outcome"
+    },
+    "tool": {
+      "tool.usage.recorded": "MCP tool execution latency and invocation count recorded for telemetry"
+    },
+    "evaluation": {
+      "evaluation.pipeline.completed": "Multi-grader evaluation pipeline run completed with pass/fail summary",
+      "evaluation.quality.degraded": "Evaluation pass rate dropped below 80% threshold",
+      "evaluation.correction_fixture.created": "Auto-generated golden fixture from Builder Lane correction signal",
+      "evaluation.canary.completed": "Synthetic canary check completed",
+      "evaluation.canary.failed": "Synthetic canary check failed",
+      "evaluation.drift.detected": "Score drift detected compared to 7-day rolling baseline"
+    }
+  }
+}

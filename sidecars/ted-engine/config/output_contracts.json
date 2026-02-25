@@ -1,0 +1,182 @@
+{
+  "_config_version": 1,
+  "morning_brief": {
+    "required_sections": ["inbox_summary", "priorities", "calendar"],
+    "max_length": 5000,
+    "forbidden_patterns": []
+  },
+  "eod_digest": {
+    "required_sections": ["completed_today", "pending", "tomorrow_prep"],
+    "max_length": 5000,
+    "forbidden_patterns": []
+  },
+  "draft_email": {
+    "required_sections": [],
+    "max_length": 3000,
+    "forbidden_patterns": ["CONFIDENTIAL PLACEHOLDER", "TODO:", "FIXME"]
+  },
+  "triage_classify": {
+    "required_sections": [],
+    "max_length": 1000,
+    "forbidden_patterns": []
+  },
+  "deadline_extract": {
+    "required_sections": [],
+    "max_length": 1000,
+    "forbidden_patterns": []
+  },
+  "commitment_extract": {
+    "required_sections": [],
+    "max_length": 2000,
+    "forbidden_patterns": ["TODO:", "FIXME"]
+  },
+  "improvement_proposal": {
+    "required_sections": ["problem_statement", "proposed_change", "evidence"],
+    "max_length": 3000,
+    "forbidden_patterns": ["PLACEHOLDER", "TBD"]
+  },
+  "deal_snapshot": {
+    "required_sections": ["deal_id", "status", "summary"],
+    "max_length": 2000,
+    "forbidden_patterns": ["PLACEHOLDER", "TBD"]
+  },
+  "facility_alert": {
+    "required_sections": ["facility_id", "alert_type", "severity"],
+    "max_length": 1500,
+    "forbidden_patterns": []
+  },
+  "daily_plan": {
+    "required_sections": ["priorities", "time_blocks"],
+    "max_length": 3000,
+    "forbidden_patterns": ["TODO:", "FIXME"]
+  },
+  "gtd_action": {
+    "required_sections": ["action", "context"],
+    "max_length": 1000,
+    "forbidden_patterns": []
+  },
+  "waiting_for": {
+    "required_sections": ["who", "what"],
+    "max_length": 1000,
+    "forbidden_patterns": []
+  },
+  "calendar_enrichment": {
+    "required_sections": ["event_id", "enrichment_type"],
+    "max_length": 2000,
+    "forbidden_patterns": []
+  },
+  "discovery_pipeline": {
+    "required_sections": ["discovery_type", "results"],
+    "max_length": 3000,
+    "forbidden_patterns": []
+  },
+  "reconciliation_drift": {
+    "required_sections": ["drift_items", "proposed_writes"],
+    "max_length": 3000,
+    "forbidden_patterns": []
+  },
+  "intake_recommendation": {
+    "required_sections": ["recommendation", "confidence"],
+    "max_length": 2000,
+    "forbidden_patterns": ["PLACEHOLDER"]
+  },
+  "builder_lane_proposal": {
+    "required_sections": ["problem_statement", "proposed_change", "evidence"],
+    "max_length": 3000,
+    "forbidden_patterns": ["PLACEHOLDER", "TBD"]
+  },
+  "self_healing_assessment": {
+    "required_sections": ["health_status", "recommendations"],
+    "max_length": 2000,
+    "forbidden_patterns": []
+  },
+  "engagement_summary": {
+    "required_sections": ["engagement_score", "period"],
+    "max_length": 2000,
+    "forbidden_patterns": []
+  },
+  "stale_deal_report": {
+    "required_sections": ["stale_deals", "recommended_actions"],
+    "max_length": 3000,
+    "forbidden_patterns": []
+  },
+  "golden_fixtures": {
+    "_description": "Reference outputs for contract validation regression testing",
+    "morning_brief": {
+      "fixture": "## Inbox Summary\n3 new emails requiring attention: 1 urgent from counsel re: Olumie Fund II closing docs, 1 follow-up from Isaac on Everest compliance filing, 1 investor update request.\n\n## Priorities\n1. Review and approve closing docs for Olumie Fund II (deadline: tomorrow)\n2. Respond to Everest compliance inquiry (regulatory deadline: Friday)\n3. Prepare investor update memo for Q4 distributions\n\n## Calendar\n- 10:00 AM — Olumie Fund II closing call (45 min)\n- 2:00 PM — Everest board prep with Isaac (30 min)\n- 4:00 PM — Deep work block (90 min)",
+      "validates_against": "morning_brief"
+    },
+    "eod_digest": {
+      "fixture": "## Completed Today\n- Reviewed and approved Olumie Fund II closing docs\n- Sent investor update memo draft to Isaac for review\n- Responded to Everest compliance inquiry\n\n## Pending\n- Awaiting Isaac review on investor update memo (due: tomorrow AM)\n- Everest board deck needs final numbers from accounting\n\n## Tomorrow Prep\n- 9:00 AM slot open for Isaac sync on memo feedback\n- Board deck finalization before 2 PM Everest call\n- Follow up on Fund II wire confirmations",
+      "validates_against": "eod_digest"
+    },
+    "draft_email": {
+      "fixture": "Hi Isaac,\n\nFollowing up on our discussion about the Everest compliance filing — I've reviewed the latest draft and have a few notes:\n\n1. Section 3.2 needs updated financials from Q4\n2. The board resolution language should match the template from Fund I\n3. Filing deadline is Friday — please confirm we're on track\n\nLet me know if you need anything else.\n\n— Clint\n\n[Draft for review — not yet sent]",
+      "validates_against": "draft_email"
+    },
+    "triage_classify": {
+      "fixture": "{\"entity\":\"olumie\",\"category\":\"deal_update\",\"urgency\":\"medium\",\"confidence\":0.85,\"suggested_action\":\"Route to deal pipeline — Olumie Fund II closing docs update\",\"related_deal_id\":\"fund-ii-2024\"}",
+      "validates_against": "triage_classify"
+    },
+    "commitment_extract": {
+      "fixture": "[{\"who_owes\":\"Isaac\",\"who_to\":\"Clint\",\"what\":\"Send updated Q4 financials for Everest board deck\",\"due_date\":\"2026-02-25\",\"confidence\":0.92,\"source_text\":\"I'll have the updated Q4 numbers to you by Tuesday.\"},{\"who_owes\":\"Clint\",\"who_to\":\"Counsel\",\"what\":\"Review and approve Olumie Fund II closing docs\",\"due_date\":\"2026-02-24\",\"confidence\":0.88,\"source_text\":\"Please review and sign off on the closing documents by tomorrow.\"}]",
+      "validates_against": "commitment_extract"
+    },
+    "improvement_proposal": {
+      "fixture": "## Problem Statement\nDraft email contract validation has a 23% false-positive rate on signature detection — emails with inline quotes containing '— Name' patterns trigger signature-missing failures.\n\n## Proposed Change\nUpdate validateLlmOutputContract() signature check to only match signatures at the end of the email body (last 5 lines), not anywhere in the content. Add a regex anchor: /— Clint\\s*$/m instead of simple string includes.\n\n## Evidence\n- 12 trust_validation failures in last 7 days with intent=draft_email, missing_sections=[\"signature\"]\n- Manual review shows 9/12 were false positives caused by quoted reply signatures\n- Projected improvement: reduce false-positive rate from 23% to <5%",
+      "validates_against": "improvement_proposal"
+    },
+    "deal_snapshot": {
+      "fixture": "{\"deal_id\":\"fund-ii-2024\",\"status\":\"active\",\"summary\":\"Olumie Fund II — closing docs under review, target close date next week. Wire instructions pending confirmation from counsel.\",\"entity\":\"olumie\",\"last_touch\":\"2026-02-24\"}",
+      "validates_against": "deal_snapshot"
+    },
+    "facility_alert": {
+      "fixture": "{\"facility_id\":\"everest-hq\",\"alert_type\":\"compliance_deadline\",\"severity\":\"high\",\"description\":\"Annual compliance filing due in 5 days — Everest Healthcare main facility. Filing template 70% complete.\",\"due_date\":\"2026-03-02\"}",
+      "validates_against": "facility_alert"
+    },
+    "daily_plan": {
+      "fixture": "## Priorities\n1. Review Olumie Fund II closing docs (deadline: tomorrow)\n2. Everest compliance filing review\n3. Investor update memo draft\n\n## Time Blocks\n- 9:00-10:00 — Deep work: closing docs review\n- 10:00-10:45 — Olumie Fund II closing call\n- 11:00-12:00 — Everest compliance review\n- 2:00-2:30 — Board prep with Isaac\n- 3:00-4:30 — Deep work: investor memo",
+      "validates_against": "daily_plan"
+    },
+    "gtd_action": {
+      "fixture": "{\"action\":\"Draft response to counsel re: Fund II wire instructions\",\"context\":\"@computer\",\"project\":\"Olumie Fund II Closing\",\"energy\":\"high\",\"time_estimate_minutes\":20}",
+      "validates_against": "gtd_action"
+    },
+    "waiting_for": {
+      "fixture": "{\"who\":\"Isaac\",\"what\":\"Updated Q4 financials for Everest board deck\",\"requested_date\":\"2026-02-23\",\"expected_by\":\"2026-02-25\",\"status\":\"pending\"}",
+      "validates_against": "waiting_for"
+    },
+    "calendar_enrichment": {
+      "fixture": "{\"event_id\":\"cal-001\",\"enrichment_type\":\"deal_context\",\"related_deals\":[\"fund-ii-2024\"],\"attendee_commitments\":2,\"suggested_agenda\":[\"Review closing timeline\",\"Confirm wire instructions\"]}",
+      "validates_against": "calendar_enrichment"
+    },
+    "discovery_pipeline": {
+      "fixture": "{\"discovery_type\":\"inbox_scan\",\"results\":{\"new_messages\":12,\"classified\":10,\"needs_review\":2,\"commitments_found\":3},\"timestamp\":\"2026-02-25T08:00:00Z\"}",
+      "validates_against": "discovery_pipeline"
+    },
+    "reconciliation_drift": {
+      "fixture": "{\"drift_items\":[{\"type\":\"missing_in_planner\",\"local_item\":\"Draft Fund II closing memo\",\"proposed_action\":\"create_planner_task\"}],\"proposed_writes\":1,\"last_sync\":\"2026-02-24T18:00:00Z\"}",
+      "validates_against": "reconciliation_drift"
+    },
+    "intake_recommendation": {
+      "fixture": "{\"recommendation\":\"Approve — fits Investment Operations job family with standard risk profile\",\"confidence\":0.88,\"suggested_family\":\"investment_operations\",\"suggested_risk\":\"standard\",\"automation_potential\":\"medium\"}",
+      "validates_against": "intake_recommendation"
+    },
+    "builder_lane_proposal": {
+      "fixture": "## Problem Statement\nDraft email signature detection has a 23% false-positive rate.\n\n## Proposed Change\nUpdate signature regex to anchor at end of email body only.\n\n## Evidence\n12 false positives in 7 days, 9/12 caused by quoted reply signatures.",
+      "validates_against": "builder_lane_proposal"
+    },
+    "self_healing_assessment": {
+      "fixture": "{\"health_status\":\"healthy\",\"circuit_breakers\":{\"open\":0,\"half_open\":1,\"closed\":4},\"noise_level\":\"green\",\"recommendations\":[\"Consider graduating triage_classify to autonomy level 2 — 95% acceptance rate over 30 days\"]}",
+      "validates_against": "self_healing_assessment"
+    },
+    "engagement_summary": {
+      "fixture": "{\"engagement_score\":78,\"period\":\"2026-02-18 to 2026-02-25\",\"approvals\":34,\"rejections\":3,\"edits_before_approve\":8,\"avg_review_time_seconds\":45,\"trend\":\"stable\"}",
+      "validates_against": "engagement_summary"
+    },
+    "stale_deal_report": {
+      "fixture": "{\"stale_deals\":[{\"deal_id\":\"acme-acquisition\",\"days_stale\":14,\"last_activity\":\"2026-02-11\",\"owner\":\"Clint\"}],\"recommended_actions\":[\"Review acme-acquisition — no activity in 14 days. Consider archiving or scheduling follow-up.\"]}",
+      "validates_against": "stale_deal_report"
+    }
+  }
+}

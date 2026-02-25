@@ -140,6 +140,14 @@
 
 - Rebrand/migration issues or legacy config/service warnings: run `openclaw doctor` (see `docs/gateway/doctor.md`).
 
+## Canonical architecture docs (must-read before Ted changes)
+
+- `docs/architecture/Future-State-Framing.md` — Design Laws + North Star framing
+- `docs/council/Planes-Artifacts-Owners.md` — Planes → Artifacts → Owners mapping
+- `docs/ted-profile/sdd-pack/42_TED_SYSTEM_BLUEPRINT.md` — Full 5-plane architecture reference
+
+**Rule:** Proposals must name the plane(s) they affect and which ledgers/events they read/write.
+
 ## Agent-Specific Notes
 
 - Vocabulary: "makeup" = "mac app".

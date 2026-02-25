@@ -1,0 +1,32 @@
+{
+  "_config_version": 1,
+  "_sdd": {
+    "source": "docs/ted-profile/sdd-pack/44_OPERATOR_COMMAND_CENTER_ARCHITECTURE.md",
+    "section": "3.1 JC-081: Time-Block Planning",
+    "record_id": "jc-081a"
+  },
+  "default_deep_work_hours_target": 4,
+  "default_work_start": "07:30",
+  "default_work_end": "17:30",
+  "timezone": "America/Indiana/Indianapolis",
+  "deep_work_minimum_minutes": 60,
+  "shallow_batch_maximum_minutes": 45,
+  "deep_work_show_as": "busy",
+  "shallow_show_as": "tentative",
+  "buffer_between_blocks_minutes": 15,
+  "deep_work_signals": [
+    "deal analysis",
+    "document review",
+    "PSA review",
+    "DD checklist",
+    "financial modeling",
+    "compliance review"
+  ],
+  "shallow_work_signals": [
+    "email batch",
+    "draft approvals",
+    "filing review",
+    "triage processing",
+    "brief review"
+  ]
+}

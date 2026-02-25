@@ -1,0 +1,261 @@
+```diff
+diff --git a/.specify/memory/constitution.md b/.specify/memory/constitution.md
+--- a/.specify/memory/constitution.md
++++ b/.specify/memory/constitution.md
+@@ -1,11 +1,11 @@
+ <!--
+ Sync Impact Report
+-- Version change: 0.0.0 -> 1.0.0
++- Version change: 1.1.2 -> 1.2.0
+ - Modified principles:
+-  - N/A (initial constitution ratification)
++  - VI. Ted Sidecar Boundary Discipline (NON-NEGOTIABLE)
+ - Added sections:
+-  - Core Principles
+-  - Engineering Constraints
+-  - Delivery Workflow and Quality Gates
+-  - Governance
++  - None
++- Added subsections:
++  - Loopback enforcement facts
++  - Allowlist and `/ted` gating facts
++  - Config precedence + timeout split facts
+ - Removed sections:
+   - None
+@@ -63,25 +63,38 @@ shortcuts. Rationale: reliable operations require docs and release artifacts to
+ 
+ ### VI. Ted Sidecar Boundary Discipline (NON-NEGOTIABLE)
+ 
+-Ted Sidecar is a **loopback HTTP service** (default `http://127.0.0.1:48080`) with optional
+-**autostart** via a Node child process and HTTP calls from OpenClaw.
++Ted sidecar boundary changes MUST preserve all implementation facts below.
+ 
+-Authoritative boundary sources (MUST read before planning/coding boundary changes):
++1. Loopback enforcement MUST remain intact:
++   - Default base URL is `http://127.0.0.1:48080` (`extensions/ted-sidecar/index.ts:6`).
++   - Allowed hosts are only `127.0.0.1`, `localhost`, `::1` (`extensions/ted-sidecar/index.ts:28`, `extensions/ted-sidecar/index.ts:30`).
++   - Non-loopback base URLs are rejected (`extensions/ted-sidecar/index.ts:41`, `extensions/ted-sidecar/index.ts:42`).
++   - URL credentials are rejected (`extensions/ted-sidecar/index.ts:45`, `extensions/ted-sidecar/index.ts:46`).
++   - Only `http:` and `https:` are accepted (`extensions/ted-sidecar/index.ts:49`, `extensions/ted-sidecar/index.ts:50`).
++   - Sidecar server binds to loopback (`sidecars/ted-engine/server.mjs:16`, `sidecars/ted-engine/server.mjs:17`, `sidecars/ted-engine/server.mjs:1564`).
+ 
+-- Extension wiring + spawn/allowlist + /ted gating:
+-  - `extensions/ted-sidecar/index.ts`
+-- Plugin config schema + defaults:
+-  - `extensions/ted-sidecar/openclaw.plugin.json`
+-- Doctor enforcement (loopback-only + probes):
+-  - `src/commands/doctor-gateway-services.ts`
+-- Sidecar server routes:
+-  - `sidecars/ted-engine/server.mjs`
+-- Boundary contract:
+-  - `docs/integration/ted-sidecar-contract.md`
++2. Allowlist + `/ted` command gating MUST remain intact:
++   - Allowlist is `/status` and `/doctor` (`extensions/ted-sidecar/index.ts:8`).
++   - Endpoint construction enforces allowlist + loopback (`extensions/ted-sidecar/index.ts:89`, `extensions/ted-sidecar/index.ts:90`, `extensions/ted-sidecar/index.ts:94`, `extensions/ted-sidecar/index.ts:97`).
++   - `/ted` action resolves only to health paths (`extensions/ted-sidecar/index.ts:78`, `extensions/ted-sidecar/index.ts:80`, `extensions/ted-sidecar/index.ts:83`, `extensions/ted-sidecar/index.ts:86`).
++   - Unhealthy mode denies non-health `/ted` usage (`extensions/ted-sidecar/index.ts:293`, `extensions/ted-sidecar/index.ts:294`, `extensions/ted-sidecar/index.ts:295`, `extensions/ted-sidecar/index.ts:297`).
+ 
+-Boundary discipline:
++3. Configuration precedence and lifecycle semantics MUST remain explicit:
++   - Base URL precedence: plugin config -> `TED_SIDECAR_BASE_URL` -> default (`extensions/ted-sidecar/index.ts:60`, `extensions/ted-sidecar/index.ts:61`, `extensions/ted-sidecar/index.ts:62`).
++   - `timeoutMs` uses validated positive number; otherwise default `5000` ms (`extensions/ted-sidecar/index.ts:7`, `extensions/ted-sidecar/index.ts:66`, `extensions/ted-sidecar/index.ts:68`, `extensions/ted-sidecar/index.ts:71`).
++   - Config schema keys are `baseUrl`, `timeoutMs`, `sidecarPath`, `autostart` (`extensions/ted-sidecar/openclaw.plugin.json:9`, `extensions/ted-sidecar/openclaw.plugin.json:12`, `extensions/ted-sidecar/openclaw.plugin.json:15`, `extensions/ted-sidecar/openclaw.plugin.json:18`).
++   - `autostart: false` disables sidecar spawn (`extensions/ted-sidecar/index.ts:234`, `extensions/ted-sidecar/index.ts:235`).
++   - Autostart uses `spawn(process.execPath, [sidecarEntry])` (`extensions/ted-sidecar/index.ts:253`).
++   - Readiness probe retries 20 times with 250 ms delay (`extensions/ted-sidecar/index.ts:9`, `extensions/ted-sidecar/index.ts:10`, `extensions/ted-sidecar/index.ts:166`, `extensions/ted-sidecar/index.ts:173`).
++   - Stop sends `SIGTERM` then `SIGKILL` after 2s (`extensions/ted-sidecar/index.ts:185`, `extensions/ted-sidecar/index.ts:189`, `extensions/ted-sidecar/index.ts:192`, `extensions/ted-sidecar/index.ts:197`).
++   - Doctor sidecar check runs only in local mode and when plugin is enabled (`src/commands/doctor-gateway-services.ts:376`, `src/commands/doctor-gateway-services.ts:382`).
++   - Doctor probe timeout is `2000` ms (`src/commands/doctor-gateway-services.ts:23`).
+ 
+-1. Loopback-only is required (baseUrl + server bind).
+-2. `/status` and `/doctor` are stability endpoints and MUST remain safe/predictable.
+-3. Unhealthy mode routing MUST remain allowlisted (health endpoints only).
+-4. Any boundary change MUST update the contract doc and include verification evidence in the PR.
++4. Boundary governance:
++   - Any Ted sidecar boundary-impacting change MUST update `docs/integration/ted-sidecar-contract.md`.
++   - Any boundary-impacting change MUST include verification evidence in the PR.
+ 
+ ## Engineering Constraints
+ 
+@@ -122,4 +135,4 @@ Constitution versioning policy:
+ Compliance review is required at plan time (Constitution Check), during implementation
+ (task structure and validation evidence), and in pull request review.
+ 
+-**Version**: 1.1.2 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-18
++**Version**: 1.2.0 | **Ratified**: 2026-02-17 | **Last Amended**: 2026-02-18
+diff --git a/docs/integration/ted-sidecar-contract.md b/docs/integration/ted-sidecar-contract.md
+--- a/docs/integration/ted-sidecar-contract.md
++++ b/docs/integration/ted-sidecar-contract.md
+@@ -3,12 +3,15 @@
+ ## Integration model (facts)
+ 
+ - Sidecar base URL default is `http://127.0.0.1:48080` (`extensions/ted-sidecar/index.ts:6`).
+-- OpenClaw autostarts sidecar via `spawn(process.execPath, [sidecarEntry])` (`extensions/ted-sidecar/index.ts:250`).
++- OpenClaw autostarts sidecar via `spawn(process.execPath, [sidecarEntry])` (`extensions/ted-sidecar/index.ts:253`).
+ - Sidecar server binds to `127.0.0.1:48080` (`sidecars/ted-engine/server.mjs:16`, `sidecars/ted-engine/server.mjs:17`, `sidecars/ted-engine/server.mjs:1564`).
+ - Doctor probes call `${baseUrl}/status` and `${baseUrl}/doctor` (`src/commands/doctor-gateway-services.ts:60`, `src/commands/doctor-gateway-services.ts:65`).
++- Ted plugin allowlist is `/status` and `/doctor` (`extensions/ted-sidecar/index.ts:8`).
++- `/ted` only resolves health actions (`extensions/ted-sidecar/index.ts:80`, `extensions/ted-sidecar/index.ts:83`, `extensions/ted-sidecar/index.ts:86`).
+ 
+ Authoritative sources:
+ 
++- `docs/integration/ted-sidecar-contract.md`
+ - `extensions/ted-sidecar/index.ts`
+ - `extensions/ted-sidecar/openclaw.plugin.json`
+ - `src/commands/doctor-gateway-services.ts`
+@@ -17,14 +20,14 @@ Authoritative sources:
+ ## Integration style
+ 
+ - [x] Loopback HTTP client/server (`extensions/ted-sidecar/index.ts:114`, `sidecars/ted-engine/server.mjs:1398`)
+-- [x] Child-process autostart (`extensions/ted-sidecar/index.ts:250`)
++- [x] Child-process autostart (`extensions/ted-sidecar/index.ts:253`)
+ - [ ] Library import (no evidence)
+ - [ ] Event bus (no evidence)
+ 
+ ## Configuration contract (plugin id: `ted-sidecar`)
+ 
+ - `baseUrl`
+-  - Defined in plugin schema (`extensions/ted-sidecar/openclaw.plugin.json:9`).
++  - Defined in plugin schema (`extensions/ted-sidecar/openclaw.plugin.json:9`, `extensions/ted-sidecar/openclaw.plugin.json:10`).
+   - UI default/help points to `http://127.0.0.1:48080` (`extensions/ted-sidecar/openclaw.plugin.json:26`).
+   - Precedence is plugin config -> `TED_SIDECAR_BASE_URL` -> default (`extensions/ted-sidecar/index.ts:60`, `extensions/ted-sidecar/index.ts:61`, `extensions/ted-sidecar/index.ts:62`).
+   - Must be loopback host (`extensions/ted-sidecar/index.ts:41`).
+@@ -35,19 +38,17 @@ Authoritative sources:
+   - Used by `/ted` plugin path with default `5000` ms (`extensions/ted-sidecar/index.ts:7`, `extensions/ted-sidecar/index.ts:66`).
+ - `sidecarPath`
+   - Defined in plugin schema (`extensions/ted-sidecar/openclaw.plugin.json:15`).
+-  - Default candidate path is `sidecars/ted-engine/server.mjs` (`extensions/ted-sidecar/index.ts:208`).
++  - Default candidate path is `sidecars/ted-engine/server.mjs` (`extensions/ted-sidecar/index.ts:211`).
+ - `autostart`
+   - Defined in plugin schema (`extensions/ted-sidecar/openclaw.plugin.json:18`).
+-  - `false` disables startup spawn (`extensions/ted-sidecar/index.ts:231`).
++  - `false` disables startup spawn (`extensions/ted-sidecar/index.ts:234`).
+ 
+-## Stable endpoint contract
++## Loopback + allowlist invariants (non-negotiable)
+ 
+-- `GET /status` (`sidecars/ted-engine/server.mjs:1471`)
+-- `GET /doctor` (`sidecars/ted-engine/server.mjs:1471`)
+-- Both currently return the same payload handler (`sidecars/ted-engine/server.mjs:1471`, `sidecars/ted-engine/server.mjs:1472`).
+-- Ted plugin expects payload with `version`, `uptime`, `profiles_count` (`extensions/ted-sidecar/index.ts:126`, `extensions/ted-sidecar/index.ts:127`, `extensions/ted-sidecar/index.ts:128`).
+-- Doctor checker validates the same payload fields (`src/commands/doctor-gateway-services.ts:83`, `src/commands/doctor-gateway-services.ts:84`, `src/commands/doctor-gateway-services.ts:85`).
+-
+-## Observed route families (sidecar)
++- Allowed loopback hosts are `127.0.0.1`, `localhost`, `::1` (`extensions/ted-sidecar/index.ts:28`, `extensions/ted-sidecar/index.ts:30`).
++- Base URL must be loopback-only, without credentials, and use `http:`/`https:` (`extensions/ted-sidecar/index.ts:41`, `extensions/ted-sidecar/index.ts:45`, `extensions/ted-sidecar/index.ts:49`).
++- `buildSafeEndpoint` blocks non-allowlisted paths and revalidates loopback host (`extensions/ted-sidecar/index.ts:89`, `extensions/ted-sidecar/index.ts:90`, `extensions/ted-sidecar/index.ts:94`, `extensions/ted-sidecar/index.ts:97`).
++- Allowlist is `/status` and `/doctor` only (`extensions/ted-sidecar/index.ts:8`).
++- Sidecar still exposes broader route families, but plugin boundary remains health-only:
+ 
+ - Deals (`sidecars/ted-engine/server.mjs:1403`, `sidecars/ted-engine/server.mjs:1408`, `sidecars/ted-engine/server.mjs:1413`)
+ - Triage (`sidecars/ted-engine/server.mjs:1420`, `sidecars/ted-engine/server.mjs:1425`, `sidecars/ted-engine/server.mjs:1464`, `sidecars/ted-engine/server.mjs:1447`)
+@@ -55,34 +56,35 @@ Authoritative sources:
+ - Graph + diagnostics (`sidecars/ted-engine/server.mjs:1478`, `sidecars/ted-engine/server.mjs:1496`, `sidecars/ted-engine/server.mjs:1503`, `sidecars/ted-engine/server.mjs:1533`, `sidecars/ted-engine/server.mjs:1540`)
+ 
+-## Safety invariants (NON-NEGOTIABLE)
++## `/ted` command gating contract
+ 
+-- Sidecar must remain loopback-bound (`sidecars/ted-engine/server.mjs:1564`).
+-- Ted plugin endpoint construction must remain allowlisted and loopback-constrained (`extensions/ted-sidecar/index.ts:89`, `extensions/ted-sidecar/index.ts:94`, `extensions/ted-sidecar/index.ts:97`).
+-- Allowlist is currently `/status` and `/doctor` only (`extensions/ted-sidecar/index.ts:8`).
+-- In unhealthy mode, `/ted` blocks non-health actions (`extensions/ted-sidecar/index.ts:291`, `extensions/ted-sidecar/index.ts:295`).
++- `/ted` maps `doctor` to `/doctor`, `status` to `/status`, and rejects others (`extensions/ted-sidecar/index.ts:80`, `extensions/ted-sidecar/index.ts:83`, `extensions/ted-sidecar/index.ts:86`).
++- For unsupported `/ted` args, plugin probes health first (`extensions/ted-sidecar/index.ts:293`, `extensions/ted-sidecar/index.ts:294`).
++- If sidecar is unhealthy, plugin returns health-only restriction text (`extensions/ted-sidecar/index.ts:297`).
++- If sidecar is healthy, unsupported args return usage text (`extensions/ted-sidecar/index.ts:300`).
+ 
+ ## Lifecycle + health semantics
+ 
+ - Sidecar readiness waits for both `/status` and `/doctor` to pass (`extensions/ted-sidecar/index.ts:147`, `extensions/ted-sidecar/index.ts:149`).
+-- Retry policy is 20 attempts with 250 ms delay (`extensions/ted-sidecar/index.ts:9`, `extensions/ted-sidecar/index.ts:10`, `extensions/ted-sidecar/index.ts:165`, `extensions/ted-sidecar/index.ts:170`).
+-- Stop path sends `SIGTERM`, then `SIGKILL` after 2s if still running (`extensions/ted-sidecar/index.ts:182`, `extensions/ted-sidecar/index.ts:189`, `extensions/ted-sidecar/index.ts:194`).
++- Retry policy is 20 attempts with 250 ms delay (`extensions/ted-sidecar/index.ts:9`, `extensions/ted-sidecar/index.ts:10`, `extensions/ted-sidecar/index.ts:166`, `extensions/ted-sidecar/index.ts:173`).
++- `autostart: false` skips sidecar startup (`extensions/ted-sidecar/index.ts:234`).
++- Stop path sends `SIGTERM`, then `SIGKILL` after 2s if still running (`extensions/ted-sidecar/index.ts:185`, `extensions/ted-sidecar/index.ts:189`, `extensions/ted-sidecar/index.ts:192`, `extensions/ted-sidecar/index.ts:197`).
+ 
+ ## Doctor gating behavior
+ 
+ - Ted sidecar check is skipped in remote mode (`src/commands/doctor-gateway-services.ts:376`).
+-- Ted sidecar health check requires plugin enabled (`src/commands/doctor-gateway-services.ts:381`, `src/commands/doctor-gateway-services.ts:382`).
++- Ted sidecar health check requires plugin enabled (`src/commands/doctor-gateway-services.ts:381`, `src/commands/doctor-gateway-services.ts:382`, `src/commands/doctor-gateway-services.ts:384`).
+ - Doctor enforces loopback-only base URL before probing (`src/commands/doctor-gateway-services.ts:390`).
+ 
+-## Timeout mismatch (observed)
++## Timeout contract (intentional split)
+ 
+ - Plugin command path default timeout is `5000` ms (`extensions/ted-sidecar/index.ts:7`).
+ - Doctor probe timeout is `2000` ms (`src/commands/doctor-gateway-services.ts:23`).
+-- Treat this as a deliberate decision: either keep the mismatch (document why) or align them.
++- Any change to either timeout MUST update this contract and include compatibility impact notes.
+ 
+ ## Verification expectations (run from repo root)
+ 
++- `pnpm install --frozen-lockfile`
+ - `pnpm install --frozen-lockfile`
+ - `pnpm check`
+ - `pnpm lint`
+diff --git a/extensions/ted-sidecar/AGENTS.md b/extensions/ted-sidecar/AGENTS.md
+--- a/extensions/ted-sidecar/AGENTS.md
++++ b/extensions/ted-sidecar/AGENTS.md
+@@ -5,13 +5,13 @@
+ This extension wires OpenClaw to a local Ted sidecar over loopback HTTP.
+ 
+ - Default base URL is `http://127.0.0.1:48080` (`extensions/ted-sidecar/index.ts:6`).
+-- Sidecar autostart uses `spawn(process.execPath, [sidecarEntry])` (`extensions/ted-sidecar/index.ts:250`).
+-- `/ted` command path is intentionally restricted to health operations (`extensions/ted-sidecar/index.ts:282`).
++- Sidecar autostart uses `spawn(process.execPath, [sidecarEntry])` (`extensions/ted-sidecar/index.ts:253`).
++- `/ted` command path resolves to health endpoints only (`extensions/ted-sidecar/index.ts:80`, `extensions/ted-sidecar/index.ts:83`, `extensions/ted-sidecar/index.ts:86`).
+ 
+ ## Authoritative wiring sources
+ 
++- `docs/integration/ted-sidecar-contract.md`
+ - `extensions/ted-sidecar/index.ts`
+ - `extensions/ted-sidecar/openclaw.plugin.json`
+ - `src/commands/doctor-gateway-services.ts`
+@@ -21,32 +21,37 @@ This extension wires OpenClaw to a local Ted sidecar over loopback HTTP.
+ - Loopback-only base URL enforcement:
+   - Allowed hosts are `127.0.0.1`, `localhost`, `::1` (`extensions/ted-sidecar/index.ts:28`).
+   - Non-loopback base URLs are rejected (`extensions/ted-sidecar/index.ts:41`).
++  - Sidecar server bind is `127.0.0.1:48080` (`sidecars/ted-engine/server.mjs:16`, `sidecars/ted-engine/server.mjs:17`, `sidecars/ted-engine/server.mjs:1564`).
+ - Unsafe URL patterns are blocked:
+   - Credentials in URL are rejected (`extensions/ted-sidecar/index.ts:45`).
+   - Only `http:`/`https:` protocols are accepted (`extensions/ted-sidecar/index.ts:49`).
+ - Unhealthy mode and routing safety:
+   - Allowlist is `/status` and `/doctor` (`extensions/ted-sidecar/index.ts:8`).
+-  - Endpoint construction enforces allowlist and loopback host (`extensions/ted-sidecar/index.ts:89`).
+-  - When sidecar is unhealthy, non-doctor/status `/ted` usage is denied (`extensions/ted-sidecar/index.ts:291`).
++  - Endpoint construction enforces allowlist and loopback host (`extensions/ted-sidecar/index.ts:89`, `extensions/ted-sidecar/index.ts:90`, `extensions/ted-sidecar/index.ts:94`, `extensions/ted-sidecar/index.ts:97`).
++  - When sidecar is unhealthy, non-doctor/status `/ted` usage is denied (`extensions/ted-sidecar/index.ts:293`, `extensions/ted-sidecar/index.ts:295`, `extensions/ted-sidecar/index.ts:297`).
+ 
+ ## Config behavior (do not guess)
+ 
+-- Base URL precedence is plugin config -> `TED_SIDECAR_BASE_URL` env -> default (`extensions/ted-sidecar/index.ts:59`).
++- Base URL precedence is plugin config -> `TED_SIDECAR_BASE_URL` env -> default (`extensions/ted-sidecar/index.ts:60`, `extensions/ted-sidecar/index.ts:61`, `extensions/ted-sidecar/index.ts:62`).
+ - Timeout uses `timeoutMs` if valid, otherwise defaults to `5000` ms (`extensions/ted-sidecar/index.ts:7`, `extensions/ted-sidecar/index.ts:66`).
+-- Config schema keys are `baseUrl`, `timeoutMs`, `sidecarPath`, `autostart` (`extensions/ted-sidecar/openclaw.plugin.json:9`).
++- Config schema keys are `baseUrl`, `timeoutMs`, `sidecarPath`, `autostart` (`extensions/ted-sidecar/openclaw.plugin.json:9`, `extensions/ted-sidecar/openclaw.plugin.json:12`, `extensions/ted-sidecar/openclaw.plugin.json:15`, `extensions/ted-sidecar/openclaw.plugin.json:18`).
+ 
+ ## Lifecycle facts
+ 
+-- Service startup can be disabled with `autostart: false` (`extensions/ted-sidecar/index.ts:231`).
+-- Readiness probe retries up to 20 times with 250 ms delay (`extensions/ted-sidecar/index.ts:9`, `extensions/ted-sidecar/index.ts:10`, `extensions/ted-sidecar/index.ts:160`).
+-- Stop path sends `SIGTERM`, then `SIGKILL` after 2s if needed (`extensions/ted-sidecar/index.ts:175`).
++- Service startup can be disabled with `autostart: false` (`extensions/ted-sidecar/index.ts:234`, `extensions/ted-sidecar/index.ts:235`).
++- Readiness probe retries up to 20 times with 250 ms delay (`extensions/ted-sidecar/index.ts:9`, `extensions/ted-sidecar/index.ts:10`, `extensions/ted-sidecar/index.ts:166`, `extensions/ted-sidecar/index.ts:173`).
++- Stop path sends `SIGTERM`, then `SIGKILL` after 2s if needed (`extensions/ted-sidecar/index.ts:185`, `extensions/ted-sidecar/index.ts:189`, `extensions/ted-sidecar/index.ts:192`, `extensions/ted-sidecar/index.ts:197`).
+ 
+ ## Doctor integration facts
+ 
+ - Doctor sidecar check only runs in local mode (`src/commands/doctor-gateway-services.ts:376`).
+ - Doctor check requires plugin enabled (`src/commands/doctor-gateway-services.ts:382`).
++- Doctor enforces loopback base URL before probing (`src/commands/doctor-gateway-services.ts:390`).
+ - Doctor probe timeout is `2000` ms (`src/commands/doctor-gateway-services.ts:23`).
++
++## Timeout contract
++
++- `/ted` command timeout default is `5000` ms (`extensions/ted-sidecar/index.ts:7`).
++- Doctor timeout default is `2000` ms (`src/commands/doctor-gateway-services.ts:23`).
+ 
+ ## Validation (run from repo root)
+ 
+```

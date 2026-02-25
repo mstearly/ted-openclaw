@@ -1,20 +1,30 @@
-# Open Questions (Answer When Convenient)
+# Open Questions (Resolved Defaults for Build Start)
 
-**Generated:** 2026-02-17
+**Updated:** 2026-02-20
 
-These are intentionally _few_ and only where choices matter.
+Council defaults are now locked so build execution can proceed without ambiguity.
+Operator overrides can be applied later through decision-log updates plus proof reruns.
 
 1. **Distribution model**
-   - Do we ship as one bundled installer (preferred), or two coordinated apps day‑1?
+   - Decision: one bundled installer with coordinated OpenClaw + sidecar startup.
 
-2. **Required day‑1 channels**
-   - Telegram and/or iMessage? (iMessage is operationally fragile; Telegram is more predictable.)
+2. **Required Day-1 channels**
+   - Decision: Telegram only for Day-1; iMessage deferred to Phase-2.
 
 3. **Graph scope minimum**
-   - Do we need calendar tentative holds day‑1, or can we ship email drafts first and add holds in week 2?
+   - Decision: drafts-first for Day-1; calendar hold writes deferred.
 
-4. **Filing actions day‑1**
-   - Are “label/category only” actions sufficient, or do we need “move message to folder” in Phase 1?
+4. **Filing actions Day-1**
+   - Decision: suggestions + approvals only; no apply/move behavior in Day-1.
 
-5. **Retention**
-   - How long should we retain audit/artifact logs locally? (Default suggestion: 90 days locally + operator export if needed.)
+5. **Retention defaults**
+   - Decision: audit logs 30 days, transient/media 7 days, SDD snapshots 90 days.
+
+6. **Operator validation gate**
+   - Decision: two-minute operator validation remains mandatory per release.
+
+7. **Signing/notarization**
+   - Decision: internal distribution may start unsigned; notarization required before broad external rollout.
+
+8. **Darwin packaging runner availability**
+   - Decision: keep as explicit blocker until a macOS runner executes `proof_jc017.sh` successfully.

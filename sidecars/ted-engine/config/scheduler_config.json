@@ -1,0 +1,8 @@
+{
+  "_config_version": 1,
+  "enabled": false,
+  "tick_interval_ms": 60000,
+  "max_consecutive_failures": 3,
+  "failure_backoff_minutes": 15,
+  "delivery_mode": "pending_ledger"
+}

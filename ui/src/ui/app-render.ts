@@ -68,6 +68,7 @@ import { renderNodes } from "./views/nodes.ts";
 import { renderOverview } from "./views/overview.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
+import { renderTed } from "./views/ted.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
@@ -227,6 +228,594 @@ export function renderApp(state: AppViewState) {
                 },
                 onConnect: () => state.connect(),
                 onRefresh: () => state.loadOverview(),
+              })
+            : nothing
+        }
+
+        ${
+          state.tab === "ted"
+            ? renderTed({
+                loading: state.tedLoading,
+                snapshot: state.tedSnapshot,
+                error: state.tedError,
+                roleCardJson: state.tedRoleCardJson,
+                roleCardBusy: state.tedRoleCardBusy,
+                roleCardResult: state.tedRoleCardResult,
+                roleCardError: state.tedRoleCardError,
+                proofBusyKey: state.tedProofBusyKey,
+                proofResult: state.tedProofResult,
+                proofError: state.tedProofError,
+                jobCardDetailLoading: state.tedJobCardDetailLoading,
+                jobCardDetail: state.tedJobCardDetail,
+                jobCardDetailError: state.tedJobCardDetailError,
+                jobCardEditorMarkdown: state.tedJobCardEditorMarkdown,
+                jobCardSaveBusy: state.tedJobCardSaveBusy,
+                jobCardSaveError: state.tedJobCardSaveError,
+                jobCardSaveResult: state.tedJobCardSaveResult,
+                jobCardPreviewBusy: state.tedJobCardPreviewBusy,
+                jobCardPreviewError: state.tedJobCardPreviewError,
+                jobCardPreview: state.tedJobCardPreview,
+                jobCardKpiSuggestBusy: state.tedJobCardKpiSuggestBusy,
+                jobCardKpiSuggestError: state.tedJobCardKpiSuggestError,
+                jobCardKpiSuggestion: state.tedJobCardKpiSuggestion,
+                recommendationBusyId: state.tedRecommendationBusyId,
+                recommendationError: state.tedRecommendationError,
+                intakeTitle: state.tedIntakeTitle,
+                intakeOutcome: state.tedIntakeOutcome,
+                intakeJobFamily: state.tedIntakeJobFamily,
+                intakeRiskLevel: state.tedIntakeRiskLevel,
+                intakeAutomationLevel: state.tedIntakeAutomationLevel,
+                intakeBusy: state.tedIntakeBusy,
+                intakeError: state.tedIntakeError,
+                intakeRecommendation: state.tedIntakeRecommendation,
+                intakeSaveBusy: state.tedIntakeSaveBusy,
+                intakeSaveError: state.tedIntakeSaveError,
+                intakeSaveResult: state.tedIntakeSaveResult,
+                onSaveIntakeJobCard: () => void state.saveTedIntakeJobCard(),
+                thresholdManual: state.tedThresholdManual,
+                thresholdApprovalAge: state.tedThresholdApprovalAge,
+                thresholdTriageEod: state.tedThresholdTriageEod,
+                thresholdBlockedExplainability: state.tedThresholdBlockedExplainability,
+                thresholdAcknowledgeRisk: state.tedThresholdAcknowledgeRisk,
+                thresholdBusy: state.tedThresholdBusy,
+                thresholdError: state.tedThresholdError,
+                thresholdResult: state.tedThresholdResult,
+                sourceDocLoading: state.tedSourceDocLoading,
+                sourceDocError: state.tedSourceDocError,
+                sourceDoc: state.tedSourceDoc,
+                policyLoading: state.tedPolicyLoading,
+                policyError: state.tedPolicyError,
+                policyDoc: state.tedPolicyDoc,
+                policyPreviewBusy: state.tedPolicyPreviewBusy,
+                policyPreviewError: state.tedPolicyPreviewError,
+                policyPreview: state.tedPolicyPreview,
+                policySaveBusy: state.tedPolicySaveBusy,
+                policySaveError: state.tedPolicySaveError,
+                policySaveResult: state.tedPolicySaveResult,
+                connectorAuthBusyProfile: state.tedConnectorAuthBusyProfile,
+                connectorAuthError: state.tedConnectorAuthError,
+                connectorAuthResult: state.tedConnectorAuthResult,
+                mailLoading: state.tedMailLoading,
+                mailMessages: state.tedMailMessages,
+                mailError: state.tedMailError,
+                morningBriefLoading: state.tedMorningBriefLoading,
+                morningBrief: state.tedMorningBrief,
+                morningBriefError: state.tedMorningBriefError,
+                eodDigestLoading: state.tedEodDigestLoading,
+                eodDigest: state.tedEodDigest,
+                eodDigestError: state.tedEodDigestError,
+                activeSection: state.tedActiveSection,
+                onRoleCardJsonChange: (value) => (state.tedRoleCardJson = value),
+                onRoleCardValidate: () => void state.validateTedRoleCard(),
+                onRunProof: (proofScript) => void state.runTedProof(proofScript),
+                onOpenJobCard: (id) => {
+                  state.tedActiveSection = "build";
+                  void state.loadTedJobCardDetail(id);
+                  requestAnimationFrame(() => {
+                    document
+                      .getElementById("ted-job-card-detail")
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  });
+                },
+                onRecommendationDecision: (id, decision) =>
+                  void state.decideTedRecommendation(id, decision),
+                onIntakeFieldChange: (field, value) => {
+                  if (field === "title") {
+                    state.tedIntakeTitle = value;
+                  }
+                  if (field === "outcome") {
+                    state.tedIntakeOutcome = value;
+                  }
+                  if (field === "job_family") {
+                    state.tedIntakeJobFamily = value;
+                  }
+                  if (field === "risk_level") {
+                    state.tedIntakeRiskLevel = value;
+                  }
+                  if (field === "automation_level") {
+                    state.tedIntakeAutomationLevel = value;
+                  }
+                },
+                onRunIntakeRecommendation: () => void state.runTedIntakeRecommendation(),
+                onApplyIntakeExample: (example) => {
+                  if (example === "ops-brief") {
+                    state.tedIntakeTitle = "Daily Ops Brief with blockers";
+                    state.tedIntakeOutcome =
+                      "Generate a 7:30am brief with top priorities, blockers, and next-safe actions.";
+                    state.tedIntakeJobFamily = "MNT";
+                    state.tedIntakeRiskLevel = "medium";
+                    state.tedIntakeAutomationLevel = "draft-only";
+                  }
+                  if (example === "deal-followup") {
+                    state.tedIntakeTitle = "Deal follow-up tracker";
+                    state.tedIntakeOutcome =
+                      "Track unresolved diligence follow-ups and draft reminders for operator review.";
+                    state.tedIntakeJobFamily = "LED";
+                    state.tedIntakeRiskLevel = "medium";
+                    state.tedIntakeAutomationLevel = "approval-first";
+                  }
+                  if (example === "governance-hardening") {
+                    state.tedIntakeTitle = "Governance hardening sweep";
+                    state.tedIntakeOutcome =
+                      "Audit blocked actions and improve explainability with reason codes and next-safe-steps.";
+                    state.tedIntakeJobFamily = "GOV";
+                    state.tedIntakeRiskLevel = "high";
+                    state.tedIntakeAutomationLevel = "approval-first";
+                  }
+                },
+                onThresholdFieldChange: (field, value) => {
+                  if (field === "manual") {
+                    state.tedThresholdManual = value;
+                  }
+                  if (field === "approval") {
+                    state.tedThresholdApprovalAge = value;
+                  }
+                  if (field === "triage") {
+                    state.tedThresholdTriageEod = value;
+                  }
+                  if (field === "blocked") {
+                    state.tedThresholdBlockedExplainability = value;
+                  }
+                  if (field === "ack") {
+                    state.tedThresholdAcknowledgeRisk = value === "true";
+                  }
+                },
+                onApplyThresholds: () => void state.applyTedThresholds(false),
+                onResetThresholds: () => void state.applyTedThresholds(true),
+                onSetSection: (section) => (state.tedActiveSection = section),
+                onJobCardEditorChange: (value) => {
+                  state.tedJobCardEditorMarkdown = value;
+                  state.tedJobCardPreview = null;
+                  state.tedJobCardPreviewError = null;
+                },
+                onSaveJobCardDetail: () => void state.saveTedJobCardDetail(),
+                onPreviewJobCardUpdate: () => void state.previewTedJobCardUpdate(),
+                onSuggestJobCardKpis: () => void state.suggestTedJobCardKpis(),
+                onApplySuggestedKpisToEditor: () => {
+                  if (!state.tedJobCardKpiSuggestion || !state.tedJobCardEditorMarkdown.trim()) {
+                    return;
+                  }
+                  const heading = "## Friction KPI Evidence";
+                  const nextBlock = `${heading}\n\n${state.tedJobCardKpiSuggestion.suggestions.map((item) => `- ${item}`).join("\n")}\n`;
+                  const existing = state.tedJobCardEditorMarkdown;
+                  const index = existing.indexOf(heading);
+                  if (index >= 0) {
+                    const nextHeading = existing.indexOf("\n## ", index + heading.length);
+                    state.tedJobCardEditorMarkdown =
+                      nextHeading >= 0
+                        ? `${existing.slice(0, index)}${nextBlock}${existing.slice(nextHeading + 1)}`
+                        : `${existing.slice(0, index)}${nextBlock}`;
+                    return;
+                  }
+                  state.tedJobCardEditorMarkdown =
+                    `${existing.trimEnd()}\n\n${nextBlock}`.trimEnd();
+                },
+                onOpenSourceDoc: (key) => {
+                  if (
+                    key === "job_board" ||
+                    key === "promotion_policy" ||
+                    key === "value_friction"
+                  ) {
+                    state.tedActiveSection = "govern";
+                    void state.loadTedPolicyDocument(key);
+                    return;
+                  }
+                  void state.loadTedSourceDocument(key);
+                },
+                onLoadPolicyDoc: (key) => void state.loadTedPolicyDocument(key),
+                onPolicyConfigChange: (field, value) => {
+                  if (!state.tedPolicyDoc) {
+                    return;
+                  }
+                  state.tedPolicyDoc = {
+                    ...state.tedPolicyDoc,
+                    config: {
+                      ...state.tedPolicyDoc.config,
+                      [field]: value,
+                    },
+                  };
+                  state.tedPolicyPreview = null;
+                  state.tedPolicyPreviewError = null;
+                },
+                onPolicyListChange: (field, value) => {
+                  if (!state.tedPolicyDoc) {
+                    return;
+                  }
+                  const list = value
+                    .split("\n")
+                    .map((line) => line.trim())
+                    .filter(Boolean);
+                  state.tedPolicyDoc = {
+                    ...state.tedPolicyDoc,
+                    config: {
+                      ...state.tedPolicyDoc.config,
+                      [field]: list,
+                    },
+                  };
+                  state.tedPolicyPreview = null;
+                  state.tedPolicyPreviewError = null;
+                },
+                onPreviewPolicyUpdate: () => void state.previewTedPolicyUpdate(),
+                onSavePolicyUpdate: () => void state.saveTedPolicyUpdate(),
+                onStartConnectorAuth: (profileId) => void state.startTedConnectorAuth(profileId),
+                onPollConnectorAuth: (profileId) => void state.pollTedConnectorAuth(profileId),
+                onRevokeConnectorAuth: (profileId) => void state.revokeTedConnectorAuth(profileId),
+                onRefresh: () => void state.loadTedWorkbench(),
+                onLoadMail: (profileId) => void state.loadTedMail(profileId),
+                onLoadMorningBrief: () => void state.loadTedMorningBrief(),
+                onLoadEodDigest: () => void state.loadTedEodDigest(),
+                tedDealListLoading: state.tedDealListLoading,
+                tedDealList: state.tedDealList,
+                tedDealListError: state.tedDealListError,
+                tedDealDetailLoading: state.tedDealDetailLoading,
+                tedDealDetail: state.tedDealDetail,
+                tedDealDetailError: state.tedDealDetailError,
+                tedDealActionBusy: state.tedDealActionBusy,
+                tedDealActionError: state.tedDealActionError,
+                tedDealActionResult: state.tedDealActionResult,
+                onLoadDealList: () => void state.loadTedDealList(),
+                onLoadDealDetail: (dealId: string) => void state.loadTedDealDetail(dealId),
+                onUpdateDeal: (dealId: string, fields: Record<string, unknown>) =>
+                  void state.updateTedDeal(dealId, fields),
+                // C12-004: Stale deal owners
+                tedStaleDealsList: state.tedStaleDealsList,
+                tedStaleDealsLoading: state.tedStaleDealsLoading,
+                tedStaleDealsError: state.tedStaleDealsError,
+                onLoadStaleDeals: (days?: number) => void state.loadTedStaleDeals(days),
+                // C12-011: Deal retrospective
+                tedDealRetrospective: state.tedDealRetrospective,
+                tedDealRetrospectiveLoading: state.tedDealRetrospectiveLoading,
+                tedDealRetrospectiveError: state.tedDealRetrospectiveError,
+                onGenerateRetrospective: (dealId: string) =>
+                  void state.generateTedDealRetrospective(dealId),
+                llmProviderConfig: state.tedLlmProviderConfig,
+                llmProviderLoading: state.tedLlmProviderLoading,
+                llmProviderError: state.tedLlmProviderError,
+                onLoadLlmProvider: () => void state.loadTedLlmProvider(),
+                onUpdateLlmProvider: (provider) => void state.updateTedLlmProvider(provider),
+                meetingsUpcoming: state.tedMeetingsUpcoming,
+                meetingsLoading: state.tedMeetingsLoading,
+                meetingsError: state.tedMeetingsError,
+                onLoadMeetings: () => void state.loadTedMeetingsUpcoming(),
+                commitments: state.tedCommitments,
+                commitmentsLoading: state.tedCommitmentsLoading,
+                commitmentsError: state.tedCommitmentsError,
+                onLoadCommitments: () => void state.loadTedCommitments(),
+                actions: state.tedActions,
+                actionsLoading: state.tedActionsLoading,
+                actionsError: state.tedActionsError,
+                onLoadActions: () => void state.loadTedActions(),
+                waitingFor: state.tedWaitingFor,
+                waitingForLoading: state.tedWaitingForLoading,
+                waitingForError: state.tedWaitingForError,
+                onLoadWaitingFor: () => void state.loadTedWaitingFor(),
+                trustMetrics: state.tedTrustMetrics,
+                trustMetricsLoading: state.tedTrustMetricsLoading,
+                trustMetricsError: state.tedTrustMetricsError,
+                onLoadTrustMetrics: () => void state.loadTedTrustMetrics(),
+                deepWorkMetrics: state.tedDeepWorkMetrics,
+                deepWorkMetricsLoading: state.tedDeepWorkMetricsLoading,
+                deepWorkMetricsError: state.tedDeepWorkMetricsError,
+                onLoadDeepWorkMetrics: () => void state.loadTedDeepWorkMetrics(),
+                draftQueue: state.tedDraftQueue,
+                draftQueueLoading: state.tedDraftQueueLoading,
+                draftQueueError: state.tedDraftQueueError,
+                onLoadDraftQueue: () => void state.loadTedDraftQueue(),
+                eventLogStats: state.tedEventLogStats,
+                eventLogStatsLoading: state.tedEventLogStatsLoading,
+                eventLogStatsError: state.tedEventLogStatsError,
+                onLoadEventLogStats: () => void state.loadTedEventLogStats(),
+                // Planner (JC-105)
+                plannerPlans: state.tedPlannerPlans,
+                plannerPlansLoading: state.tedPlannerPlansLoading,
+                plannerPlansError: state.tedPlannerPlansError,
+                plannerTasks: state.tedPlannerTasks,
+                plannerTasksLoading: state.tedPlannerTasksLoading,
+                plannerTasksError: state.tedPlannerTasksError,
+                onLoadPlannerPlans: (profileId?: string) =>
+                  void state.loadTedPlannerPlans(profileId),
+                onLoadPlannerTasks: (profileId: string, planId: string, bucketId?: string) =>
+                  void state.loadTedPlannerTasks(profileId, planId, bucketId),
+                // To Do (JC-105)
+                todoLists: state.tedTodoLists,
+                todoListsLoading: state.tedTodoListsLoading,
+                todoListsError: state.tedTodoListsError,
+                todoTasks: state.tedTodoTasks,
+                todoTasksLoading: state.tedTodoTasksLoading,
+                todoTasksError: state.tedTodoTasksError,
+                onLoadTodoLists: (profileId?: string) => void state.loadTedTodoLists(profileId),
+                onLoadTodoTasks: (profileId: string, listId: string) =>
+                  void state.loadTedTodoTasks(profileId, listId),
+                // Sync Reconciliation (JC-105)
+                syncReconciliation: state.tedSyncReconciliation,
+                syncReconciliationLoading: state.tedSyncReconciliationLoading,
+                syncReconciliationError: state.tedSyncReconciliationError,
+                syncProposals: state.tedSyncProposals,
+                syncProposalsLoading: state.tedSyncProposalsLoading,
+                syncProposalsError: state.tedSyncProposalsError,
+                syncApproveBusy: state.tedSyncApproveBusy,
+                syncApproveError: state.tedSyncApproveError,
+                syncApproveResult: state.tedSyncApproveResult,
+                syncRejectBusy: state.tedSyncRejectBusy,
+                syncRejectError: state.tedSyncRejectError,
+                syncRejectResult: state.tedSyncRejectResult,
+                onRunReconciliation: (profileId?: string) =>
+                  void state.loadTedSyncReconciliation(profileId),
+                onLoadSyncProposals: (profileId?: string) =>
+                  void state.loadTedSyncProposals(profileId),
+                onApproveSyncProposal: (profileId: string, proposalId: string) =>
+                  void state.approveTedSyncProposal(profileId, proposalId),
+                onRejectSyncProposal: (profileId: string, proposalId: string) =>
+                  void state.rejectTedSyncProposal(profileId, proposalId),
+                // Commitment Extraction (JC-105)
+                extractionResult: state.tedExtractionResult,
+                extractionLoading: state.tedExtractionLoading,
+                extractionError: state.tedExtractionError,
+                // Improvement Proposals (Codex Builder Lane)
+                tedImprovementProposals: state.tedImprovementProposals,
+                tedImprovementProposalsLoading: state.tedImprovementProposalsLoading,
+                tedImprovementProposalsError: state.tedImprovementProposalsError,
+                tedImprovementCreateBusy: state.tedImprovementCreateBusy,
+                tedImprovementCreateError: state.tedImprovementCreateError,
+                tedImprovementCreateResult: state.tedImprovementCreateResult,
+                tedImprovementReviewBusy: state.tedImprovementReviewBusy,
+                tedImprovementReviewError: state.tedImprovementReviewError,
+                tedImprovementReviewResult: state.tedImprovementReviewResult,
+                tedImprovementApplyBusy: state.tedImprovementApplyBusy,
+                tedImprovementApplyError: state.tedImprovementApplyError,
+                tedImprovementApplyResult: state.tedImprovementApplyResult,
+                tedImprovementGenerateBusy: state.tedImprovementGenerateBusy,
+                tedImprovementGenerateError: state.tedImprovementGenerateError,
+                tedImprovementGenerateResult: state.tedImprovementGenerateResult,
+                onLoadImprovementProposals: (status?: string) =>
+                  state.onLoadImprovementProposals(status),
+                onCreateImprovementProposal: (params: {
+                  title: string;
+                  type: string;
+                  description: string;
+                }) => state.onCreateImprovementProposal(params),
+                onReviewImprovementProposal: (
+                  proposalId: string,
+                  verdict: string,
+                  notes?: string,
+                ) => state.onReviewImprovementProposal(proposalId, verdict, notes),
+                onApplyImprovementProposal: (proposalId: string) =>
+                  state.onApplyImprovementProposal(proposalId),
+                onGenerateImprovementProposal: (days?: number) =>
+                  state.onGenerateImprovementProposal(days),
+                // Trust Autonomy
+                tedTrustAutonomy: state.tedTrustAutonomy,
+                tedTrustAutonomyLoading: state.tedTrustAutonomyLoading,
+                tedTrustAutonomyError: state.tedTrustAutonomyError,
+                onLoadTrustAutonomy: () => state.onLoadTrustAutonomy(),
+                // Failure Aggregation
+                tedFailureAggregation: state.tedFailureAggregation,
+                tedFailureAggregationLoading: state.tedFailureAggregationLoading,
+                tedFailureAggregationError: state.tedFailureAggregationError,
+                onLoadFailureAggregation: (days?: number) => state.onLoadFailureAggregation(days),
+                // JC-110: Architecture closure
+                tedDraftSubmitReviewLoading: state.tedDraftSubmitReviewLoading,
+                tedDraftSubmitReviewError: state.tedDraftSubmitReviewError,
+                tedDeepWorkSessionLoading: state.tedDeepWorkSessionLoading,
+                tedDeepWorkSessionError: state.tedDeepWorkSessionError,
+                tedDeepWorkSessionResult: state.tedDeepWorkSessionResult,
+                tedGraphSyncStatusLoading: state.tedGraphSyncStatusLoading,
+                tedGraphSyncStatusError: state.tedGraphSyncStatusError,
+                tedGraphSyncStatusResult: state.tedGraphSyncStatusResult,
+                onTedDraftSubmitReview: (draftId: string) =>
+                  state.onTedDraftSubmitReview?.(draftId),
+                // Inline form state for deep work session input
+                showDeepWorkInput: state.showDeepWorkInput,
+                deepWorkInputMinutes: state.deepWorkInputMinutes,
+                deepWorkInputLabel: state.deepWorkInputLabel,
+                onDeepWorkInputToggle: () => {
+                  state.showDeepWorkInput = !state.showDeepWorkInput;
+                  if (!state.showDeepWorkInput) {
+                    state.deepWorkInputMinutes = "";
+                    state.deepWorkInputLabel = "";
+                  }
+                },
+                onDeepWorkInputMinutesChange: (value: string) => {
+                  state.deepWorkInputMinutes = value;
+                },
+                onDeepWorkInputLabelChange: (value: string) => {
+                  state.deepWorkInputLabel = value;
+                },
+                onDeepWorkInputSubmit: () => {
+                  const parsed = parseInt(state.deepWorkInputMinutes, 10);
+                  if (isNaN(parsed) || parsed < 1 || parsed > 480) {
+                    return;
+                  }
+                  state.onTedDeepWorkSession?.(parsed, state.deepWorkInputLabel || undefined);
+                  state.showDeepWorkInput = false;
+                  state.deepWorkInputMinutes = "";
+                  state.deepWorkInputLabel = "";
+                },
+                // Inline form state for graph sync profile input
+                showGraphSyncInput: state.showGraphSyncInput,
+                graphSyncInputProfileId: state.graphSyncInputProfileId,
+                onGraphSyncInputToggle: () => {
+                  state.showGraphSyncInput = !state.showGraphSyncInput;
+                  if (!state.showGraphSyncInput) {
+                    state.graphSyncInputProfileId = "olumie";
+                  }
+                },
+                onGraphSyncInputProfileChange: (value: string) => {
+                  state.graphSyncInputProfileId = value;
+                },
+                onGraphSyncInputSubmit: () => {
+                  const normalized = state.graphSyncInputProfileId.trim().toLowerCase();
+                  if (normalized !== "olumie" && normalized !== "everest") {
+                    return;
+                  }
+                  state.onTedGraphSyncStatus?.(normalized);
+                  state.showGraphSyncInput = false;
+                  state.graphSyncInputProfileId = "olumie";
+                },
+                // Ingestion
+                ingestionStatusLoading: state.tedIngestionStatusLoading,
+                ingestionStatusError: state.tedIngestionStatusError,
+                ingestionStatus: state.tedIngestionStatus,
+                ingestionRunBusy: state.tedIngestionRunBusy,
+                ingestionRunError: state.tedIngestionRunError,
+                ingestionRunResult: state.tedIngestionRunResult,
+                onLoadIngestionStatus: () => void state.loadTedIngestionStatus(),
+                onTriggerIngestion: () => void state.triggerTedIngestion(),
+                // Discovery
+                discoveryStatusLoading: state.tedDiscoveryStatusLoading,
+                discoveryStatusError: state.tedDiscoveryStatusError,
+                discoveryStatus: state.tedDiscoveryStatus,
+                discoveryRunBusy: state.tedDiscoveryRunBusy,
+                discoveryRunError: state.tedDiscoveryRunError,
+                discoveryRunResult: state.tedDiscoveryRunResult,
+                onLoadDiscoveryStatus: () => void state.loadTedDiscoveryStatus(),
+                onTriggerDiscovery: (profileId: string) =>
+                  void state.triggerTedDiscovery(profileId),
+                // SharePoint
+                tedSharePointSites: state.tedSharePointSites,
+                tedSharePointSitesLoading: state.tedSharePointSitesLoading,
+                tedSharePointSitesError: state.tedSharePointSitesError,
+                tedSharePointDrives: state.tedSharePointDrives,
+                tedSharePointDrivesLoading: state.tedSharePointDrivesLoading,
+                tedSharePointDrivesError: state.tedSharePointDrivesError,
+                tedSharePointItems: state.tedSharePointItems,
+                tedSharePointItemsLoading: state.tedSharePointItemsLoading,
+                tedSharePointItemsError: state.tedSharePointItemsError,
+                tedSharePointItemsPath: state.tedSharePointItemsPath,
+                tedSharePointSearchResults: state.tedSharePointSearchResults,
+                tedSharePointSearchLoading: state.tedSharePointSearchLoading,
+                tedSharePointSearchError: state.tedSharePointSearchError,
+                tedSharePointUploadResult: state.tedSharePointUploadResult,
+                tedSharePointUploadLoading: state.tedSharePointUploadLoading,
+                tedSharePointUploadError: state.tedSharePointUploadError,
+                tedSharePointFolderResult: state.tedSharePointFolderResult,
+                tedSharePointFolderLoading: state.tedSharePointFolderLoading,
+                tedSharePointFolderError: state.tedSharePointFolderError,
+                tedSharePointSelectedProfile: state.tedSharePointSelectedProfile,
+                tedSharePointSelectedSiteId: state.tedSharePointSelectedSiteId,
+                tedSharePointSelectedDriveId: state.tedSharePointSelectedDriveId,
+                tedSharePointSearchQuery: state.tedSharePointSearchQuery,
+                onSharePointLoadSites: () => void state.loadTedSharePointSites(),
+                onSharePointLoadDrives: () => void state.loadTedSharePointDrives(),
+                onSharePointLoadItems: (itemId?: string) =>
+                  void state.loadTedSharePointItems(itemId),
+                onSharePointSearch: () => void state.searchTedSharePoint(),
+                onSharePointUpload: (
+                  fileName: string,
+                  contentBase64: string,
+                  contentType: string,
+                ) => void state.uploadTedSharePointFile(fileName, contentBase64, contentType),
+                onSharePointCreateFolder: (folderName: string) =>
+                  void state.createTedSharePointFolder(folderName),
+                onSharePointSelectProfile: (profileId: string) => {
+                  state.tedSharePointSelectedProfile = profileId;
+                  state.tedSharePointSites = null;
+                  state.tedSharePointDrives = null;
+                  state.tedSharePointItems = null;
+                  state.tedSharePointSearchResults = null;
+                  state.tedSharePointSelectedSiteId = "";
+                  state.tedSharePointSelectedDriveId = "";
+                },
+                onSharePointSelectSite: (siteId: string) => {
+                  state.tedSharePointSelectedSiteId = siteId;
+                  state.tedSharePointDrives = null;
+                  state.tedSharePointItems = null;
+                  state.tedSharePointSelectedDriveId = "";
+                },
+                onSharePointSelectDrive: (driveId: string) => {
+                  state.tedSharePointSelectedDriveId = driveId;
+                  state.tedSharePointItems = null;
+                  state.tedSharePointItemsPath = "/";
+                },
+                onSharePointSetSearchQuery: (query: string) => {
+                  state.tedSharePointSearchQuery = query;
+                },
+                onSharePointSetPath: (path: string) => {
+                  state.tedSharePointItemsPath = path;
+                },
+                // Builder Lane Dashboard
+                tedBuilderLanePatterns: state.tedBuilderLanePatterns,
+                tedBuilderLanePatternsLoading: state.tedBuilderLanePatternsLoading,
+                tedBuilderLanePatternsError: state.tedBuilderLanePatternsError,
+                tedBuilderLaneStatus: state.tedBuilderLaneStatus,
+                tedBuilderLaneStatusLoading: state.tedBuilderLaneStatusLoading,
+                tedBuilderLaneMetrics: state.tedBuilderLaneMetrics,
+                tedBuilderLaneMetricsLoading: state.tedBuilderLaneMetricsLoading,
+                tedBuilderLaneRevertBusy: state.tedBuilderLaneRevertBusy,
+                tedBuilderLaneRevertError: state.tedBuilderLaneRevertError,
+                tedBuilderLaneRevertResult: state.tedBuilderLaneRevertResult,
+                tedBuilderLaneGenerateBusy: state.tedBuilderLaneGenerateBusy,
+                tedBuilderLaneCalibrationBusy: state.tedBuilderLaneCalibrationBusy,
+                onLoadBuilderLanePatterns: () => state.onLoadBuilderLanePatterns?.(),
+                onLoadBuilderLaneStatus: () => state.onLoadBuilderLaneStatus?.(),
+                onLoadBuilderLaneMetrics: () => state.onLoadBuilderLaneMetrics?.(),
+                onGenerateFromPattern: (domain: string, contextBucket?: Record<string, unknown>) =>
+                  state.onGenerateFromPattern?.(domain, contextBucket),
+                onRevertAppliedProposal: (proposalId: string) =>
+                  state.onRevertAppliedProposal?.(proposalId),
+                onSubmitCalibrationResponse: (
+                  promptId: string,
+                  response: string,
+                  domain?: string,
+                ) => state.onSubmitCalibrationResponse?.(promptId, response, domain),
+                // Self-Healing Dashboard
+                selfHealingStatus: state.selfHealingStatus,
+                selfHealingStatusLoading: state.selfHealingStatusLoading,
+                selfHealingStatusError: state.selfHealingStatusError,
+                correctionTaxonomy: state.correctionTaxonomy,
+                correctionTaxonomyLoading: state.correctionTaxonomyLoading,
+                correctionTaxonomyError: state.correctionTaxonomyError,
+                engagementInsights: state.engagementInsights,
+                engagementInsightsLoading: state.engagementInsightsLoading,
+                engagementInsightsError: state.engagementInsightsError,
+                noiseLevel: state.noiseLevel,
+                noiseLevelLoading: state.noiseLevelLoading,
+                noiseLevelError: state.noiseLevelError,
+                autonomyStatus: state.autonomyStatus,
+                autonomyStatusLoading: state.autonomyStatusLoading,
+                autonomyStatusError: state.autonomyStatusError,
+                onFetchSelfHealingStatus: () => void state.fetchSelfHealingStatus(),
+                onFetchCorrectionTaxonomy: () => void state.fetchCorrectionTaxonomy(),
+                onFetchEngagementInsights: () => void state.fetchEngagementInsights(),
+                onFetchNoiseLevel: () => void state.fetchNoiseLevel(),
+                onFetchAutonomyStatus: () => void state.fetchAutonomyStatus(),
+                // Sprint 2 (SDD 72): Evaluation Pipeline
+                tedEvaluationStatus: state.tedEvaluationStatus,
+                tedEvaluationStatusLoading: state.tedEvaluationStatusLoading,
+                tedEvaluationStatusError: state.tedEvaluationStatusError,
+                tedEvaluationRunBusy: state.tedEvaluationRunBusy,
+                tedEvaluationRunError: state.tedEvaluationRunError,
+                tedEvaluationRunResult: state.tedEvaluationRunResult,
+                onLoadEvaluationStatus: () => void state.loadTedEvaluationStatus(),
+                onTriggerEvaluationRun: () => void state.triggerTedEvaluationRun(),
+                tedQaDashboard: state.tedQaDashboard,
+                tedQaDashboardLoading: state.tedQaDashboardLoading,
+                tedQaDashboardError: state.tedQaDashboardError,
+                tedCanaryRunBusy: state.tedCanaryRunBusy,
+                tedCanaryRunError: state.tedCanaryRunError,
+                tedCanaryRunResult: state.tedCanaryRunResult,
+                onLoadQaDashboard: () => void state.loadTedQaDashboard(),
+                onTriggerCanaryRun: () => void state.triggerTedCanaryRun(),
               })
             : nothing
         }

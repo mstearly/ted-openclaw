@@ -1,0 +1,64 @@
+ M .github/workflows/ci.yml
+ M .markdownlint-cli2.jsonc
+ M .specify/memory/constitution.md
+ M .specify/specs/001-ted-day1-launch/commit_groups.md
+ M .specify/specs/001-ted-day1-launch/spec.md
+ M .specify/specs/001-ted-day1-launch/story_coverage_matrix.md
+ M .specify/specs/001-ted-day1-launch/story_traceability.md
+ M .specify/templates/plan-template.md
+ M .specify/templates/spec-template.md
+ M .specify/templates/tasks-template.md
+ M docs/integration/ted-sidecar-contract.md
+ M docs/ted-profile/job-cards/JC-001-sidecar-proof-of-life.md
+ M docs/ted-profile/job-cards/JC-002-macos-autostart-launchagents.md
+ M docs/ted-profile/job-cards/JC-003-graph-draft-only-two-profiles.md
+ M docs/ted-profile/job-cards/JC-004-deal-ledger-triage-queue.md
+ M docs/ted-profile/job-cards/JC-005-filing-suggestions-queue.md
+ M docs/ted-profile/sdd-pack/03_SCOPE_BOUNDARIES.md
+ M docs/ted-profile/sdd-pack/07_M365_GRAPH_SPEC.md
+ M docs/ted-profile/sdd-pack/08_OPENCLAW_SIDECAR_TOOLING_SPEC.md
+ M docs/ted-profile/sdd-pack/10_ROADMAP_JOB_BOARD.md
+ M docs/ted-profile/sdd-pack/12_RISK_REGISTER.md
+ M docs/ted-profile/sdd-pack/13_OPEN_QUESTIONS.md
+ M docs/ted-profile/sdd-pack/spec_index.json
+ M docs/ted-profile/ted_sdd_user_stories_bundle/INDEX.md
+ M extensions/ted-sidecar/AGENTS.md
+ M package.json
+ M plan.md
+ M scripts/ted-profile/proof_jc005.sh
+ M spec.md
+ M tasks.md
+?? .specify/specs/001-ted-day1-launch/living_knowledge/
+?? .specify/specs/001-ted-day1-launch/wip_git_status_after_pop.txt
+?? .specify/specs/001-ted-day1-launch/wip_git_status_pre_sdd.txt
+?? MERGE_REPORT.md
+?? constitution.md
+?? docs/ted-profile/Exploring_JTBD/
+?? docs/ted-profile/JobCatagories_sdd_pack/
+?? docs/ted-profile/Knowledge-Pack_SDD/
+?? docs/ted-profile/job-cards/JC-006-sidecar-auth-contract-reconciliation.md
+?? docs/ted-profile/job-cards/JC-007-deadlines-extraction-proposals.md
+?? docs/ted-profile/job-cards/JC-008-dashboards-daily-view.md
+?? docs/ted-profile/job-cards/JC-009-patterns-governed-learning-expansion.md
+?? docs/ted-profile/job-cards/JC-010-release-gates-evidence-pack.md
+?? docs/ted-profile/job-cards/JC-011-retention-purge-metrics.md
+?? docs/ted-profile/planning/COUNCIL_FUNCTION_MAP.md
+?? docs/ted-profile/planning/COUNCIL_RUNBOOK.md
+?? docs/ted-profile/planning/FEATURE_PLACEMENT_MAP.md
+?? docs/ted-profile/planning/REQUIREMENTS_TRACEABILITY.md
+?? docs/ted-profile/sdd-pack/14_LIVING_KNOWLEDGE_SPEC.md
+?? docs/ted-profile/ted_sdd_user_stories_bundle/DEPRECATED.md
+?? docs/ted-profile/ted_sdd_user_stories_bundle/user_stories/ted-us-048_hybrid_living_knowledge_model_with_governed_system_of_record.md
+?? docs/ted-profile/ted_sdd_user_stories_bundle/user_stories/ted-us-049_living_knowledge_starter_templates_personal_and_business.md
+?? docs/ted-profile/ted_sdd_user_stories_bundle/user_stories/ted-us-050_living_knowledge_capture_loop_for_research_mistakes_and_missing_context.md
+?? docs/ted-profile/ted_sdd_user_stories_bundle/user_stories/ted-us-051_approval_gated_knowledge_projection_contract_for_onedrive_sharepoint.md
+?? docs/ted-profile/ted_sdd_user_stories_bundle/user_stories/ted-us-052_weekly_living_knowledge_review_and_freshness_tags.md
+?? docs/ted-profile/ted_sdd_user_stories_bundle/user_stories/ted-us-053_copilot_grounding_permission_boundaries_and_scope_controls.md
+?? docs/ted-profile/user_story_inventory.txt
+?? gates_checklists.md
+?? plan-template.md
+?? scripts/gates-overengineering.mjs
+?? scripts/overengineering_gate_selftest.mjs
+?? scripts/ted-profile/proof_jc005_inc2.sh
+?? spec-template.md
+?? tasks-template.md
