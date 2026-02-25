@@ -31,7 +31,9 @@ export function mockCatalogImportFailThenRecover() {
       throw new Error("boom");
     }
     return {
-      AuthStorage: class {},
+      AuthStorage: {
+        create: () => ({}),
+      },
       ModelRegistry: class {
         getAll() {
           return [{ id: "gpt-4.1", name: "GPT-4.1", provider: "openai" }];

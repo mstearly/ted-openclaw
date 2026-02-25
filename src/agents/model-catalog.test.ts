@@ -30,7 +30,9 @@ describe("loadModelCatalog", () => {
     __setModelCatalogImportForTest(
       async () =>
         ({
-          AuthStorage: class {},
+          AuthStorage: {
+            create: () => ({}),
+          },
           ModelRegistry: class {
             getAll() {
               return [
@@ -57,7 +59,9 @@ describe("loadModelCatalog", () => {
     __setModelCatalogImportForTest(
       async () =>
         ({
-          AuthStorage: class {},
+          AuthStorage: {
+            create: () => ({}),
+          },
           ModelRegistry: class {
             getAll() {
               return [
