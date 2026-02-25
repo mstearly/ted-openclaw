@@ -413,6 +413,7 @@ signal._final_version = edited; // Store both diff AND final accepted version (p
 
 - `recordEngagement(contentType, deliveredAt, readAt, actionAt, interactionDurationMs)`:
   1. Append to `engagement.jsonl`:
+
   ```json
   {
     "content_type": "morning_brief",
@@ -430,6 +431,7 @@ signal._final_version = edited; // Store both diff AND final accepted version (p
 
   2. Content types: `morning_brief`, `eod_digest`, `meeting_prep`, `triage_alert`
   3. **Engagement types (new):** `read_only`, `read_and_acted`, `dismissed`, `not_opened`
+
 - `computeEngagementWindow(contentType, lookbackDays = 14)`:
   1. Read `engagement.jsonl` for content type
   2. **Separate read latency from action latency** (new — research: a brief read but not acted on is a failed delivery)

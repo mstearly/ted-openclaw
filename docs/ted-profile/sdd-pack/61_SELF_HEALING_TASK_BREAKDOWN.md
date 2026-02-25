@@ -105,7 +105,7 @@
 
 - [x] **SH-A12** — Scheduler integration for drift check + compaction + expiry + provider probe
   - File: `sidecars/ted-engine/server.mjs` (modify `schedulerTick()` at line 12036)
-  - Add 4 jobs: config_drift_check (_/5 _ \* \* _), ledger_compaction (0 3 _ _ 0), proposal_expiry (0 4 _ \* _), provider_health_probe (_/5 \* \* \* \*)
+  - Add 4 jobs: `config_drift_check` (`*/5 * * * *`), `ledger_compaction` (`0 3 * * 0`), `proposal_expiry` (`0 4 * * *`), `provider_health_probe` (`*/5 * * * *`)
   - Dispatch via `mcpCallInternal()` loopback
   - ~25 lines
   - Depends on: SH-A10
