@@ -9,8 +9,16 @@ import {
   createSchedulerCore,
   dispatchSchedulerRoute,
 } from "./modules/scheduler.mjs";
-import { dispatchSelfHealingRoute } from "./modules/self_healing.mjs";
-import { createSharePointHandlers, dispatchSharePointRoute } from "./modules/sharepoint.mjs";
+import {
+  createSelfHealingCore,
+  createSelfHealingHandlers,
+  dispatchSelfHealingRoute,
+} from "./modules/self_healing.mjs";
+import {
+  createSharePointCore,
+  createSharePointHandlers,
+  dispatchSharePointRoute,
+} from "./modules/sharepoint.mjs";
 // SDD 75 (QA-002): Pure utility exports — tests import from server-utils.mjs directly
 import * as _serverUtils from "./server-utils.mjs";
 import {
@@ -14188,7 +14196,7 @@ async function syncReject(_profileId, proposalId, req, res, route) {
   sendJson(res, 200, { rejected: true, proposal_id: proposalId });
 }
 
-const sharePointHandlers = createSharePointHandlers({
+const sharePointCore = createSharePointCore({
   appendAudit,
   appendEvent,
   blockedExplainability,
@@ -14202,6 +14210,7 @@ const sharePointHandlers = createSharePointHandlers({
   requestedExecutionMode,
   sendJson,
 });
+const sharePointHandlers = createSharePointHandlers(sharePointCore);
 
 // ─── Scheduler Module (P1-1-003) ───
 const schedulerHandlers = createSchedulerHandlers({
@@ -14312,7 +14321,7 @@ function _compactAllLedgers() {
   }
 }
 
-const selfHealingDeps = {
+const selfHealingCore = createSelfHealingCore({
   sendJson,
   logLine,
   readJsonBodyGuarded,
@@ -14330,8 +14339,11 @@ const selfHealingDeps = {
   getEngagementInsights,
   assessDisengagementLevel,
   getAutonomyStatus,
+  detectZombieDrafts,
+  retryZombieDraft,
   getArchiveDir: () => archiveDir,
-};
+});
+const selfHealingHandlers = createSelfHealingHandlers(selfHealingCore);
 
 // ─── Improvement Proposals (Codex Builder Lane) ───
 
@@ -18648,7 +18660,7 @@ const server = http.createServer(async (req, res) => {
     // ─── Self-Healing Routes (extracted to modules/self_healing.mjs — P1-1-004) ───
     const selfHealingHandled = await dispatchSelfHealingRoute(
       { method, route, parsed, req, res },
-      selfHealingDeps,
+      selfHealingHandlers,
     );
     if (selfHealingHandled) {
       return;

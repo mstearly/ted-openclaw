@@ -6,11 +6,22 @@
  * A future iteration can migrate the function bodies here.
  *
  * Exports:
- *   dispatchSelfHealingRoute(ctx, deps) — route dispatch, returns true if handled
+ *   createSelfHealingCore(deps) — standard module core boundary
+ *   createSelfHealingHandlers(core) — route handler surface
+ *   dispatchSelfHealingRoute(ctx, handlers) — route dispatch, returns true if handled
  */
 
-export async function dispatchSelfHealingRoute(ctx, deps) {
+export function createSelfHealingCore(deps) {
+  return { ...deps };
+}
+
+export function createSelfHealingHandlers(core) {
+  return { core };
+}
+
+export async function dispatchSelfHealingRoute(ctx, handlers) {
   const { method, route, req, res } = ctx;
+  const core = handlers?.core ?? handlers;
   const {
     sendJson,
     logLine,
@@ -40,7 +51,7 @@ export async function dispatchSelfHealingRoute(ctx, deps) {
     getAutonomyStatus,
     // Shared state for /status
     getArchiveDir,
-  } = deps;
+  } = core;
 
   // ─── Self-Healing Routes (SH-001 through SH-006) ───
   if (method === "GET" && route === "/ops/self-healing/status") {

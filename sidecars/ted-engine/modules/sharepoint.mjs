@@ -1,4 +1,18 @@
-export function createSharePointHandlers(deps) {
+/**
+ * SharePoint module.
+ *
+ * Exports:
+ *   createSharePointCore(deps) — standard module core boundary
+ *   createSharePointHandlers(core) — route handler surface
+ *   dispatchSharePointRoute(ctx, handlers) — route dispatch
+ */
+
+export function createSharePointCore(deps) {
+  return { ...deps };
+}
+
+export function createSharePointHandlers(coreOrDeps) {
+  const core = createSharePointCore(coreOrDeps);
   const {
     appendAudit,
     appendEvent,
@@ -12,7 +26,7 @@ export function createSharePointHandlers(deps) {
     requestedExecutionMode,
     sendJson,
     isSlugSafe,
-  } = deps;
+  } = core;
 
   function normalizeSharePointItem(item) {
     return {
