@@ -178,7 +178,7 @@
     },
     "GET /triage/patterns": {
       "status_codes": [200],
-      "required_fields": ["patterns", "active_count"],
+      "required_fields": ["active", "proposed"],
       "content_type": "application/json"
     },
     "POST /triage/patterns/propose": {
@@ -268,7 +268,7 @@
     },
     "GET /deals/stale-owners": {
       "status_codes": [200],
-      "required_fields": ["deals"],
+      "required_fields": ["stale_deals", "threshold_days", "checked_at"],
       "content_type": "application/json"
     },
     "POST /deals/{deal_id}/investors/{investor}/oig-update": {

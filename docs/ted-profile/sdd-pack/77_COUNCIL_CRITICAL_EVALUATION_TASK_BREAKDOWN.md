@@ -144,7 +144,7 @@ The council **agrees** with the ~85% completeness estimate and Late Alpha maturi
 - **Action:** Azure portal → Azure Active Directory → App registrations → New registration
 - **App name:** "TED Co-Work Engine (Olumie)"
 - **Supported account types:** Single tenant (Olumie org only)
-- **Redirect URI:** `http://localhost:3001/auth/callback` (sidecar auth callback route)
+- **Redirect URI:** Leave blank (device code flow does not require callback URI)
 - **Record:** Application (client) ID, Directory (tenant) ID
 - **Acceptance criteria:** App registered, client_id and tenant_id obtained
 - **Dependencies:** None (operator action)
@@ -168,12 +168,12 @@ The council **agrees** with the ~85% completeness estimate and Late Alpha maturi
 - **Dependencies:** P0-2-001
 - **Owner:** Operator
 
-#### P0-2-003: Configure client secret or certificate
+#### P0-2-003: Enable device code public client flow
 
-- **Action:** Azure portal → App registration → Certificates & secrets → New client secret
-- **Expiry:** 12 months (set calendar reminder for renewal)
-- **Record:** Client secret value (only shown once!)
-- **Acceptance criteria:** Secret created and securely stored
+- **Action:** Azure portal → App registration → Authentication → Advanced settings
+- **Setting:** Set **Allow public client flows** to **Yes**
+- **Record:** Confirm setting persisted for the app registration
+- **Acceptance criteria:** Device code grant is enabled and ready for sidecar auth
 - **Dependencies:** P0-2-001
 - **Owner:** Operator
 
@@ -181,18 +181,18 @@ The council **agrees** with the ~85% completeness estimate and Late Alpha maturi
 
 - **File:** `sidecars/ted-engine/config/graph.profiles.json`
 - **Changes:** Fill `tenant_id`, `client_id` for olumie profile
-- **Note:** Client secret should go in `.env` or environment variable, NOT in the JSON config (it's gitignored)
+- **Note:** Do not add client secrets to this file. Device code flow uses `tenant_id` + `client_id` + delegated scopes.
 - **Lines changed:** ~5
 - **Acceptance criteria:** `tenant_id` and `client_id` are non-empty UUIDs
 - **Dependencies:** P0-2-001, P0-2-003
 - **Owner:** Operator + Seat 4 (review)
 
-#### P0-2-005: Verify auth flow — `/auth/mint`
+#### P0-2-005: Verify Graph device code auth flow
 
-- **Action:** Start sidecar, call `POST /auth/mint` with olumie profile
-- **Expected:** Sidecar returns auth URL for browser-based OAuth consent
-- **Verify:** Browser redirect → Microsoft login → consent → redirect back to localhost → token stored
-- **Acceptance criteria:** Token acquired, `/status` shows authenticated profile, token refresh works
+- **Action:** Start sidecar, call `POST /graph/{profile}/auth/device/start` (example: `olumie`)
+- **Expected:** Sidecar returns `verification_uri`, `user_code`, and `device_code`
+- **Verify:** Complete browser auth at Microsoft device login, then call `POST /graph/{profile}/auth/device/poll` until token is stored
+- **Acceptance criteria:** Token acquired, `/graph/{profile}/status` shows authenticated profile, token refresh works
 - **Dependencies:** P0-2-004
 - **Owner:** Operator + Seat 1
 
@@ -539,9 +539,9 @@ P0-3-003: Configure branch protection
 ```
 P0-2-001: Register Azure AD app (Olumie)
 P0-2-002: Configure API permissions
-P0-2-003: Configure client secret
+P0-2-003: Enable device code public client flow
 P0-2-004: Populate graph.profiles.json
-P0-2-005: Verify auth flow
+P0-2-005: Verify Graph device code auth flow
 P0-2-006: Repeat for Everest (if separate tenant)
 ```
 
@@ -606,16 +606,16 @@ P1-4-003: Wire mock into tests
 
 ### NEW-1: Secret Management Strategy (P0 prerequisite for P0-2)
 
-**Finding (Seat 4):** SDD 76 says "populate graph.profiles.json with real credentials" but the client_secret MUST NOT go in a tracked file. The current `.gitignore` excludes `.env` but there's no `.env` file or environment variable loading in `server.mjs`.
+**Finding (Seat 4):** SDD 76 says "populate graph.profiles.json with real credentials." The active sidecar auth model is device code public client, so `client_secret` is not required. The real risk is accidental commit of real tenant IDs/client IDs and profile mappings in tracked config.
 
 **Recommendation:**
 
-- Verify `server.mjs` reads secrets from environment variables (not config files)
-- If not, add `process.env.OLUMIE_CLIENT_SECRET` / `process.env.EVEREST_CLIENT_SECRET` support
-- Create `.env.example` documenting required variables
-- Ensure `.env` is gitignored (already is)
+- Confirm auth model remains device code public client (`tenant_id`, `client_id`, delegated scopes)
+- Keep `client_secret` out of scope for this integration path unless architecture changes
+- Ensure real operator-specific `graph.profiles.json` values are never committed
+- Document operator hygiene: local-only credential entry and pre-commit checks before push
 
-**Task:** P0-2-003 must address this — secret goes in `.env`, not `graph.profiles.json`
+**Task:** P0-2-003 must explicitly validate device code public client setup and no-secret auth assumptions.
 
 ### NEW-2: Backup Before Merge (P0 prerequisite for P0-1)
 
@@ -670,9 +670,9 @@ P0-1-001 (verify conflicts)
 
 P0-2-001 (register Azure AD)
   └→ P0-2-002 (API permissions)
-       └→ P0-2-003 (client secret + .env)
+       └→ P0-2-003 (enable device code public client flow)
             └→ P0-2-004 (populate config)
-                 └→ P0-2-005 (verify auth)
+                 └→ P0-2-005 (verify Graph device code auth flow)
                       ├→ P0-2-006 (Everest tenant)
                       └→ P0-4-001..007 (smoke tests)
                            └→ P0-4-008 (document mismatches)

@@ -11,7 +11,13 @@
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, test, expect, beforeAll } from "vitest";
+import { describe, test, expect, beforeAll, afterAll } from "vitest";
+import {
+  getTestBaseUrl,
+  mintTestAuthToken,
+  startTestSidecar,
+  stopTestSidecar,
+} from "./helpers/test-server.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const contractsPath = resolve(__dirname, "../config/route_contracts.json");
@@ -24,7 +30,8 @@ try {
 }
 
 const routeEntries = Object.entries(contracts.routes);
-const BASE_URL = "http://127.0.0.1:48080";
+let baseUrl = "";
+let authHeaders = {};
 
 // ─────────────────────────────────────────────────────────
 // Section 1: Static Contract Registry Validation
@@ -211,24 +218,17 @@ const SAFE_GET_ROUTES = [
 ];
 
 /**
- * Detect if the sidecar is running by trying to fetch /status.
+ * Start an isolated test sidecar so live contract tests do not mutate local working data.
  */
-async function isSidecarRunning() {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 2000);
-    const resp = await fetch(`${BASE_URL}/status`, { signal: controller.signal });
-    clearTimeout(timeout);
-    return resp.ok;
-  } catch {
-    return false;
-  }
-}
-
-let sidecarAvailable = false;
-
 beforeAll(async () => {
-  sidecarAvailable = await isSidecarRunning();
+  await startTestSidecar();
+  baseUrl = getTestBaseUrl();
+  const token = await mintTestAuthToken();
+  authHeaders = { authorization: `Bearer ${token}` };
+});
+
+afterAll(async () => {
+  await stopTestSidecar();
 });
 
 describe("Live Contract Tests — safe GET routes", () => {
@@ -239,36 +239,30 @@ describe("Live Contract Tests — safe GET routes", () => {
     return [routeKey, path, contract];
   });
 
-  test.skipIf(() => !sidecarAvailable).each(testableRoutes)(
+  test.each(testableRoutes)(
     "%s — status code matches contract",
     async (routeKey, path, contract) => {
-      const resp = await fetch(`${BASE_URL}${path}`);
+      const resp = await fetch(`${baseUrl}${path}`, { headers: authHeaders });
       expect(contract.status_codes).toContain(resp.status);
     },
   );
 
-  test.skipIf(() => !sidecarAvailable).each(testableRoutes)(
-    "%s — content-type is application/json",
-    async (_routeKey, path) => {
-      const resp = await fetch(`${BASE_URL}${path}`);
-      const ct = resp.headers.get("content-type") || "";
-      expect(ct).toContain("application/json");
-    },
-  );
+  test.each(testableRoutes)("%s — content-type is application/json", async (_routeKey, path) => {
+    const resp = await fetch(`${baseUrl}${path}`, { headers: authHeaders });
+    const ct = resp.headers.get("content-type") || "";
+    expect(ct).toContain("application/json");
+  });
 
-  test.skipIf(() => !sidecarAvailable).each(testableRoutes)(
-    "%s — x-ted-api-version header present",
-    async (_routeKey, path) => {
-      const resp = await fetch(`${BASE_URL}${path}`);
-      const version = resp.headers.get("x-ted-api-version");
-      expect(version).toBeTruthy();
-    },
-  );
+  test.each(testableRoutes)("%s — x-ted-api-version header present", async (_routeKey, path) => {
+    const resp = await fetch(`${baseUrl}${path}`, { headers: authHeaders });
+    const version = resp.headers.get("x-ted-api-version");
+    expect(version).toBeTruthy();
+  });
 
-  test.skipIf(() => !sidecarAvailable).each(testableRoutes)(
+  test.each(testableRoutes)(
     "%s — response contains all required_fields",
     async (_routeKey, path, contract) => {
-      const resp = await fetch(`${BASE_URL}${path}`);
+      const resp = await fetch(`${baseUrl}${path}`, { headers: authHeaders });
       const body = await resp.json();
       for (const field of contract.required_fields) {
         expect(body).toHaveProperty(field);

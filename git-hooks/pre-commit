@@ -33,6 +33,16 @@ if [ "${#files[@]}" -eq 0 ]; then
   exit 0
 fi
 
+# NEW-1 guardrail: never commit operator credential config.
+# `graph.profiles.json` is a local runtime file and can contain real tenant/app identifiers.
+for file in "${files[@]}"; do
+  if [[ "$file" == "sidecars/ted-engine/config/graph.profiles.json" ]]; then
+    echo "Refusing commit: $file is local-only and must never be versioned." >&2
+    echo "Use sidecars/ted-engine/config/graph.profiles.example.json for templates." >&2
+    exit 1
+  fi
+done
+
 mapfile -d '' -t lint_files < <(node "$FILTER_FILES" lint -- "${files[@]}")
 mapfile -d '' -t format_files < <(node "$FILTER_FILES" format -- "${files[@]}")
 
