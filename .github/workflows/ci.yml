@@ -186,6 +186,9 @@ jobs:
             task: test
             command: pnpm canvas:a2ui:bundle && pnpm test
           - runtime: node
+            task: test-sidecar
+            command: npx vitest run --config vitest.sidecar.config.ts
+          - runtime: node
             task: protocol
             command: pnpm protocol:check
           - runtime: bun
