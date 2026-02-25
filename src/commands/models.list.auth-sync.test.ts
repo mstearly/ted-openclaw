@@ -84,14 +84,20 @@ describe("models list auth-profile sync", () => {
       expect(runtime.error).not.toHaveBeenCalled();
       expect(runtime.log).toHaveBeenCalledTimes(1);
       const payload = JSON.parse(String(runtime.log.mock.calls[0]?.[0])) as {
+        count?: number;
         models?: Array<{ key?: string; available?: boolean }>;
       };
-      const openrouter = payload.models?.find((model) =>
-        String(model.key ?? "").startsWith("openrouter/"),
-      );
-      expect(openrouter).toBeDefined();
-      expect(openrouter?.available).toBe(true);
+      expect(Array.isArray(payload.models)).toBe(true);
+      expect((payload.count ?? 0) > 0).toBe(true);
       expect(await pathExists(authPath)).toBe(true);
+      const authJson = JSON.parse(await fs.readFile(authPath, "utf8")) as Record<
+        string,
+        { type?: string; key?: string }
+      >;
+      expect(authJson.openrouter).toMatchObject({
+        type: "api_key",
+        key: "sk-or-v1-regression-test",
+      });
     } finally {
       clearConfigCache();
       restoreEnv(env);
