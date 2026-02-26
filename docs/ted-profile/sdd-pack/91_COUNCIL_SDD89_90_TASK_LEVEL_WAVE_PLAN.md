@@ -285,5 +285,6 @@ Acceptance:
 
 ## 5. Current Status
 
-1. Wave A: In execution.
-2. Waves B-H: Planned and queued by dependency.
+1. Waves A-C: Completed and merged (`f3a05bf75` includes Wave B-C after Wave A baseline).
+2. Wave D: Completed with replay corpus, deterministic replay runner, and adversarial release gate routes.
+3. Waves E-H: Planned and queued by dependency.

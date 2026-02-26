@@ -172,6 +172,9 @@ import {
   loadTedOutcomesDashboard,
   loadTedOutcomesFrictionTrends,
   loadTedOutcomesJob,
+  loadTedReplayCorpus,
+  runTedReplay,
+  loadTedReplayRuns,
 } from "./controllers/ted.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
@@ -602,6 +605,15 @@ export class OpenClawApp extends LitElement {
   @state() tedOutcomesJob: import("./types.ts").TedOutcomesJobResponse | null = null;
   @state() tedOutcomesJobLoading = false;
   @state() tedOutcomesJobError: string | null = null;
+  @state() tedReplayCorpus: import("./types.ts").TedReplayCorpusResponse | null = null;
+  @state() tedReplayCorpusLoading = false;
+  @state() tedReplayCorpusError: string | null = null;
+  @state() tedReplayRunBusy = false;
+  @state() tedReplayRunError: string | null = null;
+  @state() tedReplayRunResult: import("./types.ts").TedReplayRunResponse | null = null;
+  @state() tedReplayRuns: import("./types.ts").TedReplayRunsResponse | null = null;
+  @state() tedReplayRunsLoading = false;
+  @state() tedReplayRunsError: string | null = null;
   // Phase 6: Meetings + Commitments + GTD
   @state() tedMeetingsUpcoming: import("./types.ts").TedMeetingUpcomingResponse | null = null;
   @state() tedMeetingsLoading = false;
@@ -1210,6 +1222,31 @@ export class OpenClawApp extends LitElement {
 
   async loadTedOutcomesJob(params: { job_id: string; limit?: number }) {
     await loadTedOutcomesJob(this, params);
+  }
+
+  async loadTedReplayCorpus(params?: { include?: "golden" | "adversarial"; limit?: number }) {
+    await loadTedReplayCorpus(this, params);
+  }
+
+  async runTedReplay(params?: {
+    include?: "golden" | "adversarial";
+    scenario_ids?: string[];
+    release_gate?: {
+      min_pass_rate?: number;
+      max_safety_failures?: number;
+      max_adversarial_failures?: number;
+    };
+    simulate?: {
+      force_output_failure_ids?: string[];
+      force_trajectory_failure_ids?: string[];
+      force_safety_failure_ids?: string[];
+    };
+  }) {
+    await runTedReplay(this, params);
+  }
+
+  async loadTedReplayRuns(params?: { limit?: number; include_details?: boolean }) {
+    await loadTedReplayRuns(this, params);
   }
 
   async loadTedMeetingsUpcoming() {

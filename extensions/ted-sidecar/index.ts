@@ -6989,6 +6989,90 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
     },
   );
 
+  api.registerGatewayMethod(
+    "ted.ops.replay.corpus",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { include?: unknown; limit?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (payloadIn.include === "golden" || payloadIn.include === "adversarial") {
+          query.set("include", payloadIn.include);
+        }
+        if (typeof payloadIn.limit === "number" && Number.isFinite(payloadIn.limit)) {
+          query.set("limit", String(Math.max(1, Math.min(500, Math.floor(payloadIn.limit)))));
+        }
+        const routePath = `/ops/replay/corpus${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted replay corpus failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.replay.run",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/replay/run",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted replay run failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.replay.runs",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { limit?: unknown; include_details?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.limit === "number" && Number.isFinite(payloadIn.limit)) {
+          query.set("limit", String(Math.max(1, Math.min(200, Math.floor(payloadIn.limit)))));
+        }
+        if (payloadIn.include_details === true) {
+          query.set("include_details", "1");
+        }
+        const routePath = `/ops/replay/runs${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted replay runs failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
   // ─── C10-023: Missing gateway methods for sidecar routes ────────────────────
 
   // --- Graph: calendar list (GET) ---

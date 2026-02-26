@@ -337,7 +337,12 @@
       "evaluation.correction_fixture.created": "Auto-generated golden fixture from Builder Lane correction signal",
       "evaluation.canary.completed": "Synthetic canary check completed",
       "evaluation.canary.failed": "Synthetic canary check failed",
-      "evaluation.drift.detected": "Score drift detected compared to 7-day rolling baseline"
+      "evaluation.drift.detected": "Score drift detected compared to 7-day rolling baseline",
+      "evaluation.replay.corpus.queried": "Operator queried replay corpus scenarios and release-gate thresholds",
+      "evaluation.replay.completed": "Deterministic replay harness run completed with output and trajectory scoring",
+      "evaluation.replay.failed": "Replay run failed release gate thresholds",
+      "evaluation.adversarial.failed": "Adversarial replay scenarios detected a safety failure",
+      "evaluation.replay.runs.queried": "Operator queried replay run history"
     }
   }
 }

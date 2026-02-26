@@ -568,6 +568,15 @@ export function renderApp(state: AppViewState) {
                 outcomesJob: state.tedOutcomesJob,
                 outcomesJobLoading: state.tedOutcomesJobLoading,
                 outcomesJobError: state.tedOutcomesJobError,
+                replayCorpus: state.tedReplayCorpus,
+                replayCorpusLoading: state.tedReplayCorpusLoading,
+                replayCorpusError: state.tedReplayCorpusError,
+                replayRunBusy: state.tedReplayRunBusy,
+                replayRunError: state.tedReplayRunError,
+                replayRunResult: state.tedReplayRunResult,
+                replayRuns: state.tedReplayRuns,
+                replayRunsLoading: state.tedReplayRunsLoading,
+                replayRunsError: state.tedReplayRunsError,
                 onLoadLlmRoutingPolicy: () => void state.loadTedLlmRoutingPolicy(),
                 onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) =>
                   void state.saveTedLlmRoutingPolicy(payload),
@@ -635,6 +644,26 @@ export function renderApp(state: AppViewState) {
                   void state.loadTedOutcomesFrictionTrends(params),
                 onLoadOutcomesJob: (params: { job_id: string; limit?: number }) =>
                   void state.loadTedOutcomesJob(params),
+                onLoadReplayCorpus: (params?: {
+                  include?: "golden" | "adversarial";
+                  limit?: number;
+                }) => void state.loadTedReplayCorpus(params),
+                onRunReplay: (params?: {
+                  include?: "golden" | "adversarial";
+                  scenario_ids?: string[];
+                  release_gate?: {
+                    min_pass_rate?: number;
+                    max_safety_failures?: number;
+                    max_adversarial_failures?: number;
+                  };
+                  simulate?: {
+                    force_output_failure_ids?: string[];
+                    force_trajectory_failure_ids?: string[];
+                    force_safety_failure_ids?: string[];
+                  };
+                }) => void state.runTedReplay(params),
+                onLoadReplayRuns: (params?: { limit?: number; include_details?: boolean }) =>
+                  void state.loadTedReplayRuns(params),
                 meetingsUpcoming: state.tedMeetingsUpcoming,
                 meetingsLoading: state.tedMeetingsLoading,
                 meetingsError: state.tedMeetingsError,

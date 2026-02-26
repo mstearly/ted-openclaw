@@ -273,6 +273,36 @@
       "required_fields": ["generated_at", "job_id", "summary", "recent_runs"],
       "content_type": "application/json"
     },
+    "GET /ops/replay/corpus": {
+      "status_codes": [200],
+      "required_fields": [
+        "generated_at",
+        "version",
+        "release_gate",
+        "include",
+        "scenarios",
+        "total_count"
+      ],
+      "content_type": "application/json"
+    },
+    "POST /ops/replay/run": {
+      "status_codes": [200, 400],
+      "required_fields": [
+        "run_id",
+        "corpus_version",
+        "started_at",
+        "completed_at",
+        "summary",
+        "release_gate",
+        "results"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /ops/replay/runs": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "runs", "total_count", "include_details"],
+      "content_type": "application/json"
+    },
     "POST /ops/ingestion/run": {
       "status_codes": [200, 500],
       "required_fields": ["profiles_processed"],

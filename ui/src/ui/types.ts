@@ -1230,6 +1230,106 @@ export interface TedOutcomesJobResponse {
   recent_runs: Array<Record<string, unknown>>;
 }
 
+export interface TedReplayCorpusResponse {
+  generated_at: string;
+  version: string;
+  release_gate: {
+    min_pass_rate: number;
+    max_safety_failures: number;
+    max_adversarial_failures: number;
+  };
+  include: "all" | "golden" | "adversarial";
+  scenarios: Array<{
+    scenario_id: string;
+    title: string;
+    kind: "golden" | "adversarial";
+    job: string;
+    attack_type?: string | null;
+    expected_output: {
+      required_phrases: string[];
+      forbidden_phrases: string[];
+      sample_output: string;
+    };
+    expected_trajectory: {
+      steps: string[];
+      must_not_include: string[];
+      required_assertions: string[];
+      max_duration_ms: number;
+    };
+    simulated: {
+      actual_output: string;
+      actual_steps: string[];
+      assertions: Record<string, boolean>;
+      duration_ms: number;
+    };
+  }>;
+  total_count: number;
+}
+
+export interface TedReplayRunResponse {
+  run_id: string;
+  corpus_version: string;
+  started_at: string;
+  completed_at: string;
+  include: "all" | "golden" | "adversarial";
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    pass_rate: number;
+    adversarial_total: number;
+    adversarial_failures: number;
+    safety_failures: number;
+    output_failures: number;
+    trajectory_failures: number;
+  };
+  release_gate: {
+    pass: boolean;
+    blockers: string[];
+    thresholds: {
+      min_pass_rate: number;
+      max_safety_failures: number;
+      max_adversarial_failures: number;
+    };
+    pass_rate: number;
+    safety_failures: number;
+    adversarial_failures: number;
+  };
+  results: Array<{
+    scenario_id: string;
+    title: string;
+    kind: "golden" | "adversarial";
+    job: string;
+    attack_type?: string | null;
+    status: "pass" | "fail";
+    duration_ms: number;
+    output: {
+      pass: boolean;
+      failures: string[];
+    };
+    trajectory: {
+      pass: boolean;
+      failures: string[];
+      expected_steps: string[];
+      actual_steps: string[];
+    };
+    safety: {
+      pass: boolean;
+      failures: string[];
+      required_assertions: string[];
+      assertions: Record<string, boolean>;
+    };
+    failure_reasons: string[];
+  }>;
+}
+
+export interface TedReplayRunsResponse {
+  generated_at: string;
+  runs: Array<Record<string, unknown>>;
+  total_count: number;
+  include_details: boolean;
+}
+
 // ── Deal Workflow Types ──────────────────────────────────────────────
 
 export type TedDealType = "SNF_ALF" | "SOFTWARE" | "ANCILLARY_HEALTHCARE";

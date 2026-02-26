@@ -401,6 +401,15 @@ export type AppViewState = {
   tedOutcomesJob: import("./types.ts").TedOutcomesJobResponse | null;
   tedOutcomesJobLoading: boolean;
   tedOutcomesJobError: string | null;
+  tedReplayCorpus: import("./types.ts").TedReplayCorpusResponse | null;
+  tedReplayCorpusLoading: boolean;
+  tedReplayCorpusError: string | null;
+  tedReplayRunBusy: boolean;
+  tedReplayRunError: string | null;
+  tedReplayRunResult: import("./types.ts").TedReplayRunResponse | null;
+  tedReplayRuns: import("./types.ts").TedReplayRunsResponse | null;
+  tedReplayRunsLoading: boolean;
+  tedReplayRunsError: string | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -825,6 +834,25 @@ export type AppViewState = {
     days?: number;
   }) => Promise<void>;
   loadTedOutcomesJob: (params: { job_id: string; limit?: number }) => Promise<void>;
+  loadTedReplayCorpus: (params?: {
+    include?: "golden" | "adversarial";
+    limit?: number;
+  }) => Promise<void>;
+  runTedReplay: (params?: {
+    include?: "golden" | "adversarial";
+    scenario_ids?: string[];
+    release_gate?: {
+      min_pass_rate?: number;
+      max_safety_failures?: number;
+      max_adversarial_failures?: number;
+    };
+    simulate?: {
+      force_output_failure_ids?: string[];
+      force_trajectory_failure_ids?: string[];
+      force_safety_failure_ids?: string[];
+    };
+  }) => Promise<void>;
+  loadTedReplayRuns: (params?: { limit?: number; include_details?: boolean }) => Promise<void>;
   loadTedMeetingsUpcoming: () => Promise<void>;
   loadTedCommitments: () => Promise<void>;
   loadTedActions: () => Promise<void>;

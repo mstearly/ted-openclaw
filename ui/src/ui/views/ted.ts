@@ -44,6 +44,9 @@ import type {
   TedOutcomesDashboardResponse,
   TedOutcomesFrictionTrendsResponse,
   TedOutcomesJobResponse,
+  TedReplayCorpusResponse,
+  TedReplayRunResponse,
+  TedReplayRunsResponse,
   TedPolicyDocument,
   TedPolicyImpactPreview,
   TedPolicyKey,
@@ -287,6 +290,15 @@ export type TedViewProps = {
   outcomesJob: TedOutcomesJobResponse | null;
   outcomesJobLoading: boolean;
   outcomesJobError: string | null;
+  replayCorpus: TedReplayCorpusResponse | null;
+  replayCorpusLoading: boolean;
+  replayCorpusError: string | null;
+  replayRunBusy: boolean;
+  replayRunError: string | null;
+  replayRunResult: TedReplayRunResponse | null;
+  replayRuns: TedReplayRunsResponse | null;
+  replayRunsLoading: boolean;
+  replayRunsError: string | null;
   onLoadLlmRoutingPolicy: () => void;
   onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) => void;
   onTestLlmProvider: (payload: {
@@ -338,6 +350,22 @@ export type TedViewProps = {
   onLoadOutcomesDashboard: (params?: { workflow_id?: string; limit?: number }) => void;
   onLoadOutcomesFrictionTrends: (params?: { workflow_id?: string; days?: number }) => void;
   onLoadOutcomesJob: (params: { job_id: string; limit?: number }) => void;
+  onLoadReplayCorpus: (params?: { include?: "golden" | "adversarial"; limit?: number }) => void;
+  onRunReplay: (params?: {
+    include?: "golden" | "adversarial";
+    scenario_ids?: string[];
+    release_gate?: {
+      min_pass_rate?: number;
+      max_safety_failures?: number;
+      max_adversarial_failures?: number;
+    };
+    simulate?: {
+      force_output_failure_ids?: string[];
+      force_trajectory_failure_ids?: string[];
+      force_safety_failure_ids?: string[];
+    };
+  }) => void;
+  onLoadReplayRuns: (params?: { limit?: number; include_details?: boolean }) => void;
   // Phase 6: Meetings + Commitments + GTD
   meetingsUpcoming: TedMeetingUpcomingResponse | null;
   meetingsLoading: boolean;
@@ -3343,6 +3371,92 @@ function renderExecutionWavesControlCard(
                 <div class="callout ${props.evalMatrixRunResult.threshold_pass ? "" : "warn"}" style="margin-top: 8px;">
                   pass_rate=${props.evalMatrixRunResult.pass_rate} · passed=${props.evalMatrixRunResult.passed_slices}/${props.evalMatrixRunResult.total_slices} · p95=${props.evalMatrixRunResult.p95_latency_ms}ms
                 </div>
+              `
+            : nothing
+        }
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Replay and Adversarial Harness</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <select id="ted-wave-replay-include" class="input" style="max-width: 180px;">
+            <option value="all">all scenarios</option>
+            <option value="golden">golden only</option>
+            <option value="adversarial">adversarial only</option>
+          </select>
+          <input
+            id="ted-wave-replay-scenario-ids"
+            class="input mono"
+            placeholder="scenario ids (comma-separated, optional)"
+            style="min-width: 320px;"
+          />
+          <button class="btn btn--sm ghost" ?disabled=${props.replayCorpusLoading} @click=${() => {
+            const includeRaw = readValue("ted-wave-replay-include");
+            const include =
+              includeRaw === "golden" || includeRaw === "adversarial" ? includeRaw : undefined;
+            props.onLoadReplayCorpus({ include, limit: 200 });
+          }}>
+            ${props.replayCorpusLoading ? "Loading..." : "Load Corpus"}
+          </button>
+          <button class="btn btn--sm" ?disabled=${props.replayRunBusy} @click=${() => {
+            const includeRaw = readValue("ted-wave-replay-include");
+            const include =
+              includeRaw === "golden" || includeRaw === "adversarial" ? includeRaw : undefined;
+            const scenarioIds = readValue("ted-wave-replay-scenario-ids")
+              .split(",")
+              .map((item) => item.trim())
+              .filter((item) => item.length > 0);
+            props.onRunReplay({
+              include,
+              scenario_ids: scenarioIds.length > 0 ? scenarioIds : undefined,
+            });
+          }}>
+            ${props.replayRunBusy ? "Running..." : "Run Replay"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.replayRunsLoading} @click=${() => props.onLoadReplayRuns({ limit: 20 })}>
+            ${props.replayRunsLoading ? "Loading..." : "Load Runs"}
+          </button>
+        </div>
+        ${props.replayCorpusError ? html`<div class="callout danger" style="margin-top:8px;">${props.replayCorpusError}</div>` : nothing}
+        ${props.replayRunError ? html`<div class="callout danger" style="margin-top:8px;">${props.replayRunError}</div>` : nothing}
+        ${props.replayRunsError ? html`<div class="callout danger" style="margin-top:8px;">${props.replayRunsError}</div>` : nothing}
+        ${
+          props.replayCorpus
+            ? html`
+                <div class="muted" style="margin-top:8px;">
+                  corpus=${props.replayCorpus.version} · scenarios=${props.replayCorpus.total_count} ·
+                  gate pass_rate>=${props.replayCorpus.release_gate.min_pass_rate}
+                </div>
+              `
+            : nothing
+        }
+        ${
+          props.replayRunResult
+            ? html`
+                <div class="callout ${props.replayRunResult.release_gate.pass ? "" : "warn"}" style="margin-top:8px;">
+                  replay ${props.replayRunResult.run_id} · pass_rate=${props.replayRunResult.summary.pass_rate} ·
+                  passed=${props.replayRunResult.summary.passed}/${props.replayRunResult.summary.total} ·
+                  gate=${props.replayRunResult.release_gate.pass ? "pass" : "fail"}
+                  ${
+                    props.replayRunResult.release_gate.blockers.length > 0
+                      ? html`<div style="margin-top:4px;" class="muted">${props.replayRunResult.release_gate.blockers.join(" | ")}</div>`
+                      : nothing
+                  }
+                </div>
+              `
+            : nothing
+        }
+        ${
+          props.replayRuns
+            ? html`
+                <div class="muted" style="margin-top:8px;">
+                  ${props.replayRuns.total_count} replay run(s) loaded.
+                </div>
+                <pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(
+                  props.replayRuns.runs.slice(0, 8),
+                  null,
+                  2,
+                )}</pre>
               `
             : nothing
         }

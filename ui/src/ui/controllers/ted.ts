@@ -28,6 +28,9 @@ import type {
   TedOutcomesDashboardResponse,
   TedOutcomesFrictionTrendsResponse,
   TedOutcomesJobResponse,
+  TedReplayCorpusResponse,
+  TedReplayRunResponse,
+  TedReplayRunsResponse,
   TedMailListResponse,
   TedMailMessage,
   TedMorningBriefResponse,
@@ -257,6 +260,15 @@ export type TedWorkbenchState = {
   tedOutcomesJob: TedOutcomesJobResponse | null;
   tedOutcomesJobLoading: boolean;
   tedOutcomesJobError: string | null;
+  tedReplayCorpus: TedReplayCorpusResponse | null;
+  tedReplayCorpusLoading: boolean;
+  tedReplayCorpusError: string | null;
+  tedReplayRunBusy: boolean;
+  tedReplayRunError: string | null;
+  tedReplayRunResult: TedReplayRunResponse | null;
+  tedReplayRuns: TedReplayRunsResponse | null;
+  tedReplayRunsLoading: boolean;
+  tedReplayRunsError: string | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -1870,6 +1882,90 @@ export async function loadTedOutcomesJob(
     state.tedOutcomesJobError = err instanceof Error ? err.message : String(err);
   } finally {
     state.tedOutcomesJobLoading = false;
+  }
+}
+
+export async function loadTedReplayCorpus(
+  state: TedWorkbenchState,
+  params?: { include?: "golden" | "adversarial"; limit?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedReplayCorpusLoading) {
+    return;
+  }
+  state.tedReplayCorpusLoading = true;
+  state.tedReplayCorpusError = null;
+  try {
+    const result = await requestTedWithTimeout<TedReplayCorpusResponse>(
+      state.client,
+      "ted.ops.replay.corpus",
+      params || {},
+    );
+    state.tedReplayCorpus = result;
+  } catch (err) {
+    state.tedReplayCorpusError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedReplayCorpusLoading = false;
+  }
+}
+
+export async function runTedReplay(
+  state: TedWorkbenchState,
+  params?: {
+    include?: "golden" | "adversarial";
+    scenario_ids?: string[];
+    release_gate?: {
+      min_pass_rate?: number;
+      max_safety_failures?: number;
+      max_adversarial_failures?: number;
+    };
+    simulate?: {
+      force_output_failure_ids?: string[];
+      force_trajectory_failure_ids?: string[];
+      force_safety_failure_ids?: string[];
+    };
+  },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedReplayRunBusy) {
+    return;
+  }
+  state.tedReplayRunBusy = true;
+  state.tedReplayRunError = null;
+  state.tedReplayRunResult = null;
+  try {
+    const result = await requestTedWithTimeout<TedReplayRunResponse>(
+      state.client,
+      "ted.ops.replay.run",
+      params || {},
+    );
+    state.tedReplayRunResult = result;
+    await loadTedReplayRuns(state, { limit: 20 });
+  } catch (err) {
+    state.tedReplayRunError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedReplayRunBusy = false;
+  }
+}
+
+export async function loadTedReplayRuns(
+  state: TedWorkbenchState,
+  params?: { limit?: number; include_details?: boolean },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedReplayRunsLoading) {
+    return;
+  }
+  state.tedReplayRunsLoading = true;
+  state.tedReplayRunsError = null;
+  try {
+    const result = await requestTedWithTimeout<TedReplayRunsResponse>(
+      state.client,
+      "ted.ops.replay.runs",
+      params || {},
+    );
+    state.tedReplayRuns = result;
+  } catch (err) {
+    state.tedReplayRunsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedReplayRunsLoading = false;
   }
 }
 
