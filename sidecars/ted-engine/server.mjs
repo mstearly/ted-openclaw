@@ -30,6 +30,12 @@ import {
   createSharePointHandlers,
   dispatchSharePointRoute,
 } from "./modules/sharepoint.mjs";
+import {
+  applyWorkflowMetadataFallback,
+  buildWorkflowMetadataLookupFromRegistry,
+  upcastFrictionRollupRecord,
+  upcastWorkflowRunRecord,
+} from "./modules/workflow_run_metadata.mjs";
 // SDD 75 (QA-002): Pure utility exports — tests import from server-utils.mjs directly
 import * as _serverUtils from "./server-utils.mjs";
 import {
@@ -11975,7 +11981,6 @@ const BASELINE_LEDGER_NAMES = [
   "sync",
   "external_mcp",
   "friction_job",
-  "friction_rollups",
   "replay_runs",
   "improvement",
   "meetings_prep",
@@ -11998,6 +12003,10 @@ const BASELINE_LEDGER_NAMES = [
 for (const name of BASELINE_LEDGER_NAMES) {
   registerUpcaster(name, 0, 1, (record) => ({ ...record, _schema_version: 1 }));
 }
+
+// RF1-004: workflow run ledgers need compatibility metadata defaults in addition to schema version.
+registerUpcaster("workflow_runs", 0, 1, (record) => upcastWorkflowRunRecord(record));
+registerUpcaster("friction_rollups", 0, 1, (record) => upcastFrictionRollupRecord(record));
 
 function appendJsonlLine(filePath, obj) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -18706,7 +18715,7 @@ function listWorkflowRuns(options = {}) {
   const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
   const limitRaw = Number.parseInt(String(options.limit || ""), 10);
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 200)) : 25;
-  const lines = readJsonlLines(workflowRunsPath)
+  const lines = readJsonlLines(workflowRunsPath, "workflow_runs")
     .filter((entry) => entry.kind === "workflow_run")
     .map((entry) => applyWorkflowMetadataFallback(entry, workflowLookup));
   let filtered = lines;
@@ -18732,52 +18741,7 @@ function listWorkflowVersionRecords(options = {}) {
 }
 
 function buildWorkflowMetadataLookup() {
-  const registry = getWorkflowRegistryConfig();
-  const lookup = new Map();
-  for (const workflow of Array.isArray(registry.workflows) ? registry.workflows : []) {
-    if (!workflow || typeof workflow !== "object") {
-      continue;
-    }
-    const workflowId = typeof workflow.workflow_id === "string" ? workflow.workflow_id : "";
-    if (!workflowId) {
-      continue;
-    }
-    lookup.set(workflowId, {
-      workflow_version: normalizePositiveInteger(workflow.workflow_version, 1),
-      definition_hash:
-        typeof workflow.definition_hash === "string" && workflow.definition_hash.trim().length > 0
-          ? workflow.definition_hash.trim()
-          : null,
-    });
-  }
-  return lookup;
-}
-
-function applyWorkflowMetadataFallback(entry, workflowLookup) {
-  if (!entry || typeof entry !== "object") {
-    return entry;
-  }
-  const workflowId = typeof entry.workflow_id === "string" ? entry.workflow_id : "";
-  const fallback = workflowId ? workflowLookup.get(workflowId) : null;
-  const workflowVersion = Number.isInteger(entry.workflow_version)
-    ? entry.workflow_version
-    : normalizePositiveInteger(fallback?.workflow_version, 1);
-  const definitionHash =
-    typeof entry.definition_hash === "string" && entry.definition_hash.trim().length > 0
-      ? entry.definition_hash.trim()
-      : fallback?.definition_hash || null;
-  const snapshotRef =
-    typeof entry.workflow_snapshot_ref === "string" && entry.workflow_snapshot_ref.trim().length > 0
-      ? entry.workflow_snapshot_ref.trim()
-      : definitionHash
-        ? `${workflowId}@v${workflowVersion}:${definitionHash}`
-        : `${workflowId}@legacy`;
-  return {
-    ...entry,
-    workflow_version: workflowVersion,
-    definition_hash: definitionHash,
-    workflow_snapshot_ref: snapshotRef,
-  };
+  return buildWorkflowMetadataLookupFromRegistry(getWorkflowRegistryConfig());
 }
 
 function summarizeWorkflowVersionLineage(activeWorkflows) {

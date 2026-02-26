@@ -133,6 +133,13 @@ export function getTestBaseUrl() {
   return runtime.baseUrl;
 }
 
+export function getTestRuntimeDir() {
+  if (!runtime) {
+    throw new Error("Test sidecar is not running");
+  }
+  return runtime.runtimeDir;
+}
+
 export async function stopTestSidecar() {
   if (!runtime) {
     return;

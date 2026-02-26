@@ -11,6 +11,10 @@ import os from "node:os";
 import path from "node:path";
 import fc from "fast-check";
 import { describe, test, expect, beforeEach, afterEach } from "vitest";
+import {
+  backfillWorkflowMetadataBatch,
+  buildWorkflowMetadataLookupFromRegistry,
+} from "../modules/workflow_run_metadata.mjs";
 
 let tmpDir;
 
@@ -302,5 +306,60 @@ describe("JSONL round-trip: property-based", () => {
       }),
       { numRuns: 30 },
     );
+  });
+});
+
+describe("JSONL round-trip: workflow run metadata backfill", () => {
+  test("legacy workflow run and friction rollup records are backfilled idempotently", () => {
+    const lookup = buildWorkflowMetadataLookupFromRegistry({
+      workflows: [
+        {
+          workflow_id: "wf-legacy",
+          workflow_version: 2,
+          definition_hash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        },
+      ],
+    });
+
+    const workflowRuns = [
+      {
+        kind: "workflow_run",
+        run_id: "run-legacy",
+        workflow_id: "wf-legacy",
+        started_at: "2026-02-26T00:00:00.000Z",
+        completed_at: "2026-02-26T00:00:01.000Z",
+      },
+    ];
+    const rollups = [
+      {
+        kind: "friction_rollup",
+        run_id: "run-legacy",
+        workflow_id: "wf-legacy",
+        completed_at: "2026-02-26T00:00:01.000Z",
+      },
+    ];
+
+    const firstRunsPass = backfillWorkflowMetadataBatch(workflowRuns, "workflow_run", lookup);
+    const firstRollupsPass = backfillWorkflowMetadataBatch(rollups, "friction_rollup", lookup);
+    expect(firstRunsPass.touched).toBe(1);
+    expect(firstRollupsPass.touched).toBe(1);
+    expect(firstRunsPass.records[0]._schema_version).toBe(1);
+    expect(firstRollupsPass.records[0]._schema_version).toBe(1);
+    expect(firstRunsPass.records[0].workflow_version).toBe(2);
+    expect(firstRollupsPass.records[0].workflow_version).toBe(2);
+    expect(firstRunsPass.records[0].workflow_snapshot_ref).toContain("wf-legacy@v2:");
+
+    const secondRunsPass = backfillWorkflowMetadataBatch(
+      firstRunsPass.records,
+      "workflow_run",
+      lookup,
+    );
+    const secondRollupsPass = backfillWorkflowMetadataBatch(
+      firstRollupsPass.records,
+      "friction_rollup",
+      lookup,
+    );
+    expect(secondRunsPass.touched).toBe(0);
+    expect(secondRollupsPass.touched).toBe(0);
   });
 });

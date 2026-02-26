@@ -8,6 +8,11 @@
 import fc from "fast-check";
 import { describe, test, expect } from "vitest";
 import {
+  buildWorkflowMetadataLookupFromRegistry,
+  upcastFrictionRollupRecord,
+  upcastWorkflowRunRecord,
+} from "../modules/workflow_run_metadata.mjs";
+import {
   estimateTokens,
   editDistance,
   stripHtml,
@@ -281,6 +286,52 @@ describe("upcastRecordPure — properties", () => {
         const result = upcastRecordPure(record, "any_ledger", upcasters);
         expect(result.name).toBe(record.name);
       }),
+    );
+  });
+});
+
+describe("workflow run metadata upcasters — properties", () => {
+  const lookup = buildWorkflowMetadataLookupFromRegistry({
+    workflows: [
+      {
+        workflow_id: "wf-prop",
+        workflow_version: 3,
+        definition_hash: "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      },
+    ],
+  });
+
+  test("upcastWorkflowRunRecord is idempotent", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 24 }), (runId) => {
+        const legacy = {
+          kind: "workflow_run",
+          run_id: runId,
+          workflow_id: "wf-prop",
+          started_at: "2026-02-26T00:00:00.000Z",
+        };
+        const once = upcastWorkflowRunRecord(legacy, lookup);
+        const twice = upcastWorkflowRunRecord(once, lookup);
+        expect(twice).toEqual(once);
+      }),
+      { numRuns: 50 },
+    );
+  });
+
+  test("upcastFrictionRollupRecord is idempotent", () => {
+    fc.assert(
+      fc.property(fc.string({ minLength: 1, maxLength: 24 }), (runId) => {
+        const legacy = {
+          kind: "friction_rollup",
+          run_id: runId,
+          workflow_id: "wf-prop",
+          completed_at: "2026-02-26T00:00:01.000Z",
+        };
+        const once = upcastFrictionRollupRecord(legacy, lookup);
+        const twice = upcastFrictionRollupRecord(once, lookup);
+        expect(twice).toEqual(once);
+      }),
+      { numRuns: 50 },
     );
   });
 });

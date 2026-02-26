@@ -8,12 +8,13 @@
  * Dynamically generates one test per route from the contract registry.
  */
 
-import { readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
 import {
   getTestBaseUrl,
+  getTestRuntimeDir,
   mintTestAuthToken,
   startTestSidecar,
   stopTestSidecar,
@@ -486,6 +487,99 @@ describe("Workflow registry metadata contract", () => {
       expect(typeof latestRollup.definition_hash).toBe("string");
       expect(typeof latestRollup.workflow_snapshot_ref).toBe("string");
     }
+  });
+
+  test("legacy run records without version metadata remain queryable via fallback", async () => {
+    const workflowId = `rf1-legacy-run-${Date.now().toString(36)}`;
+    const runId = `wfr-legacy-${Date.now().toString(36)}`;
+    const startedAt = new Date(Date.now() - 5000).toISOString();
+    const completedAt = new Date().toISOString();
+    const runtimeDir = getTestRuntimeDir();
+    const workflowRunsLedgerPath = resolve(
+      runtimeDir,
+      "artifacts",
+      "workflows",
+      "workflow_runs.jsonl",
+    );
+    const frictionRollupsLedgerPath = resolve(
+      runtimeDir,
+      "artifacts",
+      "friction",
+      "friction_rollups.jsonl",
+    );
+
+    mkdirSync(dirname(workflowRunsLedgerPath), { recursive: true });
+    appendFileSync(
+      workflowRunsLedgerPath,
+      JSON.stringify({
+        kind: "workflow_run",
+        run_id: runId,
+        trace_id: `trace-${runId}`,
+        workflow_id: workflowId,
+        workflow_name: "Legacy Run Metadata Compatibility",
+        status: "completed",
+        dry_run: false,
+        started_at: startedAt,
+        completed_at: completedAt,
+        step_count: 1,
+        steps: [],
+      }) + "\n",
+      "utf8",
+    );
+
+    mkdirSync(dirname(frictionRollupsLedgerPath), { recursive: true });
+    appendFileSync(
+      frictionRollupsLedgerPath,
+      JSON.stringify({
+        kind: "friction_rollup",
+        run_id: runId,
+        trace_id: `trace-${runId}`,
+        workflow_id: workflowId,
+        workflow_name: "Legacy Run Metadata Compatibility",
+        status: "completed",
+        dry_run: false,
+        started_at: startedAt,
+        completed_at: completedAt,
+        step_count: 1,
+        job_friction_score: 0,
+        harmful_friction_ratio: 0,
+        productive_friction_ratio: 1,
+        friction_totals: {
+          wait_ms: 0,
+          rework_count: 0,
+          tool_failures: 0,
+          governance_blocks: 0,
+          handoff_count: 0,
+          context_misses: 0,
+          retry_attempts: 0,
+          recovered_retries: 0,
+        },
+        top_harmful_drivers: [],
+      }) + "\n",
+      "utf8",
+    );
+
+    const runsResp = await fetch(`${baseUrl}/ops/workflows/runs?workflow_id=${workflowId}`, {
+      headers: authHeaders,
+    });
+    expect(runsResp.status).toBe(200);
+    const runsBody = await runsResp.json();
+    const run = (runsBody.runs || []).find((entry) => entry.run_id === runId);
+    expect(run).toBeDefined();
+    expect(run.workflow_version).toBeGreaterThanOrEqual(1);
+    expect(typeof run.workflow_snapshot_ref).toBe("string");
+    expect(run.workflow_snapshot_ref.length).toBeGreaterThan(0);
+
+    const frictionResp = await fetch(`${baseUrl}/ops/friction/summary?workflow_id=${workflowId}`, {
+      headers: authHeaders,
+    });
+    expect(frictionResp.status).toBe(200);
+    const frictionBody = await frictionResp.json();
+    const rollup = (frictionBody.recent_runs || []).find((entry) => entry.run_id === runId);
+    expect(rollup).toBeDefined();
+    expect(rollup.workflow_version).toBeGreaterThanOrEqual(1);
+    expect(typeof rollup.workflow_snapshot_ref).toBe("string");
+    expect(rollup.workflow_snapshot_ref.length).toBeGreaterThan(0);
   });
 
   test("GET /ops/workflows returns versioned workflow metadata", async () => {

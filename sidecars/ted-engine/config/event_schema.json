@@ -347,6 +347,7 @@
     "workflow": {
       "workflow.registry.upserted": "Workflow definition added or updated in registry",
       "workflow.registry.version_published": "Workflow immutable version published with active pointer update",
+      "workflow.registry.run_metadata_backfilled": "Legacy workflow run and friction records were backfilled with version metadata",
       "workflow.registry.removed": "Workflow definition removed from registry",
       "workflow.run.completed": "Workflow run executed and persisted with friction summary",
       "workflow.risk_lint.completed": "Workflow risk lint completed with explainability findings",
