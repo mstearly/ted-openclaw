@@ -38,8 +38,6 @@ describe("openresponses transport runtime", () => {
         capability: null,
       },
       policy: {
-        mode: "sse",
-        canaryPercent: 0,
         forceSseOnErrorCode: ["ws_connect_failed"],
         maxWsRetries: 1,
       },
@@ -64,8 +62,6 @@ describe("openresponses transport runtime", () => {
       model: "openclaw",
       selection: websocketSelection(),
       policy: {
-        mode: "websocket",
-        canaryPercent: 100,
         forceSseOnErrorCode: ["ws_connect_failed"],
         maxWsRetries: 2,
       },
@@ -90,8 +86,6 @@ describe("openresponses transport runtime", () => {
       model: "openclaw",
       selection: websocketSelection(),
       policy: {
-        mode: "websocket",
-        canaryPercent: 100,
         forceSseOnErrorCode: ["WS_CONNECT_FAILED"],
         maxWsRetries: 2,
       },
@@ -116,8 +110,6 @@ describe("openresponses transport runtime", () => {
       model: "openclaw",
       selection: websocketSelection(),
       policy: {
-        mode: "websocket",
-        canaryPercent: 100,
         forceSseOnErrorCode: [],
         maxWsRetries: 1,
       },
@@ -143,8 +135,6 @@ describe("openresponses transport runtime", () => {
         model: "openclaw",
         selection: websocketSelection(),
         policy: {
-          mode: "websocket",
-          canaryPercent: 100,
           forceSseOnErrorCode: ["ws_connect_failed"],
           maxWsRetries: 0,
         },
@@ -160,8 +150,6 @@ describe("openresponses transport runtime", () => {
       model: "openclaw",
       selection: websocketSelection(),
       policy: {
-        mode: "websocket",
-        canaryPercent: 100,
         forceSseOnErrorCode: ["ws_connect_failed"],
         maxWsRetries: 0,
       },
