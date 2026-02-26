@@ -25,6 +25,7 @@ import {
   validateRetrofitBaselineLock,
   validateRoadmapMaster,
 } from "../modules/roadmap_governance.mjs";
+import { validateRolloutPolicy } from "../modules/rollout_policy.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const configDir = resolve(__dirname, "../config");
@@ -429,6 +430,13 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("rollout_policy.json passes structural validation", () => {
+    const policy = configs.get("rollout_policy.json");
+    const result = validateRolloutPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -454,6 +462,7 @@ describe("Required config files exist", () => {
     "migration_state.json",
     "migration_manifest.json",
     "replay_gate_contract.json",
+    "rollout_policy.json",
     "ted_constitution.json",
     "ted_agent.json",
     "roadmap_master.json",

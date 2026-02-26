@@ -152,7 +152,8 @@
     },
     "policy": {
       "policy.config.changed": "Policy config changed (hard_bans, autonomy, urgency, etc.)",
-      "policy.config.snapshot": "Policy config snapshot on startup"
+      "policy.config.snapshot": "Policy config snapshot on startup",
+      "policy.rollout.queried": "Rollout policy queried with deterministic canary decision and rollback trigger context"
     },
     "migration": {
       "config.migration.failed": "A config migration failed and partial-failure metadata was persisted",

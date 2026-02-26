@@ -33,6 +33,12 @@ import {
   validateRoadmapMaster,
 } from "./modules/roadmap_governance.mjs";
 import {
+  evaluateRollbackTriggers,
+  normalizeRolloutPolicy,
+  resolveRolloutDecision,
+  validateRolloutPolicy,
+} from "./modules/rollout_policy.mjs";
+import {
   createSchedulerHandlers,
   createSchedulerCore,
   dispatchSchedulerRoute,
@@ -192,6 +198,7 @@ const evaluationGradersConfigPath = path.join(__dirname, "config", "evaluation_g
 const syntheticCanariesConfigPath = path.join(__dirname, "config", "synthetic_canaries.json");
 const replayCorpusConfigPath = path.join(__dirname, "config", "replay_corpus.json");
 const replayGateContractConfigPath = path.join(__dirname, "config", "replay_gate_contract.json");
+const rolloutPolicyConfigPath = path.join(__dirname, "config", "rollout_policy.json");
 const schedulerConfigPath = path.join(__dirname, "config", "scheduler_config.json");
 const mobileAlertPolicyConfigPath = path.join(__dirname, "config", "mobile_alert_policy.json");
 const compatibilityPolicyConfigPath = path.join(__dirname, "config", "compatibility_policy.json");
@@ -1216,6 +1223,7 @@ function validateStartupIntegrity() {
     mobileAlertPolicyConfigPath,
     compatibilityPolicyConfigPath,
     replayGateContractConfigPath,
+    rolloutPolicyConfigPath,
     migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
   ]);
@@ -1231,6 +1239,7 @@ function validateStartupIntegrity() {
     evalMatrixConfigPath,
     replayCorpusConfigPath,
     replayGateContractConfigPath,
+    rolloutPolicyConfigPath,
     graphSyncStrategyConfigPath,
     roadmapMasterConfigPath,
     moduleLifecyclePolicyConfigPath,
@@ -1420,6 +1429,22 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: replayGateValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === rolloutPolicyConfigPath) {
+        const rolloutPolicyValidation = validateRolloutPolicy(parsed);
+        if (!rolloutPolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `rollout_policy validation failed: ${rolloutPolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: rolloutPolicyValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;
@@ -2074,6 +2099,7 @@ executionBoundaryPolicy.set("/ops/outcomes/job/{job_id}", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/corpus", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/run", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/runs", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/rollout-policy", "WORKFLOW_ONLY");
 // Sprint 2 (SDD 72): Evaluation pipeline
 executionBoundaryPolicy.set("/ops/evaluation/status", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/evaluation/run", "WORKFLOW_ONLY");
@@ -5567,6 +5593,52 @@ function getReplayGateContractConfig() {
     return fallback;
   }
   return normalizeReplayGateContract(cfg, fallback);
+}
+
+function getRolloutPolicyConfig() {
+  const fallback = {
+    _config_version: 1,
+    version: "rf3-002-v1",
+    default_rollout_percent: 10,
+    transport_canary_percent: 10,
+    stickiness_key_fields: ["operator_id", "workflow_id", "route_key"],
+    cohorts: [
+      {
+        cohort_id: "council_internal",
+        enabled: true,
+        rollout_percent: 100,
+        operator_ids: ["ted-local-operator"],
+        workflow_ids: [],
+        route_keys: [],
+      },
+      {
+        cohort_id: "general_population",
+        enabled: true,
+        rollout_percent: 10,
+        operator_ids: [],
+        workflow_ids: [],
+        route_keys: [],
+      },
+    ],
+    rollback_triggers: [
+      { reason_code: "replay_gate_failed", severity: "high", action: "disable_rollout" },
+      {
+        reason_code: "migration_partial_failure_active",
+        severity: "high",
+        action: "disable_rollout",
+      },
+      {
+        reason_code: "transport_guardrail_breach",
+        severity: "medium",
+        action: "reduce_rollout_percent",
+      },
+    ],
+  };
+  const cfg = readConfigFile(rolloutPolicyConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+  return normalizeRolloutPolicy(cfg, fallback);
 }
 
 function getReplayCorpusConfig() {
@@ -19763,6 +19835,51 @@ function replayRunsEndpoint(parsedUrl, res, route) {
   logLine(`GET ${route} -> 200`);
 }
 
+function rolloutPolicyEndpoint(parsedUrl, res, route) {
+  const policy = getRolloutPolicyConfig();
+  const operatorId = parsedUrl?.searchParams?.get("operator_id") || "";
+  const workflowId = parsedUrl?.searchParams?.get("workflow_id") || "";
+  const routeKey = parsedUrl?.searchParams?.get("route_key") || "";
+  const mode = parsedUrl?.searchParams?.get("mode") || "general_rollout";
+  const activeReasonCodes = uniqueStringList(
+    String(parsedUrl?.searchParams?.get("active_reason_codes") || "")
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean),
+    64,
+  );
+
+  const decision = resolveRolloutDecision(policy, {
+    operator_id: operatorId,
+    workflow_id: workflowId,
+    route_key: routeKey,
+    mode,
+  });
+  const rollback = evaluateRollbackTriggers(policy, activeReasonCodes);
+
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    policy,
+    decision,
+    rollback,
+    transport_canary_semantics: {
+      hash: "djb2_mod_100",
+      fallback_reason_codes: ["auto_canary_disabled", "auto_canary_not_selected"],
+    },
+  });
+  appendEvent("policy.rollout.queried", route, {
+    operator_id: operatorId || null,
+    workflow_id: workflowId || null,
+    route_key: routeKey || null,
+    mode: decision.mode,
+    selected: decision.selected,
+    reason_code: decision.reason_code,
+    rollback_triggered: rollback.triggered,
+    rollback_reason_codes: rollback.reason_codes,
+  });
+  logLine(`GET ${route} -> 200`);
+}
+
 function workflowsRegistryEndpoint(res, route) {
   const cfg = getWorkflowRegistryConfig();
   const versionLineage = summarizeWorkflowVersionLineage(cfg.workflows);
@@ -23784,6 +23901,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (method === "GET" && route === "/ops/replay/runs") {
       replayRunsEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/rollout-policy") {
+      rolloutPolicyEndpoint(parsed, res, route);
       return;
     }
 

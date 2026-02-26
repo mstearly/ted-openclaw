@@ -316,6 +316,17 @@
       "required_fields": ["generated_at", "runs", "total_count", "include_details"],
       "content_type": "application/json"
     },
+    "GET /ops/rollout-policy": {
+      "status_codes": [200],
+      "required_fields": [
+        "generated_at",
+        "policy",
+        "decision",
+        "rollback",
+        "transport_canary_semantics"
+      ],
+      "content_type": "application/json"
+    },
     "POST /ops/ingestion/run": {
       "status_codes": [200, 500],
       "required_fields": ["profiles_processed"],

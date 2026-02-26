@@ -15,6 +15,7 @@ import {
   validateRetrofitBaselineLock,
   validateRoadmapMaster,
 } from "../../sidecars/ted-engine/modules/roadmap_governance.mjs";
+import { validateRolloutPolicy } from "../../sidecars/ted-engine/modules/rollout_policy.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -43,6 +44,7 @@ function parseArgs(argv) {
       "sidecars/ted-engine/config/compatibility_policy.json",
     ),
     replayGateContract: path.join(repoRoot, "sidecars/ted-engine/config/replay_gate_contract.json"),
+    rolloutPolicy: path.join(repoRoot, "sidecars/ted-engine/config/rollout_policy.json"),
     migrationManifest: path.join(repoRoot, "sidecars/ted-engine/config/migration_manifest.json"),
     retrofitBaselineLock: path.join(
       repoRoot,
@@ -86,6 +88,10 @@ function parseArgs(argv) {
     }
     if (arg === "--replay-gate-contract") {
       out.replayGateContract = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--rollout-policy") {
+      out.rolloutPolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
     if (arg === "--migration-manifest") {
@@ -166,6 +172,11 @@ function main() {
       kind: "replay gate contract",
       path: args.replayGateContract,
       validator: validateReplayGateContract,
+    },
+    {
+      kind: "rollout policy",
+      path: args.rolloutPolicy,
+      validator: validateRolloutPolicy,
     },
     {
       kind: "migration manifest",

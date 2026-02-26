@@ -1,0 +1,42 @@
+{
+  "_config_version": 1,
+  "version": "rf3-002-v1",
+  "default_rollout_percent": 10,
+  "transport_canary_percent": 10,
+  "stickiness_key_fields": ["operator_id", "workflow_id", "route_key"],
+  "cohorts": [
+    {
+      "cohort_id": "council_internal",
+      "enabled": true,
+      "rollout_percent": 100,
+      "operator_ids": ["ted-local-operator"],
+      "workflow_ids": [],
+      "route_keys": []
+    },
+    {
+      "cohort_id": "general_population",
+      "enabled": true,
+      "rollout_percent": 10,
+      "operator_ids": [],
+      "workflow_ids": [],
+      "route_keys": []
+    }
+  ],
+  "rollback_triggers": [
+    {
+      "reason_code": "replay_gate_failed",
+      "severity": "high",
+      "action": "disable_rollout"
+    },
+    {
+      "reason_code": "migration_partial_failure_active",
+      "severity": "high",
+      "action": "disable_rollout"
+    },
+    {
+      "reason_code": "transport_guardrail_breach",
+      "severity": "medium",
+      "action": "reduce_rollout_percent"
+    }
+  ]
+}

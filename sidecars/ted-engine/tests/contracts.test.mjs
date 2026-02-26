@@ -231,6 +231,7 @@ const SAFE_GET_ROUTES = [
   "GET /ops/llm-provider",
   "GET /ops/ingestion/status",
   "GET /ops/onboarding/discovery-status",
+  "GET /ops/rollout-policy",
   "GET /ops/builder-lane/patterns",
   "GET /ops/builder-lane/status",
   "GET /ops/builder-lane/improvement-metrics",
@@ -632,6 +633,72 @@ describe("Replay gate contract integration", () => {
     expect(evidence).toBeDefined();
     expect(evidence.kind).toBe("replay_release_evidence");
     expect(evidence.replay_gate_contract_version).toBe(runBody.replay_gate_contract_version);
+  });
+});
+
+describe("Rollout policy contract integration", () => {
+  test("GET /ops/rollout-policy returns deterministic decisions for identical context", async () => {
+    const query = new URLSearchParams({
+      operator_id: "operator-rf3",
+      workflow_id: "wf-risk-lint",
+      route_key: "/ops/replay/run",
+      mode: "transport_canary",
+    }).toString();
+
+    const firstResp = await fetch(`${baseUrl}/ops/rollout-policy?${query}`, {
+      headers: authHeaders,
+    });
+    const secondResp = await fetch(`${baseUrl}/ops/rollout-policy?${query}`, {
+      headers: authHeaders,
+    });
+    expect(firstResp.status).toBe(200);
+    expect(secondResp.status).toBe(200);
+
+    const firstBody = await firstResp.json();
+    const secondBody = await secondResp.json();
+    expect(firstBody.decision).toEqual(secondBody.decision);
+    expect(firstBody.decision.mode).toBe("transport_canary");
+    expect(typeof firstBody.decision.bucket).toBe("number");
+    expect(firstBody.decision.bucket).toBeGreaterThanOrEqual(0);
+    expect(firstBody.decision.bucket).toBeLessThan(100);
+  });
+
+  test("GET /ops/rollout-policy returns auditable rollback triggers and emits policy event", async () => {
+    const query = new URLSearchParams({
+      operator_id: "operator-rf3",
+      workflow_id: "wf-risk-lint",
+      route_key: "/ops/replay/run",
+      mode: "general_rollout",
+      active_reason_codes: "transport_guardrail_breach,replay_gate_failed,unknown_reason",
+    }).toString();
+    const resp = await fetch(`${baseUrl}/ops/rollout-policy?${query}`, { headers: authHeaders });
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+
+    expect(body.rollback.triggered).toBe(true);
+    expect(body.rollback.reason_codes).toContain("transport_guardrail_breach");
+    expect(body.rollback.reason_codes).toContain("replay_gate_failed");
+    expect(body.rollback.reason_codes).not.toContain("unknown_reason");
+    expect(Array.isArray(body.rollback.triggers)).toBe(true);
+    expect(body.rollback.triggers.length).toBeGreaterThanOrEqual(2);
+
+    const runtimeDir = getTestRuntimeDir();
+    const eventLogPath = resolve(runtimeDir, "artifacts", "event_log", "event_log.jsonl");
+    expect(existsSync(eventLogPath)).toBe(true);
+    const events = readFileSync(eventLogPath, "utf8")
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line));
+    const rolloutEvent = events
+      .toReversed()
+      .find(
+        (entry) =>
+          entry?.event_type === "policy.rollout.queried" && entry?.source === "/ops/rollout-policy",
+      );
+    expect(rolloutEvent).toBeDefined();
+    expect(rolloutEvent.payload?.mode).toBeDefined();
+    expect(typeof rolloutEvent.payload?.selected).toBe("boolean");
+    expect(Array.isArray(rolloutEvent.payload?.rollback_reason_codes)).toBe(true);
   });
 });
 
