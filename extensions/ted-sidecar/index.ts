@@ -6649,6 +6649,175 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
     },
   );
 
+  api.registerGatewayMethod(
+    "ted.ops.friction.summary",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                workflow_id?: unknown;
+                run_id?: unknown;
+                trace_id?: unknown;
+                limit?: unknown;
+              })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.workflow_id === "string" && payloadIn.workflow_id.trim().length > 0) {
+          query.set("workflow_id", payloadIn.workflow_id.trim());
+        }
+        if (typeof payloadIn.run_id === "string" && payloadIn.run_id.trim().length > 0) {
+          query.set("run_id", payloadIn.run_id.trim());
+        }
+        if (typeof payloadIn.trace_id === "string" && payloadIn.trace_id.trim().length > 0) {
+          query.set("trace_id", payloadIn.trace_id.trim());
+        }
+        if (typeof payloadIn.limit === "number" && Number.isFinite(payloadIn.limit)) {
+          query.set("limit", String(Math.max(1, Math.min(1000, Math.floor(payloadIn.limit)))));
+        }
+        const routePath = `/ops/friction/summary${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted friction summary failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.friction.runs",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                workflow_id?: unknown;
+                run_id?: unknown;
+                trace_id?: unknown;
+                limit?: unknown;
+              })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.workflow_id === "string" && payloadIn.workflow_id.trim().length > 0) {
+          query.set("workflow_id", payloadIn.workflow_id.trim());
+        }
+        if (typeof payloadIn.run_id === "string" && payloadIn.run_id.trim().length > 0) {
+          query.set("run_id", payloadIn.run_id.trim());
+        }
+        if (typeof payloadIn.trace_id === "string" && payloadIn.trace_id.trim().length > 0) {
+          query.set("trace_id", payloadIn.trace_id.trim());
+        }
+        if (typeof payloadIn.limit === "number" && Number.isFinite(payloadIn.limit)) {
+          query.set("limit", String(Math.max(1, Math.min(2000, Math.floor(payloadIn.limit)))));
+        }
+        const routePath = `/ops/friction/runs${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted friction runs failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.outcomes.dashboard",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { workflow_id?: unknown; limit?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.workflow_id === "string" && payloadIn.workflow_id.trim().length > 0) {
+          query.set("workflow_id", payloadIn.workflow_id.trim());
+        }
+        if (typeof payloadIn.limit === "number" && Number.isFinite(payloadIn.limit)) {
+          query.set("limit", String(Math.max(1, Math.min(1000, Math.floor(payloadIn.limit)))));
+        }
+        const routePath = `/ops/outcomes/dashboard${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted outcomes dashboard failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.outcomes.friction_trends",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { workflow_id?: unknown; days?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.workflow_id === "string" && payloadIn.workflow_id.trim().length > 0) {
+          query.set("workflow_id", payloadIn.workflow_id.trim());
+        }
+        if (typeof payloadIn.days === "number" && Number.isFinite(payloadIn.days)) {
+          query.set("days", String(Math.max(1, Math.min(90, Math.floor(payloadIn.days)))));
+        }
+        const routePath = `/ops/outcomes/friction-trends${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted outcomes friction trends failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.outcomes.job",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { job_id?: unknown; limit?: unknown })
+            : {};
+        const jobId = typeof payloadIn.job_id === "string" ? payloadIn.job_id.trim() : "";
+        if (!jobId) {
+          respond(false, { error: "job_id is required" });
+          return;
+        }
+        const query = new URLSearchParams();
+        if (typeof payloadIn.limit === "number" && Number.isFinite(payloadIn.limit)) {
+          query.set("limit", String(Math.max(1, Math.min(1000, Math.floor(payloadIn.limit)))));
+        }
+        const routePath = `/ops/outcomes/job/${encodeURIComponent(jobId)}${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted outcomes job failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
   // ─── C10-023: Missing gateway methods for sidecar routes ────────────────────
 
   // --- Graph: calendar list (GET) ---

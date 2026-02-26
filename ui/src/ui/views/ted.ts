@@ -6,6 +6,8 @@ import type {
   TedEvalMatrixConfigResponse,
   TedEvalMatrixRunResponse,
   TedEodDigestResponse,
+  TedFrictionRunsResponse,
+  TedFrictionSummaryResponse,
   TedGraphDeltaRunResponse,
   TedGraphDeltaStatusResponse,
   TedJobCardImpactPreview,
@@ -38,6 +40,9 @@ import type {
   TedTrustAutonomyEvaluation,
   TedFailureAggregationResponse,
   TedMorningBriefResponse,
+  TedOutcomesDashboardResponse,
+  TedOutcomesFrictionTrendsResponse,
+  TedOutcomesJobResponse,
   TedPolicyDocument,
   TedPolicyImpactPreview,
   TedPolicyKey,
@@ -258,6 +263,21 @@ export type TedViewProps = {
   evalMatrixRunBusy: boolean;
   evalMatrixRunError: string | null;
   evalMatrixRunResult: TedEvalMatrixRunResponse | null;
+  frictionSummary: TedFrictionSummaryResponse | null;
+  frictionSummaryLoading: boolean;
+  frictionSummaryError: string | null;
+  frictionRuns: TedFrictionRunsResponse | null;
+  frictionRunsLoading: boolean;
+  frictionRunsError: string | null;
+  outcomesDashboard: TedOutcomesDashboardResponse | null;
+  outcomesDashboardLoading: boolean;
+  outcomesDashboardError: string | null;
+  outcomesFrictionTrends: TedOutcomesFrictionTrendsResponse | null;
+  outcomesFrictionTrendsLoading: boolean;
+  outcomesFrictionTrendsError: string | null;
+  outcomesJob: TedOutcomesJobResponse | null;
+  outcomesJobLoading: boolean;
+  outcomesJobError: string | null;
   onLoadLlmRoutingPolicy: () => void;
   onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) => void;
   onTestLlmProvider: (payload: {
@@ -286,6 +306,21 @@ export type TedViewProps = {
   onLoadEvalMatrix: () => void;
   onSaveEvalMatrix: (payload: Record<string, unknown>) => void;
   onRunEvalMatrix: (payload?: Record<string, unknown>) => void;
+  onLoadFrictionSummary: (params?: {
+    workflow_id?: string;
+    run_id?: string;
+    trace_id?: string;
+    limit?: number;
+  }) => void;
+  onLoadFrictionRuns: (params?: {
+    workflow_id?: string;
+    run_id?: string;
+    trace_id?: string;
+    limit?: number;
+  }) => void;
+  onLoadOutcomesDashboard: (params?: { workflow_id?: string; limit?: number }) => void;
+  onLoadOutcomesFrictionTrends: (params?: { workflow_id?: string; days?: number }) => void;
+  onLoadOutcomesJob: (params: { job_id: string; limit?: number }) => void;
   // Phase 6: Meetings + Commitments + GTD
   meetingsUpcoming: TedMeetingUpcomingResponse | null;
   meetingsLoading: boolean;
@@ -2719,10 +2754,16 @@ function renderExecutionWavesControlCard(
           <button class="btn btn--sm ghost" ?disabled=${props.evalMatrixLoading} @click=${() => props.onLoadEvalMatrix()}>
             ${props.evalMatrixLoading ? "Loading..." : "Eval Matrix"}
           </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.frictionSummaryLoading} @click=${() => props.onLoadFrictionSummary({ limit: 100 })}>
+            ${props.frictionSummaryLoading ? "Loading..." : "Friction"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.outcomesDashboardLoading} @click=${() => props.onLoadOutcomesDashboard({ limit: 200 })}>
+            ${props.outcomesDashboardLoading ? "Loading..." : "Outcomes"}
+          </button>
         </div>
       </div>
       <div class="card-sub">
-        Operator UI for Wave 2-6 controls: provider routing, workflow orchestration, memory policy, MCP trust policy, Graph delta sync, and evaluation matrix.
+        Operator UI for Wave F0-F6 controls: provider routing, workflow orchestration, memory policy, MCP trust policy, Graph delta sync, evaluation matrix, and friction outcomes.
       </div>
 
       ${props.llmRoutingPolicyError ? html`<div class="callout danger" style="margin-top: 8px;">${props.llmRoutingPolicyError}</div>` : nothing}
@@ -2743,6 +2784,11 @@ function renderExecutionWavesControlCard(
       ${props.evalMatrixError ? html`<div class="callout danger" style="margin-top: 8px;">${props.evalMatrixError}</div>` : nothing}
       ${props.evalMatrixSaveError ? html`<div class="callout danger" style="margin-top: 8px;">${props.evalMatrixSaveError}</div>` : nothing}
       ${props.evalMatrixRunError ? html`<div class="callout danger" style="margin-top: 8px;">${props.evalMatrixRunError}</div>` : nothing}
+      ${props.frictionSummaryError ? html`<div class="callout danger" style="margin-top: 8px;">${props.frictionSummaryError}</div>` : nothing}
+      ${props.frictionRunsError ? html`<div class="callout danger" style="margin-top: 8px;">${props.frictionRunsError}</div>` : nothing}
+      ${props.outcomesDashboardError ? html`<div class="callout danger" style="margin-top: 8px;">${props.outcomesDashboardError}</div>` : nothing}
+      ${props.outcomesFrictionTrendsError ? html`<div class="callout danger" style="margin-top: 8px;">${props.outcomesFrictionTrendsError}</div>` : nothing}
+      ${props.outcomesJobError ? html`<div class="callout danger" style="margin-top: 8px;">${props.outcomesJobError}</div>` : nothing}
 
       ${props.llmRoutingPolicySaveResult ? html`<div class="callout" style="margin-top: 8px;">${props.llmRoutingPolicySaveResult}</div>` : nothing}
       ${props.workflowMutationResult ? html`<div class="callout" style="margin-top: 8px;">${props.workflowMutationResult}</div>` : nothing}
@@ -3089,6 +3135,102 @@ function renderExecutionWavesControlCard(
                 <div class="callout ${props.evalMatrixRunResult.threshold_pass ? "" : "warn"}" style="margin-top: 8px;">
                   pass_rate=${props.evalMatrixRunResult.pass_rate} · passed=${props.evalMatrixRunResult.passed_slices}/${props.evalMatrixRunResult.total_slices} · p95=${props.evalMatrixRunResult.p95_latency_ms}ms
                 </div>
+              `
+            : nothing
+        }
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Friction and Outcomes</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <input id="ted-wave-outcomes-job-id" class="input mono" placeholder="workflow_id / job_id (optional)" />
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.frictionSummaryLoading}
+            @click=${() => {
+              const workflowId = readValue("ted-wave-outcomes-job-id") || undefined;
+              props.onLoadFrictionSummary({ workflow_id: workflowId, limit: 100 });
+            }}
+          >
+            ${props.frictionSummaryLoading ? "Loading..." : "Friction Summary"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.frictionRunsLoading}
+            @click=${() => {
+              const workflowId = readValue("ted-wave-outcomes-job-id") || undefined;
+              props.onLoadFrictionRuns({ workflow_id: workflowId, limit: 100 });
+            }}
+          >
+            ${props.frictionRunsLoading ? "Loading..." : "Friction Runs"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.outcomesDashboardLoading}
+            @click=${() => {
+              const workflowId = readValue("ted-wave-outcomes-job-id") || undefined;
+              props.onLoadOutcomesDashboard({ workflow_id: workflowId, limit: 200 });
+            }}
+          >
+            ${props.outcomesDashboardLoading ? "Loading..." : "Outcomes Dashboard"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.outcomesFrictionTrendsLoading}
+            @click=${() => {
+              const workflowId = readValue("ted-wave-outcomes-job-id") || undefined;
+              props.onLoadOutcomesFrictionTrends({ workflow_id: workflowId, days: 14 });
+            }}
+          >
+            ${props.outcomesFrictionTrendsLoading ? "Loading..." : "14d Trends"}
+          </button>
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.outcomesJobLoading}
+            @click=${() => {
+              const jobId = readValue("ted-wave-outcomes-job-id");
+              if (!jobId) {
+                alert("workflow_id / job_id is required.");
+                return;
+              }
+              props.onLoadOutcomesJob({ job_id: jobId, limit: 100 });
+            }}
+          >
+            ${props.outcomesJobLoading ? "Loading..." : "Load Job"}
+          </button>
+        </div>
+        ${
+          props.outcomesDashboard
+            ? html`
+                <div class="callout" style="margin-top:8px;">
+                  score=${props.outcomesDashboard.outcome_summary.avg_job_friction_score} ·
+                  ttv=${props.outcomesDashboard.outcome_summary.avg_time_to_value_minutes}m ·
+                  operator_load=${props.outcomesDashboard.outcome_summary.avg_operator_load_index}
+                  <div style="margin-top:4px;" class="muted">${props.outcomesDashboard.recommendation}</div>
+                </div>
+              `
+            : nothing
+        }
+        ${
+          props.outcomesJob
+            ? html`
+                <div class="muted" style="margin-top:8px;">
+                  job=${props.outcomesJob.job_id} · runs=${props.outcomesJob.summary.total_runs} · harmful_ratio=${props.outcomesJob.summary.harmful_friction_ratio_avg}
+                </div>
+              `
+            : nothing
+        }
+        ${
+          props.frictionRuns
+            ? html`
+                <div class="muted" style="margin-top:8px;">
+                  ${props.frictionRuns.total_count} friction event(s) loaded.
+                </div>
+                <pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(
+                  props.frictionRuns.events.slice(0, 12),
+                  null,
+                  2,
+                )}</pre>
               `
             : nothing
         }

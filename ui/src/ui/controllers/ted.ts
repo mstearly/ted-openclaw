@@ -22,6 +22,11 @@ import type {
   TedGraphDeltaRunResponse,
   TedEvalMatrixConfigResponse,
   TedEvalMatrixRunResponse,
+  TedFrictionSummaryResponse,
+  TedFrictionRunsResponse,
+  TedOutcomesDashboardResponse,
+  TedOutcomesFrictionTrendsResponse,
+  TedOutcomesJobResponse,
   TedMailListResponse,
   TedMailMessage,
   TedMorningBriefResponse,
@@ -219,6 +224,21 @@ export type TedWorkbenchState = {
   tedEvalMatrixRunBusy: boolean;
   tedEvalMatrixRunError: string | null;
   tedEvalMatrixRunResult: TedEvalMatrixRunResponse | null;
+  tedFrictionSummary: TedFrictionSummaryResponse | null;
+  tedFrictionSummaryLoading: boolean;
+  tedFrictionSummaryError: string | null;
+  tedFrictionRuns: TedFrictionRunsResponse | null;
+  tedFrictionRunsLoading: boolean;
+  tedFrictionRunsError: string | null;
+  tedOutcomesDashboard: TedOutcomesDashboardResponse | null;
+  tedOutcomesDashboardLoading: boolean;
+  tedOutcomesDashboardError: string | null;
+  tedOutcomesFrictionTrends: TedOutcomesFrictionTrendsResponse | null;
+  tedOutcomesFrictionTrendsLoading: boolean;
+  tedOutcomesFrictionTrendsError: string | null;
+  tedOutcomesJob: TedOutcomesJobResponse | null;
+  tedOutcomesJobLoading: boolean;
+  tedOutcomesJobError: string | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -1666,6 +1686,121 @@ export async function runTedEvalMatrix(
     state.tedEvalMatrixRunError = err instanceof Error ? err.message : String(err);
   } finally {
     state.tedEvalMatrixRunBusy = false;
+  }
+}
+
+export async function loadTedFrictionSummary(
+  state: TedWorkbenchState,
+  params?: { workflow_id?: string; run_id?: string; trace_id?: string; limit?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedFrictionSummaryLoading) {
+    return;
+  }
+  state.tedFrictionSummaryLoading = true;
+  state.tedFrictionSummaryError = null;
+  try {
+    const result = await requestTedWithTimeout<TedFrictionSummaryResponse>(
+      state.client,
+      "ted.ops.friction.summary",
+      params || {},
+    );
+    state.tedFrictionSummary = result;
+  } catch (err) {
+    state.tedFrictionSummaryError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedFrictionSummaryLoading = false;
+  }
+}
+
+export async function loadTedFrictionRuns(
+  state: TedWorkbenchState,
+  params?: { workflow_id?: string; run_id?: string; trace_id?: string; limit?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedFrictionRunsLoading) {
+    return;
+  }
+  state.tedFrictionRunsLoading = true;
+  state.tedFrictionRunsError = null;
+  try {
+    const result = await requestTedWithTimeout<TedFrictionRunsResponse>(
+      state.client,
+      "ted.ops.friction.runs",
+      params || {},
+    );
+    state.tedFrictionRuns = result;
+  } catch (err) {
+    state.tedFrictionRunsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedFrictionRunsLoading = false;
+  }
+}
+
+export async function loadTedOutcomesDashboard(
+  state: TedWorkbenchState,
+  params?: { workflow_id?: string; limit?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedOutcomesDashboardLoading) {
+    return;
+  }
+  state.tedOutcomesDashboardLoading = true;
+  state.tedOutcomesDashboardError = null;
+  try {
+    const result = await requestTedWithTimeout<TedOutcomesDashboardResponse>(
+      state.client,
+      "ted.ops.outcomes.dashboard",
+      params || {},
+    );
+    state.tedOutcomesDashboard = result;
+  } catch (err) {
+    state.tedOutcomesDashboardError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedOutcomesDashboardLoading = false;
+  }
+}
+
+export async function loadTedOutcomesFrictionTrends(
+  state: TedWorkbenchState,
+  params?: { workflow_id?: string; days?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedOutcomesFrictionTrendsLoading) {
+    return;
+  }
+  state.tedOutcomesFrictionTrendsLoading = true;
+  state.tedOutcomesFrictionTrendsError = null;
+  try {
+    const result = await requestTedWithTimeout<TedOutcomesFrictionTrendsResponse>(
+      state.client,
+      "ted.ops.outcomes.friction_trends",
+      params || {},
+    );
+    state.tedOutcomesFrictionTrends = result;
+  } catch (err) {
+    state.tedOutcomesFrictionTrendsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedOutcomesFrictionTrendsLoading = false;
+  }
+}
+
+export async function loadTedOutcomesJob(
+  state: TedWorkbenchState,
+  params: { job_id: string; limit?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedOutcomesJobLoading) {
+    return;
+  }
+  state.tedOutcomesJobLoading = true;
+  state.tedOutcomesJobError = null;
+  try {
+    const result = await requestTedWithTimeout<TedOutcomesJobResponse>(
+      state.client,
+      "ted.ops.outcomes.job",
+      params,
+    );
+    state.tedOutcomesJob = result;
+  } catch (err) {
+    state.tedOutcomesJobError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedOutcomesJobLoading = false;
   }
 }
 

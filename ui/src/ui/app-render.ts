@@ -547,6 +547,21 @@ export function renderApp(state: AppViewState) {
                 evalMatrixRunBusy: state.tedEvalMatrixRunBusy,
                 evalMatrixRunError: state.tedEvalMatrixRunError,
                 evalMatrixRunResult: state.tedEvalMatrixRunResult,
+                frictionSummary: state.tedFrictionSummary,
+                frictionSummaryLoading: state.tedFrictionSummaryLoading,
+                frictionSummaryError: state.tedFrictionSummaryError,
+                frictionRuns: state.tedFrictionRuns,
+                frictionRunsLoading: state.tedFrictionRunsLoading,
+                frictionRunsError: state.tedFrictionRunsError,
+                outcomesDashboard: state.tedOutcomesDashboard,
+                outcomesDashboardLoading: state.tedOutcomesDashboardLoading,
+                outcomesDashboardError: state.tedOutcomesDashboardError,
+                outcomesFrictionTrends: state.tedOutcomesFrictionTrends,
+                outcomesFrictionTrendsLoading: state.tedOutcomesFrictionTrendsLoading,
+                outcomesFrictionTrendsError: state.tedOutcomesFrictionTrendsError,
+                outcomesJob: state.tedOutcomesJob,
+                outcomesJobLoading: state.tedOutcomesJobLoading,
+                outcomesJobError: state.tedOutcomesJobError,
                 onLoadLlmRoutingPolicy: () => void state.loadTedLlmRoutingPolicy(),
                 onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) =>
                   void state.saveTedLlmRoutingPolicy(payload),
@@ -588,6 +603,24 @@ export function renderApp(state: AppViewState) {
                   void state.saveTedEvalMatrix(payload),
                 onRunEvalMatrix: (payload?: Record<string, unknown>) =>
                   void state.runTedEvalMatrix(payload),
+                onLoadFrictionSummary: (params?: {
+                  workflow_id?: string;
+                  run_id?: string;
+                  trace_id?: string;
+                  limit?: number;
+                }) => void state.loadTedFrictionSummary(params),
+                onLoadFrictionRuns: (params?: {
+                  workflow_id?: string;
+                  run_id?: string;
+                  trace_id?: string;
+                  limit?: number;
+                }) => void state.loadTedFrictionRuns(params),
+                onLoadOutcomesDashboard: (params?: { workflow_id?: string; limit?: number }) =>
+                  void state.loadTedOutcomesDashboard(params),
+                onLoadOutcomesFrictionTrends: (params?: { workflow_id?: string; days?: number }) =>
+                  void state.loadTedOutcomesFrictionTrends(params),
+                onLoadOutcomesJob: (params: { job_id: string; limit?: number }) =>
+                  void state.loadTedOutcomesJob(params),
                 meetingsUpcoming: state.tedMeetingsUpcoming,
                 meetingsLoading: state.tedMeetingsLoading,
                 meetingsError: state.tedMeetingsError,

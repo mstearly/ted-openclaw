@@ -217,6 +217,37 @@
       "required_fields": ["total_slices", "passed_slices", "pass_rate", "results"],
       "content_type": "application/json"
     },
+    "GET /ops/friction/summary": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "summary", "recent_runs"],
+      "content_type": "application/json"
+    },
+    "GET /ops/friction/runs": {
+      "status_codes": [200],
+      "required_fields": ["events", "total_count", "filters"],
+      "content_type": "application/json"
+    },
+    "GET /ops/outcomes/dashboard": {
+      "status_codes": [200],
+      "required_fields": [
+        "generated_at",
+        "workflow_count",
+        "active_workflow_count",
+        "outcome_summary",
+        "recommendation"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /ops/outcomes/friction-trends": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "days", "points", "total_points"],
+      "content_type": "application/json"
+    },
+    "GET /ops/outcomes/job/{job_id}": {
+      "status_codes": [200, 400],
+      "required_fields": ["generated_at", "job_id", "summary", "recent_runs"],
+      "content_type": "application/json"
+    },
     "POST /ops/ingestion/run": {
       "status_codes": [200, 500],
       "required_fields": ["profiles_processed"],

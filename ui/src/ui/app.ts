@@ -162,6 +162,11 @@ import {
   loadTedEvalMatrix,
   saveTedEvalMatrix,
   runTedEvalMatrix,
+  loadTedFrictionSummary,
+  loadTedFrictionRuns,
+  loadTedOutcomesDashboard,
+  loadTedOutcomesFrictionTrends,
+  loadTedOutcomesJob,
 } from "./controllers/ted.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
@@ -569,6 +574,23 @@ export class OpenClawApp extends LitElement {
   @state() tedEvalMatrixRunBusy = false;
   @state() tedEvalMatrixRunError: string | null = null;
   @state() tedEvalMatrixRunResult: import("./types.ts").TedEvalMatrixRunResponse | null = null;
+  @state() tedFrictionSummary: import("./types.ts").TedFrictionSummaryResponse | null = null;
+  @state() tedFrictionSummaryLoading = false;
+  @state() tedFrictionSummaryError: string | null = null;
+  @state() tedFrictionRuns: import("./types.ts").TedFrictionRunsResponse | null = null;
+  @state() tedFrictionRunsLoading = false;
+  @state() tedFrictionRunsError: string | null = null;
+  @state() tedOutcomesDashboard: import("./types.ts").TedOutcomesDashboardResponse | null = null;
+  @state() tedOutcomesDashboardLoading = false;
+  @state() tedOutcomesDashboardError: string | null = null;
+  @state() tedOutcomesFrictionTrends:
+    | import("./types.ts").TedOutcomesFrictionTrendsResponse
+    | null = null;
+  @state() tedOutcomesFrictionTrendsLoading = false;
+  @state() tedOutcomesFrictionTrendsError: string | null = null;
+  @state() tedOutcomesJob: import("./types.ts").TedOutcomesJobResponse | null = null;
+  @state() tedOutcomesJobLoading = false;
+  @state() tedOutcomesJobError: string | null = null;
   // Phase 6: Meetings + Commitments + GTD
   @state() tedMeetingsUpcoming: import("./types.ts").TedMeetingUpcomingResponse | null = null;
   @state() tedMeetingsLoading = false;
@@ -1121,6 +1143,36 @@ export class OpenClawApp extends LitElement {
 
   async runTedEvalMatrix(payload?: Record<string, unknown>) {
     await runTedEvalMatrix(this, payload);
+  }
+
+  async loadTedFrictionSummary(params?: {
+    workflow_id?: string;
+    run_id?: string;
+    trace_id?: string;
+    limit?: number;
+  }) {
+    await loadTedFrictionSummary(this, params);
+  }
+
+  async loadTedFrictionRuns(params?: {
+    workflow_id?: string;
+    run_id?: string;
+    trace_id?: string;
+    limit?: number;
+  }) {
+    await loadTedFrictionRuns(this, params);
+  }
+
+  async loadTedOutcomesDashboard(params?: { workflow_id?: string; limit?: number }) {
+    await loadTedOutcomesDashboard(this, params);
+  }
+
+  async loadTedOutcomesFrictionTrends(params?: { workflow_id?: string; days?: number }) {
+    await loadTedOutcomesFrictionTrends(this, params);
+  }
+
+  async loadTedOutcomesJob(params: { job_id: string; limit?: number }) {
+    await loadTedOutcomesJob(this, params);
   }
 
   async loadTedMeetingsUpcoming() {

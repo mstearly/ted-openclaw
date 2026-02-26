@@ -315,6 +315,17 @@
     "tool": {
       "tool.usage.recorded": "MCP tool execution latency and invocation count recorded for telemetry"
     },
+    "friction": {
+      "friction.event.logged": "Per-step friction event recorded (wait, rework, tool, context, governance, handoff)",
+      "friction.summary.recorded": "Workflow run friction summary recorded with derived ratios and scores"
+    },
+    "outcomes": {
+      "outcomes.friction_runs.queried": "Operator queried detailed friction events for workflow/job runs",
+      "outcomes.friction_summary.queried": "Operator queried aggregate friction summary",
+      "outcomes.dashboard.queried": "Operator queried friction-centric outcome dashboard",
+      "outcomes.friction_trends.queried": "Operator queried historical friction trendline data",
+      "outcomes.job.queried": "Operator queried per-job outcome and friction summary"
+    },
     "evaluation": {
       "evaluation.pipeline.completed": "Multi-grader evaluation pipeline run completed with pass/fail summary",
       "evaluation.quality.degraded": "Evaluation pass rate dropped below 80% threshold",

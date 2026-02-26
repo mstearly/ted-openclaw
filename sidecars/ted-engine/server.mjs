@@ -190,6 +190,9 @@ const workflowRunsDir = path.join(artifactsDir, "workflows");
 const workflowRunsPath = path.join(workflowRunsDir, "workflow_runs.jsonl");
 const memoryDir = path.join(artifactsDir, "memory");
 const memoryLedgerPath = path.join(memoryDir, "preferences.jsonl");
+const frictionDir = path.join(artifactsDir, "friction");
+const jobFrictionLedgerPath = path.join(frictionDir, "job_friction.jsonl");
+const frictionRollupsPath = path.join(frictionDir, "friction_rollups.jsonl");
 const graphDeltaDir = path.join(artifactsDir, "graph_delta");
 const graphDeltaCursorPath = path.join(graphDeltaDir, "delta_cursors.jsonl");
 const evalMatrixDir = path.join(artifactsDir, "evaluation_matrix");
@@ -220,6 +223,7 @@ fs.mkdirSync(syncDir, { recursive: true });
 fs.mkdirSync(externalMcpDir, { recursive: true });
 fs.mkdirSync(workflowRunsDir, { recursive: true });
 fs.mkdirSync(memoryDir, { recursive: true });
+fs.mkdirSync(frictionDir, { recursive: true });
 fs.mkdirSync(graphDeltaDir, { recursive: true });
 fs.mkdirSync(evalMatrixDir, { recursive: true });
 if (!fs.existsSync(improvementDir)) {
@@ -1074,6 +1078,8 @@ function validateStartupIntegrity() {
     externalMcpLedgerPath,
     workflowRunsPath,
     memoryLedgerPath,
+    jobFrictionLedgerPath,
+    frictionRollupsPath,
     graphDeltaCursorPath,
     evalMatrixRunsPath,
     improvementLedgerPath,
@@ -1463,6 +1469,11 @@ function normalizeRoutePolicyKey(route) {
     [/^\/ops\/drift\/status$/, "/ops/drift/status"],
     [/^\/ops\/drift\/run$/, "/ops/drift/run"],
     [/^\/ops\/qa\/dashboard$/, "/ops/qa/dashboard"],
+    [/^\/ops\/friction\/summary$/, "/ops/friction/summary"],
+    [/^\/ops\/friction\/runs$/, "/ops/friction/runs"],
+    [/^\/ops\/outcomes\/dashboard$/, "/ops/outcomes/dashboard"],
+    [/^\/ops\/outcomes\/friction-trends$/, "/ops/outcomes/friction-trends"],
+    [/^\/ops\/outcomes\/job\/[^/]+$/, "/ops/outcomes/job/{job_id}"],
   ];
   for (const [pattern, key] of dynamicPatterns) {
     if (pattern.test(route)) {
@@ -1738,6 +1749,11 @@ executionBoundaryPolicy.set("/ops/graph/delta/status", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/graph/delta/run", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/evaluation/matrix", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/evaluation/matrix/run", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/friction/summary", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/friction/runs", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/outcomes/dashboard", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/outcomes/friction-trends", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/outcomes/job/{job_id}", "WORKFLOW_ONLY");
 // Sprint 2 (SDD 72): Evaluation pipeline
 executionBoundaryPolicy.set("/ops/evaluation/status", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/evaluation/run", "WORKFLOW_ONLY");
@@ -11027,6 +11043,8 @@ const BASELINE_LEDGER_NAMES = [
   "todo",
   "sync",
   "external_mcp",
+  "friction_job",
+  "friction_rollups",
   "improvement",
   "meetings_prep",
   "meetings_debrief",
@@ -17091,6 +17109,385 @@ function listWorkflowRuns(options = {}) {
   return filtered.slice(0, limit);
 }
 
+function parseLimit(value, fallback = 25, max = 500) {
+  const parsed = Number.parseInt(String(value || ""), 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(1, Math.min(parsed, max));
+}
+
+function roundMetric(value, digits = 2) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  const factor = 10 ** digits;
+  return Math.round(value * factor) / factor;
+}
+
+function listFrictionRollups(options = {}) {
+  const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
+  const runId = typeof options.run_id === "string" ? options.run_id.trim() : "";
+  const traceId = typeof options.trace_id === "string" ? options.trace_id.trim() : "";
+  const limit = parseLimit(options.limit, 50, 1000);
+  let lines = readJsonlLines(frictionRollupsPath, "friction_rollups").filter(
+    (entry) => entry.kind === "friction_rollup",
+  );
+  if (workflowId) {
+    lines = lines.filter((entry) => entry.workflow_id === workflowId);
+  }
+  if (runId) {
+    lines = lines.filter((entry) => entry.run_id === runId);
+  }
+  if (traceId) {
+    lines = lines.filter((entry) => entry.trace_id === traceId);
+  }
+  lines.sort((a, b) => (b.completed_at || "").localeCompare(a.completed_at || ""));
+  return lines.slice(0, limit);
+}
+
+function listFrictionEvents(options = {}) {
+  const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
+  const runId = typeof options.run_id === "string" ? options.run_id.trim() : "";
+  const traceId = typeof options.trace_id === "string" ? options.trace_id.trim() : "";
+  const limit = parseLimit(options.limit, 100, 2000);
+  let lines = readJsonlLines(jobFrictionLedgerPath, "friction_job").filter(
+    (entry) => entry.kind === "friction_event",
+  );
+  if (workflowId) {
+    lines = lines.filter((entry) => entry.workflow_id === workflowId);
+  }
+  if (runId) {
+    lines = lines.filter((entry) => entry.run_id === runId);
+  }
+  if (traceId) {
+    lines = lines.filter((entry) => entry.trace_id === traceId);
+  }
+  lines.sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+  return lines.slice(0, limit);
+}
+
+function summarizeFrictionRollups(rollups) {
+  const safe = Array.isArray(rollups) ? rollups : [];
+  if (safe.length === 0) {
+    return {
+      total_runs: 0,
+      status_counts: { completed: 0, blocked: 0, failed: 0, other: 0 },
+      avg_job_friction_score: 0,
+      avg_time_to_value_minutes: 0,
+      avg_operator_load_index: 0,
+      avg_automation_recovery_rate: 0,
+      productive_friction_ratio_avg: 0,
+      harmful_friction_ratio_avg: 0,
+      friction_totals: {
+        wait_ms: 0,
+        rework_count: 0,
+        tool_failures: 0,
+        governance_blocks: 0,
+        handoff_count: 0,
+        context_misses: 0,
+        retry_attempts: 0,
+        recovered_retries: 0,
+      },
+      top_harmful_drivers: [],
+    };
+  }
+  let totalScore = 0;
+  let totalTimeToValue = 0;
+  let totalOperatorLoad = 0;
+  let totalRecoveryRate = 0;
+  let totalProductiveRatio = 0;
+  let totalHarmfulRatio = 0;
+  let timeToValueCount = 0;
+  let recoveryCount = 0;
+  const statusCounts = { completed: 0, blocked: 0, failed: 0, other: 0 };
+  const totals = {
+    wait_ms: 0,
+    rework_count: 0,
+    tool_failures: 0,
+    governance_blocks: 0,
+    handoff_count: 0,
+    context_misses: 0,
+    retry_attempts: 0,
+    recovered_retries: 0,
+  };
+  const harmfulDriverWeights = new Map();
+  for (const rollup of safe) {
+    totalScore += Number(rollup.job_friction_score || 0);
+    totalOperatorLoad += Number(rollup.operator_load_index || 0);
+    totalProductiveRatio += Number(rollup.productive_friction_ratio || 0);
+    totalHarmfulRatio += Number(rollup.harmful_friction_ratio || 0);
+    if (
+      typeof rollup.time_to_value_minutes === "number" &&
+      Number.isFinite(rollup.time_to_value_minutes)
+    ) {
+      totalTimeToValue += rollup.time_to_value_minutes;
+      timeToValueCount += 1;
+    }
+    if (
+      typeof rollup.automation_recovery_rate === "number" &&
+      Number.isFinite(rollup.automation_recovery_rate)
+    ) {
+      totalRecoveryRate += rollup.automation_recovery_rate;
+      recoveryCount += 1;
+    }
+    const status = typeof rollup.status === "string" ? rollup.status : "";
+    if (status === "completed") {
+      statusCounts.completed += 1;
+    } else if (status === "blocked") {
+      statusCounts.blocked += 1;
+    } else if (status === "failed") {
+      statusCounts.failed += 1;
+    } else {
+      statusCounts.other += 1;
+    }
+    const ft =
+      rollup.friction_totals && typeof rollup.friction_totals === "object"
+        ? rollup.friction_totals
+        : {};
+    totals.wait_ms += Number(ft.wait_ms || 0);
+    totals.rework_count += Number(ft.rework_count || 0);
+    totals.tool_failures += Number(ft.tool_failures || 0);
+    totals.governance_blocks += Number(ft.governance_blocks || 0);
+    totals.handoff_count += Number(ft.handoff_count || 0);
+    totals.context_misses += Number(ft.context_misses || 0);
+    totals.retry_attempts += Number(ft.retry_attempts || 0);
+    totals.recovered_retries += Number(ft.recovered_retries || 0);
+    const drivers = Array.isArray(rollup.top_harmful_drivers) ? rollup.top_harmful_drivers : [];
+    for (const driver of drivers) {
+      if (!driver || typeof driver !== "object") {
+        continue;
+      }
+      const key = typeof driver.driver === "string" ? driver.driver : "";
+      if (!key) {
+        continue;
+      }
+      const weight = Number(driver.weight || 0);
+      harmfulDriverWeights.set(key, Number(harmfulDriverWeights.get(key) || 0) + weight);
+    }
+  }
+  const driverList = [...harmfulDriverWeights.entries()]
+    .toSorted((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([driver, weight]) => ({ driver, weight: roundMetric(weight, 2) }));
+  const total = safe.length;
+  return {
+    total_runs: total,
+    status_counts: statusCounts,
+    avg_job_friction_score: roundMetric(totalScore / total, 2),
+    avg_time_to_value_minutes:
+      timeToValueCount > 0 ? roundMetric(totalTimeToValue / timeToValueCount, 2) : 0,
+    avg_operator_load_index: roundMetric(totalOperatorLoad / total, 2),
+    avg_automation_recovery_rate:
+      recoveryCount > 0 ? roundMetric(totalRecoveryRate / recoveryCount, 4) : 0,
+    productive_friction_ratio_avg: roundMetric(totalProductiveRatio / total, 4),
+    harmful_friction_ratio_avg: roundMetric(totalHarmfulRatio / total, 4),
+    friction_totals: {
+      wait_ms: Math.round(totals.wait_ms),
+      rework_count: Math.round(totals.rework_count),
+      tool_failures: Math.round(totals.tool_failures),
+      governance_blocks: Math.round(totals.governance_blocks),
+      handoff_count: Math.round(totals.handoff_count),
+      context_misses: Math.round(totals.context_misses),
+      retry_attempts: Math.round(totals.retry_attempts),
+      recovered_retries: Math.round(totals.recovered_retries),
+    },
+    top_harmful_drivers: driverList,
+  };
+}
+
+function frictionRunsEndpoint(parsedUrl, res, route) {
+  const workflowId = parsedUrl?.searchParams?.get("workflow_id") || "";
+  const runId = parsedUrl?.searchParams?.get("run_id") || "";
+  const traceId = parsedUrl?.searchParams?.get("trace_id") || "";
+  const limit = parsedUrl?.searchParams?.get("limit") || "100";
+  const events = listFrictionEvents({
+    workflow_id: workflowId,
+    run_id: runId,
+    trace_id: traceId,
+    limit: parseLimit(limit, 100, 2000),
+  });
+  sendJson(res, 200, {
+    events,
+    total_count: events.length,
+    filters: {
+      workflow_id: workflowId || null,
+      run_id: runId || null,
+      trace_id: traceId || null,
+    },
+  });
+  appendEvent(
+    "outcomes.friction_runs.queried",
+    route,
+    {
+      workflow_id: workflowId || null,
+      run_id: runId || null,
+      trace_id: traceId || null,
+      total_count: events.length,
+    },
+    traceId || null,
+  );
+  logLine(`GET ${route} -> 200`);
+}
+
+function frictionSummaryEndpoint(parsedUrl, res, route) {
+  const workflowId = parsedUrl?.searchParams?.get("workflow_id") || "";
+  const runId = parsedUrl?.searchParams?.get("run_id") || "";
+  const traceId = parsedUrl?.searchParams?.get("trace_id") || "";
+  const limit = parsedUrl?.searchParams?.get("limit") || "100";
+  const rollups = listFrictionRollups({
+    workflow_id: workflowId,
+    run_id: runId,
+    trace_id: traceId,
+    limit: parseLimit(limit, 100, 1000),
+  });
+  const summary = summarizeFrictionRollups(rollups);
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    summary,
+    recent_runs: rollups.slice(0, 25),
+  });
+  appendEvent(
+    "outcomes.friction_summary.queried",
+    route,
+    {
+      workflow_id: workflowId || null,
+      run_id: runId || null,
+      trace_id: traceId || null,
+      runs_considered: rollups.length,
+    },
+    traceId || null,
+  );
+  logLine(`GET ${route} -> 200`);
+}
+
+function outcomesDashboardEndpoint(parsedUrl, res, route) {
+  const workflowId = parsedUrl?.searchParams?.get("workflow_id") || "";
+  const rollups = listFrictionRollups({
+    workflow_id: workflowId,
+    limit: parseLimit(parsedUrl?.searchParams?.get("limit"), 200, 1000),
+  });
+  const summary = summarizeFrictionRollups(rollups);
+  const workflows = getWorkflowRegistryConfig().workflows || [];
+  const activeWorkflows = workflows.filter((wf) => wf.enabled !== false).length;
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    workflow_id: workflowId || null,
+    workflow_count: workflows.length,
+    active_workflow_count: activeWorkflows,
+    outcome_summary: summary,
+    top_harmful_drivers: summary.top_harmful_drivers,
+    recommendation:
+      summary.top_harmful_drivers.length > 0
+        ? `Prioritize reducing ${summary.top_harmful_drivers[0].driver}.`
+        : "No friction history yet. Run workflows to generate baseline outcomes.",
+  });
+  appendEvent(
+    "outcomes.dashboard.queried",
+    route,
+    {
+      workflow_id: workflowId || null,
+      runs_considered: rollups.length,
+    },
+    null,
+  );
+  logLine(`GET ${route} -> 200`);
+}
+
+function outcomesFrictionTrendsEndpoint(parsedUrl, res, route) {
+  const workflowId = parsedUrl?.searchParams?.get("workflow_id") || "";
+  const days = parseLimit(parsedUrl?.searchParams?.get("days"), 14, 90);
+  const cutoffMs = Date.now() - days * 86400000;
+  const rollups = listFrictionRollups({ workflow_id: workflowId, limit: 5000 }).filter((entry) => {
+    const completedAt = new Date(entry.completed_at || entry.started_at || 0).getTime();
+    return Number.isFinite(completedAt) && completedAt >= cutoffMs;
+  });
+  const byDay = new Map();
+  for (const rollup of rollups) {
+    const iso = String(rollup.completed_at || rollup.started_at || "");
+    const day = iso.length >= 10 ? iso.slice(0, 10) : "unknown";
+    const current = byDay.get(day) || {
+      day,
+      run_count: 0,
+      score_total: 0,
+      time_total: 0,
+      time_count: 0,
+      failures: 0,
+    };
+    current.run_count += 1;
+    current.score_total += Number(rollup.job_friction_score || 0);
+    if (
+      typeof rollup.time_to_value_minutes === "number" &&
+      Number.isFinite(rollup.time_to_value_minutes)
+    ) {
+      current.time_total += rollup.time_to_value_minutes;
+      current.time_count += 1;
+    }
+    if (rollup.status === "failed") {
+      current.failures += 1;
+    }
+    byDay.set(day, current);
+  }
+  const trends = [...byDay.values()]
+    .toSorted((a, b) => a.day.localeCompare(b.day))
+    .map((item) => ({
+      day: item.day,
+      run_count: item.run_count,
+      avg_job_friction_score: roundMetric(item.score_total / Math.max(1, item.run_count), 2),
+      avg_time_to_value_minutes:
+        item.time_count > 0 ? roundMetric(item.time_total / item.time_count, 2) : 0,
+      failure_rate: roundMetric(item.failures / Math.max(1, item.run_count), 4),
+    }));
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    workflow_id: workflowId || null,
+    days,
+    points: trends,
+    total_points: trends.length,
+  });
+  appendEvent(
+    "outcomes.friction_trends.queried",
+    route,
+    {
+      workflow_id: workflowId || null,
+      days,
+      total_points: trends.length,
+    },
+    null,
+  );
+  logLine(`GET ${route} -> 200`);
+}
+
+function outcomesJobEndpoint(jobId, parsedUrl, res, route) {
+  const normalizedJobId = typeof jobId === "string" ? jobId.trim() : "";
+  if (!normalizedJobId) {
+    sendJson(res, 400, { error: "job_id_required" });
+    return;
+  }
+  const limit = parseLimit(parsedUrl?.searchParams?.get("limit"), 50, 1000);
+  const rollups = listFrictionRollups({
+    workflow_id: normalizedJobId,
+    limit,
+  });
+  const summary = summarizeFrictionRollups(rollups);
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    job_id: normalizedJobId,
+    summary,
+    recent_runs: rollups.slice(0, 25),
+  });
+  appendEvent(
+    "outcomes.job.queried",
+    route,
+    {
+      job_id: normalizedJobId,
+      runs_considered: rollups.length,
+    },
+    null,
+  );
+  logLine(`GET ${route} -> 200`);
+}
+
 function workflowsRegistryEndpoint(res, route) {
   const cfg = getWorkflowRegistryConfig();
   sendJson(res, 200, {
@@ -17168,56 +17565,122 @@ async function workflowRunEndpoint(req, res, route) {
 
   const dryRun = body.dry_run === true;
   const runId = `wfr-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
+  const traceId =
+    typeof body.trace_id === "string" && body.trace_id.trim().length > 0
+      ? body.trace_id.trim()
+      : runId;
   const startedAt = new Date().toISOString();
   const stepResults = [];
+  const frictionEvents = [];
   let status = "completed";
   let failedStepId = null;
   let token = null;
+  let totalDurationMs = 0;
+  let retryAttempts = 0;
+  let recoveredRetries = 0;
+  let reworkCount = 0;
+  let toolFailures = 0;
+  let governanceBlocks = 0;
+  let handoffCount = 0;
+  let contextMisses = 0;
+  let waitMs = 0;
+
+  const logFriction = (category, stepId, severity, reason, details = {}) => {
+    const event = {
+      kind: "friction_event",
+      event_id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      category,
+      severity,
+      reason,
+      run_id: runId,
+      workflow_id: workflow.workflow_id,
+      workflow_name: workflow.name,
+      step_id: stepId || null,
+      trace_id: traceId,
+      dry_run: dryRun,
+      ...details,
+    };
+    frictionEvents.push(event);
+    appendJsonlLine(jobFrictionLedgerPath, event);
+    appendEvent(
+      "friction.event.logged",
+      route,
+      {
+        category,
+        severity,
+        reason,
+        run_id: runId,
+        workflow_id: workflow.workflow_id,
+        step_id: stepId || null,
+      },
+      traceId,
+    );
+  };
 
   for (const step of workflow.steps || []) {
     const stepStart = Date.now();
     if (step.kind === "approval_gate") {
       status = "blocked";
       failedStepId = step.step_id;
+      const durationMs = Date.now() - stepStart;
+      waitMs += durationMs;
+      governanceBlocks += 1;
+      handoffCount += 1;
       stepResults.push({
         step_id: step.step_id,
         kind: step.kind,
         status: "blocked",
         reason: step.reason || "operator_approval_required",
-        duration_ms: Date.now() - stepStart,
+        duration_ms: durationMs,
+      });
+      logFriction("governance", step.step_id, "medium", "approval_gate_blocked", {
+        duration_ms: durationMs,
       });
       break;
     }
     if (step.kind === "condition") {
+      const durationMs = Date.now() - stepStart;
+      contextMisses += 1;
       // Placeholder deterministic branch state for v1 runtime.
       stepResults.push({
         step_id: step.step_id,
         kind: step.kind,
         status: "skipped",
         reason: "condition_runtime_not_enabled",
-        duration_ms: Date.now() - stepStart,
+        duration_ms: durationMs,
+      });
+      logFriction("context", step.step_id, "low", "condition_runtime_not_enabled", {
+        duration_ms: durationMs,
       });
       continue;
     }
     if (step.kind !== "route_call") {
+      const durationMs = Date.now() - stepStart;
       stepResults.push({
         step_id: step.step_id,
         kind: step.kind,
         status: "skipped",
         reason: "unknown_step_kind",
-        duration_ms: Date.now() - stepStart,
+        duration_ms: durationMs,
+      });
+      contextMisses += 1;
+      logFriction("context", step.step_id, "low", "unknown_step_kind", {
+        duration_ms: durationMs,
       });
       continue;
     }
 
     if (dryRun) {
+      const durationMs = Date.now() - stepStart;
       stepResults.push({
         step_id: step.step_id,
         kind: step.kind,
         status: "dry_run",
         method: step.method,
         route: step.route,
-        duration_ms: Date.now() - stepStart,
+        duration_ms: durationMs,
+        attempts: 0,
       });
       continue;
     }
@@ -17234,7 +17697,9 @@ async function workflowRunEndpoint(req, res, route) {
       : 1000;
     let lastErr = null;
     let payload = null;
+    let attemptsUsed = 0;
     for (let attempt = 1; attempt <= retryMax; attempt++) {
+      attemptsUsed = attempt;
       try {
         payload = await mcpCallInternal(
           step.method || "GET",
@@ -17247,22 +17712,51 @@ async function workflowRunEndpoint(req, res, route) {
       } catch (err) {
         lastErr = err;
         if (attempt < retryMax) {
+          reworkCount += 1;
+          retryAttempts += 1;
+          logFriction("rework", step.step_id, "medium", "retry_scheduled", {
+            attempt,
+            max_attempts: retryMax,
+            route: step.route,
+            method: step.method || "GET",
+          });
           await new Promise((resolve) => setTimeout(resolve, retryBackoff * attempt));
         }
       }
     }
+    const stepDurationMs = Date.now() - stepStart;
+    totalDurationMs += stepDurationMs;
     if (lastErr) {
       status = "failed";
       failedStepId = step.step_id;
+      toolFailures += 1;
       stepResults.push({
         step_id: step.step_id,
         kind: step.kind,
         status: "failed",
         error:
           lastErr instanceof Error ? lastErr.message : JSON.stringify(lastErr ?? "unknown_error"),
-        duration_ms: Date.now() - stepStart,
+        duration_ms: stepDurationMs,
+        attempts: attemptsUsed,
+      });
+      logFriction("tool", step.step_id, "high", "route_call_failed", {
+        route: step.route,
+        method: step.method || "GET",
+        attempts: attemptsUsed,
+        duration_ms: stepDurationMs,
+        error:
+          lastErr instanceof Error ? lastErr.message : JSON.stringify(lastErr ?? "unknown_error"),
       });
       break;
+    }
+    if (attemptsUsed > 1) {
+      recoveredRetries += 1;
+      logFriction("rework", step.step_id, "low", "retry_recovered", {
+        route: step.route,
+        method: step.method || "GET",
+        attempts: attemptsUsed,
+        duration_ms: stepDurationMs,
+      });
     }
     stepResults.push({
       step_id: step.step_id,
@@ -17272,14 +17766,62 @@ async function workflowRunEndpoint(req, res, route) {
       route: step.route,
       response_keys:
         payload && typeof payload === "object" ? Object.keys(payload).slice(0, 20) : [],
-      duration_ms: Date.now() - stepStart,
+      duration_ms: stepDurationMs,
+      attempts: attemptsUsed,
     });
   }
 
   const completedAt = new Date().toISOString();
+  const runDurationMs = Math.max(
+    0,
+    new Date(completedAt).getTime() - new Date(startedAt).getTime(),
+  );
+  totalDurationMs = Math.max(totalDurationMs, runDurationMs);
+  const harmfulFrictionScore =
+    toolFailures * 16 +
+    reworkCount * 5 +
+    (status === "failed" ? 20 : 0) +
+    (status === "blocked" ? 8 : 0) +
+    Math.min(18, Math.round(totalDurationMs / 15000));
+  const productiveFrictionScore = governanceBlocks * 6 + handoffCount * 3;
+  const totalFrictionWeight = Math.max(1, harmfulFrictionScore + productiveFrictionScore);
+  const jobFrictionScore = Math.max(
+    0,
+    Math.min(100, harmfulFrictionScore + Math.round(waitMs / 30000)),
+  );
+  const topHarmfulDrivers = [
+    { driver: "tool_failures", weight: toolFailures * 16 },
+    { driver: "rework_retries", weight: reworkCount * 5 },
+    { driver: "long_run_time", weight: Math.min(18, Math.round(totalDurationMs / 15000)) },
+  ]
+    .filter((item) => item.weight > 0)
+    .toSorted((a, b) => b.weight - a.weight)
+    .slice(0, 3);
+  const frictionSummary = {
+    job_friction_score: jobFrictionScore,
+    productive_friction_ratio: roundMetric(productiveFrictionScore / totalFrictionWeight, 4),
+    harmful_friction_ratio: roundMetric(harmfulFrictionScore / totalFrictionWeight, 4),
+    time_to_value_minutes: status === "completed" ? roundMetric(totalDurationMs / 60000, 2) : null,
+    automation_recovery_rate:
+      retryAttempts > 0 ? roundMetric(recoveredRetries / retryAttempts, 4) : null,
+    operator_load_index:
+      status === "completed" ? roundMetric(handoffCount / Math.max(1, stepResults.length), 2) : 1,
+    friction_totals: {
+      wait_ms: waitMs,
+      rework_count: reworkCount,
+      tool_failures: toolFailures,
+      governance_blocks: governanceBlocks,
+      handoff_count: handoffCount,
+      context_misses: contextMisses,
+      retry_attempts: retryAttempts,
+      recovered_retries: recoveredRetries,
+    },
+    top_harmful_drivers: topHarmfulDrivers,
+  };
   const record = {
     kind: "workflow_run",
     run_id: runId,
+    trace_id: traceId,
     workflow_id: workflow.workflow_id,
     workflow_name: workflow.name,
     dry_run: dryRun,
@@ -17287,23 +17829,67 @@ async function workflowRunEndpoint(req, res, route) {
     failed_step_id: failedStepId,
     started_at: startedAt,
     completed_at: completedAt,
+    run_duration_ms: totalDurationMs,
     step_count: workflow.steps.length,
     steps: stepResults,
+    friction_summary: frictionSummary,
   };
   appendJsonlLine(workflowRunsPath, record);
-  appendEvent("workflow.run.completed", route, {
+  appendJsonlLine(frictionRollupsPath, {
+    kind: "friction_rollup",
     run_id: runId,
+    trace_id: traceId,
     workflow_id: workflow.workflow_id,
-    status,
+    workflow_name: workflow.name,
     dry_run: dryRun,
+    status,
+    started_at: startedAt,
+    completed_at: completedAt,
+    step_count: workflow.steps.length,
+    ...frictionSummary,
+    trajectory_timeline: stepResults.map((step) => ({
+      step_id: step.step_id,
+      kind: step.kind,
+      status: step.status,
+      duration_ms: step.duration_ms,
+      attempts: Number(step.attempts || 0),
+      reason: step.reason || null,
+      error: step.error || null,
+    })),
   });
+  appendEvent(
+    "friction.summary.recorded",
+    route,
+    {
+      run_id: runId,
+      workflow_id: workflow.workflow_id,
+      status,
+      job_friction_score: frictionSummary.job_friction_score,
+      harmful_friction_ratio: frictionSummary.harmful_friction_ratio,
+    },
+    traceId,
+  );
+  appendEvent(
+    "workflow.run.completed",
+    route,
+    {
+      run_id: runId,
+      workflow_id: workflow.workflow_id,
+      status,
+      dry_run: dryRun,
+      trace_id: traceId,
+    },
+    traceId,
+  );
   appendAudit("WORKFLOW_RUN", {
     run_id: runId,
     workflow_id: workflow.workflow_id,
     status,
     dry_run: dryRun,
+    trace_id: traceId,
+    job_friction_score: frictionSummary.job_friction_score,
   });
-  sendJson(res, 200, { ok: status !== "failed", ...record });
+  sendJson(res, 200, { ok: status !== "failed", ...record, friction_events: frictionEvents });
 }
 
 function workflowRunsEndpoint(parsedUrl, res, route) {
@@ -20685,6 +21271,28 @@ const server = http.createServer(async (req, res) => {
     }
     if (method === "POST" && route === "/ops/evaluation/matrix/run") {
       await evalMatrixRunEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/friction/summary") {
+      frictionSummaryEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/friction/runs") {
+      frictionRunsEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/outcomes/dashboard") {
+      outcomesDashboardEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/outcomes/friction-trends") {
+      outcomesFrictionTrendsEndpoint(parsed, res, route);
+      return;
+    }
+    const outcomesJobMatch = route.match(/^\/ops\/outcomes\/job\/([^/]+)$/);
+    if (method === "GET" && outcomesJobMatch) {
+      const jobId = decodeURIComponent(outcomesJobMatch[1] || "").trim();
+      outcomesJobEndpoint(jobId, parsed, res, route);
       return;
     }
 

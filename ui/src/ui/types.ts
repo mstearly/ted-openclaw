@@ -1099,6 +1099,98 @@ export interface TedEvalMatrixRunResponse {
   }>;
 }
 
+export interface TedFrictionSummaryResponse {
+  generated_at: string;
+  summary: {
+    total_runs: number;
+    status_counts: {
+      completed: number;
+      blocked: number;
+      failed: number;
+      other: number;
+    };
+    avg_job_friction_score: number;
+    avg_time_to_value_minutes: number;
+    avg_operator_load_index: number;
+    avg_automation_recovery_rate: number;
+    productive_friction_ratio_avg: number;
+    harmful_friction_ratio_avg: number;
+    friction_totals: {
+      wait_ms: number;
+      rework_count: number;
+      tool_failures: number;
+      governance_blocks: number;
+      handoff_count: number;
+      context_misses: number;
+      retry_attempts: number;
+      recovered_retries: number;
+    };
+    top_harmful_drivers: Array<{
+      driver: string;
+      weight: number;
+    }>;
+  };
+  recent_runs: Array<Record<string, unknown>>;
+}
+
+export interface TedFrictionRunsResponse {
+  events: Array<{
+    kind: string;
+    event_id: string;
+    timestamp: string;
+    category: string;
+    severity: string;
+    reason: string;
+    run_id: string;
+    workflow_id: string;
+    workflow_name: string;
+    step_id: string | null;
+    trace_id: string | null;
+    dry_run: boolean;
+    [key: string]: unknown;
+  }>;
+  total_count: number;
+  filters: {
+    workflow_id: string | null;
+    run_id: string | null;
+    trace_id: string | null;
+  };
+}
+
+export interface TedOutcomesDashboardResponse {
+  generated_at: string;
+  workflow_id: string | null;
+  workflow_count: number;
+  active_workflow_count: number;
+  outcome_summary: TedFrictionSummaryResponse["summary"];
+  top_harmful_drivers: Array<{
+    driver: string;
+    weight: number;
+  }>;
+  recommendation: string;
+}
+
+export interface TedOutcomesFrictionTrendsResponse {
+  generated_at: string;
+  workflow_id: string | null;
+  days: number;
+  points: Array<{
+    day: string;
+    run_count: number;
+    avg_job_friction_score: number;
+    avg_time_to_value_minutes: number;
+    failure_rate: number;
+  }>;
+  total_points: number;
+}
+
+export interface TedOutcomesJobResponse {
+  generated_at: string;
+  job_id: string;
+  summary: TedFrictionSummaryResponse["summary"];
+  recent_runs: Array<Record<string, unknown>>;
+}
+
 // ── Deal Workflow Types ──────────────────────────────────────────────
 
 export type TedDealType = "SNF_ALF" | "SOFTWARE" | "ANCILLARY_HEALTHCARE";
