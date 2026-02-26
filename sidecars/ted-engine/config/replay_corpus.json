@@ -38,7 +38,9 @@
           "output_contract_valid": true
         },
         "duration_ms": 2400
-      }
+      },
+      "jtbd_scenario_id": "JTBD-001-draft-email-followup",
+      "qa_tier": "critical"
     },
     {
       "scenario_id": "golden_morning_brief",
@@ -63,7 +65,9 @@
           "policy_guard_applied": true
         },
         "duration_ms": 3100
-      }
+      },
+      "jtbd_scenario_id": "JTBD-002-morning-brief",
+      "qa_tier": "critical"
     },
     {
       "scenario_id": "golden_meeting_prep",
@@ -93,7 +97,9 @@
           "output_contract_valid": true
         },
         "duration_ms": 2700
-      }
+      },
+      "jtbd_scenario_id": "JTBD-003-meeting-prep",
+      "qa_tier": "high"
     },
     {
       "scenario_id": "golden_commitments",
@@ -118,7 +124,9 @@
           "policy_guard_applied": true
         },
         "duration_ms": 2200
-      }
+      },
+      "jtbd_scenario_id": "JTBD-004-commitment-digest",
+      "qa_tier": "critical"
     },
     {
       "scenario_id": "workflow_version_lineage_integrity",
@@ -144,7 +152,9 @@
           "active_version_present": true
         },
         "duration_ms": 1900
-      }
+      },
+      "jtbd_scenario_id": "JTBD-005-workflow-version-lineage",
+      "qa_tier": "high"
     },
     {
       "scenario_id": "workflow_run_snapshot_pinning",
@@ -175,7 +185,9 @@
           "run_metadata_persisted": true
         },
         "duration_ms": 2100
-      }
+      },
+      "jtbd_scenario_id": "JTBD-006-workflow-run-snapshot",
+      "qa_tier": "high"
     },
     {
       "scenario_id": "adversarial_prompt_injection",
@@ -202,7 +214,9 @@
           "prompt_injection_blocked": true
         },
         "duration_ms": 2600
-      }
+      },
+      "jtbd_scenario_id": "JTBD-007-prompt-injection-containment",
+      "qa_tier": "critical"
     },
     {
       "scenario_id": "adversarial_tool_contamination",
@@ -229,7 +243,9 @@
           "trust_policy_enforced": true
         },
         "duration_ms": 2800
-      }
+      },
+      "jtbd_scenario_id": "JTBD-008-tool-contamination-containment",
+      "qa_tier": "critical"
     },
     {
       "scenario_id": "adversarial_timeout_cascade",
@@ -268,7 +284,9 @@
           "fallback_provider_used": true
         },
         "duration_ms": 5200
-      }
+      },
+      "jtbd_scenario_id": "JTBD-009-timeout-cascade-recovery",
+      "qa_tier": "high"
     },
     {
       "scenario_id": "connector_duplicate_webhook_delivery",
@@ -344,7 +362,9 @@
             "rejected": false
           }
         }
-      }
+      },
+      "jtbd_scenario_id": "JTBD-010-connector-duplicate-delivery",
+      "qa_tier": "high"
     },
     {
       "scenario_id": "connector_callback_auth_failure",
@@ -412,7 +432,29 @@
             "reason_code": "CALLBACK_AUTH_SIGNATURE_INVALID"
           }
         }
+      },
+      "jtbd_scenario_id": "JTBD-011-connector-callback-auth",
+      "qa_tier": "critical"
+    }
+  ],
+  "qa_traceability": {
+    "matrix_sdd": "147_COUNCIL_JTBD_QA_TRACE_MATRIX",
+    "critical_gate_rules": {
+      "critical": {
+        "pass_rate": 1,
+        "max_harmful_friction_ratio": 0.2,
+        "blocked_actions_missing_explainability_max": 0
+      },
+      "high": {
+        "pass_rate": 0.98,
+        "max_harmful_friction_ratio": 0.3,
+        "blocked_actions_missing_explainability_max": 0
+      },
+      "medium": {
+        "pass_rate": 0.95,
+        "max_harmful_friction_ratio": 0.4,
+        "blocked_actions_missing_explainability_max": 1
       }
     }
-  ]
+  }
 }

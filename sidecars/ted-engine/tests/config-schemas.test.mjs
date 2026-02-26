@@ -346,6 +346,20 @@ describe("workflow_registry.json — version metadata", () => {
       }
     }
   });
+
+  test("workflows include JTBD traceability metadata", () => {
+    for (const workflow of workflows) {
+      expect(typeof workflow.jtbd_flow_id).toBe("string");
+      expect(workflow.jtbd_flow_id).toMatch(/^JTBD-\d{3}-/);
+      expect(Array.isArray(workflow.qa_scenario_ids)).toBe(true);
+      expect(workflow.qa_scenario_ids.length).toBeGreaterThan(0);
+      for (const scenarioId of workflow.qa_scenario_ids) {
+        expect(typeof scenarioId).toBe("string");
+        expect(scenarioId).toMatch(/^JTBD-\d{3}-/);
+      }
+      expect(["critical", "high", "medium"]).toContain(workflow.release_tier);
+    }
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -535,6 +549,20 @@ describe("Cross-config consistency", () => {
     const scenarioIds = new Set((corpus.scenarios || []).map((scenario) => scenario?.scenario_id));
     for (const requiredScenarioId of contract.required_scenario_ids || []) {
       expect(scenarioIds.has(requiredScenarioId)).toBe(true);
+    }
+  });
+
+  test("replay corpus scenarios include JTBD mapping and QA tier", () => {
+    const corpus = configs.get("replay_corpus.json");
+    if (!corpus) {
+      return;
+    }
+    expect(typeof corpus.qa_traceability).toBe("object");
+    expect(typeof corpus.qa_traceability.matrix_sdd).toBe("string");
+    for (const scenario of corpus.scenarios || []) {
+      expect(typeof scenario.jtbd_scenario_id).toBe("string");
+      expect(scenario.jtbd_scenario_id).toMatch(/^JTBD-\d{3}-/);
+      expect(["critical", "high", "medium"]).toContain(scenario.qa_tier);
     }
   });
 });

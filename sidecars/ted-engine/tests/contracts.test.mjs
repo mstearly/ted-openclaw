@@ -584,6 +584,66 @@ describe("Workflow registry metadata contract", () => {
     expect(rollup.workflow_snapshot_ref.length).toBeGreaterThan(0);
   });
 
+  test("POST /ops/workflows/run returns friction events with traceable explainability fields", async () => {
+    const workflowId = `rf13-friction-${Date.now().toString(36)}`;
+    const publishResp = await fetch(`${baseUrl}/ops/workflows`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        workflow_id: workflowId,
+        name: "RF13 Friction Traceability",
+        trigger: { kind: "manual" },
+        steps: [
+          {
+            step_id: "status-check",
+            kind: "route_call",
+            method: "GET",
+            route: "/status",
+          },
+          {
+            step_id: "approval-checkpoint",
+            kind: "approval_gate",
+            reason: "operator_approval_required_for_publish",
+          },
+        ],
+      }),
+    });
+    expect(publishResp.status).toBe(200);
+
+    const runResp = await fetch(`${baseUrl}/ops/workflows/run`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ workflow_id: workflowId, dry_run: true }),
+    });
+    expect(runResp.status).toBe(200);
+    const runBody = await runResp.json();
+
+    expect(typeof runBody.run_id).toBe("string");
+    expect(runBody.run_id.length).toBeGreaterThan(0);
+    expect(typeof runBody.trace_id).toBe("string");
+    expect(runBody.trace_id.length).toBeGreaterThan(0);
+    expect(Array.isArray(runBody.friction_events)).toBe(true);
+    expect(runBody.friction_events.length).toBeGreaterThan(0);
+
+    for (const event of runBody.friction_events) {
+      expect(event.kind).toBe("friction_event");
+      expect(event.run_id).toBe(runBody.run_id);
+      expect(event.trace_id).toBe(runBody.trace_id);
+      expect(event.workflow_id).toBe(workflowId);
+      expect(typeof event.step_id === "string" || event.step_id === null).toBe(true);
+      expect(typeof event.reason).toBe("string");
+      expect(event.reason.length).toBeGreaterThan(0);
+      expect(typeof event.category).toBe("string");
+      expect(event.category.length).toBeGreaterThan(0);
+    }
+  });
+
   test("GET /ops/workflows returns versioned workflow metadata", async () => {
     const resp = await fetch(`${baseUrl}/ops/workflows`, { headers: authHeaders });
     expect(resp.status).toBe(200);

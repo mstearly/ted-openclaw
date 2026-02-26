@@ -21,9 +21,19 @@
           "kind": "route_call",
           "method": "GET",
           "route": "/reporting/morning-brief",
-          "retry": { "max_attempts": 2, "backoff_ms": 1000 }
+          "retry": {
+            "max_attempts": 2,
+            "backoff_ms": 1000
+          }
         }
-      ]
+      ],
+      "jtbd_flow_id": "JTBD-002-morning-brief",
+      "qa_scenario_ids": [
+        "JTBD-002-morning-brief",
+        "JTBD-006-workflow-run-snapshot",
+        "JTBD-012-operator-ui-workflow-controls"
+      ],
+      "release_tier": "critical"
     }
   ]
 }
