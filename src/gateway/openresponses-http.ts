@@ -37,7 +37,10 @@ import {
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
 import { sendJson, setSseHeaders, writeDone } from "./http-common.js";
-import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
+import {
+  handleGatewayGetEndpoint,
+  handleGatewayPostJsonEndpoint,
+} from "./http-endpoint-helpers.js";
 import { resolveAgentIdForRequest, resolveSessionKey } from "./http-utils.js";
 import {
   CreateResponseBodySchema,
@@ -50,8 +53,13 @@ import {
   type Usage,
 } from "./open-responses.schema.js";
 import {
+  normalizeOpenResponsesTransportConfig,
+  resolveOpenResponsesTransportSelection,
+} from "./openresponses-transport-config.js";
+import {
   completeTransportRun,
   getTransportRunSummary,
+  recordTransportFallback,
   startTransportRun,
 } from "./openresponses-transport.js";
 
@@ -441,6 +449,59 @@ async function runResponsesAgentCommand(params: {
   );
 }
 
+export async function handleOpenResponsesTransportStatusHttpRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: OpenResponsesHttpOptions,
+): Promise<boolean> {
+  const handled = await handleGatewayGetEndpoint(req, res, {
+    pathname: "/v1/responses/transport",
+    auth: opts.auth,
+    trustedProxies: opts.trustedProxies,
+    rateLimiter: opts.rateLimiter,
+  });
+  if (handled === false) {
+    return false;
+  }
+  if (!handled) {
+    return true;
+  }
+
+  const transportConfig = normalizeOpenResponsesTransportConfig(opts.config);
+  const queryModel = handled.url.searchParams.get("model")?.trim();
+  const model = queryModel && queryModel.length > 0 ? queryModel : "openclaw";
+  const selection = resolveOpenResponsesTransportSelection({
+    config: opts.config,
+    model,
+  });
+  const fallbackReasonCodes = [
+    ...new Set(
+      [
+        ...transportConfig.policy.forceSseOnErrorCode,
+        ...transportConfig.capabilities.flatMap((capability) => capability.knownFallbackTriggers),
+        "model_not_in_capability_matrix",
+        "model_not_websocket_capable",
+        "websocket_path_not_enabled",
+      ].filter((reason) => reason.trim().length > 0),
+    ),
+  ];
+
+  sendJson(res, 200, {
+    object: "openresponses.transport_status",
+    policy: transportConfig.policy,
+    capabilities: transportConfig.capabilities,
+    selection: {
+      model,
+      requested_mode: selection.requestedMode,
+      selected_transport: selection.selectedTransport,
+      fallback_reason: selection.fallbackReason,
+      capability: selection.capability,
+    },
+    fallback_reason_codes: fallbackReasonCodes,
+  });
+  return true;
+}
+
 export async function handleOpenResponsesHttpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -652,9 +713,19 @@ export async function handleOpenResponsesHttpRequest(
       };
     }
   }
-  const responseMetadata = contextSemanticsMetadata
-    ? { context_semantics: contextSemanticsMetadata }
-    : undefined;
+  const transportSelection = resolveOpenResponsesTransportSelection({
+    config: opts.config,
+    model,
+  });
+  const responseMetadataBase: Record<string, unknown> = {
+    ...(contextSemanticsMetadata ? { context_semantics: contextSemanticsMetadata } : {}),
+    transport_policy: {
+      requested_mode: transportSelection.requestedMode,
+      selected_transport: transportSelection.selectedTransport,
+      fallback_reason: transportSelection.fallbackReason,
+      capability: transportSelection.capability,
+    },
+  };
 
   // Build prompt from input
   const prompt = buildAgentPrompt(payload.input);
@@ -689,15 +760,26 @@ export async function handleOpenResponsesHttpRequest(
     requestId: contextSemanticsRequestId,
     provider: "openresponses",
     model,
-    transport: "sse",
+    transport: transportSelection.selectedTransport,
   });
+  if (transportSelection.fallbackReason) {
+    recordTransportFallback({
+      runId: responseId,
+      requestId: contextSemanticsRequestId,
+      provider: "openresponses",
+      model,
+      from: transportSelection.requestedMode === "sse" ? "sse" : "websocket",
+      to: transportSelection.selectedTransport,
+      reason: transportSelection.fallbackReason,
+    });
+  }
   const buildResponseMetadata = () => {
     const transportSummary = getTransportRunSummary(responseId);
     if (!transportSummary) {
-      return responseMetadata;
+      return Object.keys(responseMetadataBase).length > 0 ? responseMetadataBase : undefined;
     }
     return {
-      ...responseMetadata,
+      ...responseMetadataBase,
       transport: transportSummary,
     };
   };

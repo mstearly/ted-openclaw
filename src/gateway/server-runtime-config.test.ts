@@ -116,4 +116,82 @@ describe("resolveGatewayRuntimeConfig", () => {
       expect(result.bindHost).toBe("0.0.0.0");
     });
   });
+
+  describe("openresponses transport config validation", () => {
+    it("fails closed when websocket policy has no capability matrix", async () => {
+      const cfg = {
+        gateway: {
+          bind: "loopback" as const,
+          auth: {
+            mode: "token" as const,
+            token: "secret-token",
+          },
+          http: {
+            endpoints: {
+              responses: {
+                enabled: true,
+                transportPolicy: {
+                  mode: "websocket" as const,
+                },
+              },
+            },
+          },
+        },
+      };
+
+      await expect(
+        resolveGatewayRuntimeConfig({
+          cfg,
+          port: 18789,
+        }),
+      ).rejects.toThrow(
+        "invalid gateway.http.endpoints.responses transport config: responses.transportPolicy.mode=websocket",
+      );
+    });
+
+    it("accepts matrix + policy in auto mode", async () => {
+      const cfg = {
+        gateway: {
+          bind: "loopback" as const,
+          auth: {
+            mode: "token" as const,
+            token: "secret-token",
+          },
+          http: {
+            endpoints: {
+              responses: {
+                enabled: true,
+                transportCapabilityMatrix: {
+                  entries: [
+                    {
+                      provider: "openai",
+                      model: "openclaw",
+                      websocketMode: true,
+                      streaming: true,
+                      continuationSemantics: true,
+                    },
+                  ],
+                },
+                transportPolicy: {
+                  mode: "auto" as const,
+                  canaryPercent: 10,
+                  forceSseOnErrorCode: ["ws_connect_failed"],
+                  maxWsRetries: 1,
+                },
+              },
+            },
+          },
+        },
+      };
+
+      const runtime = await resolveGatewayRuntimeConfig({
+        cfg,
+        port: 18789,
+      });
+
+      expect(runtime.openResponsesEnabled).toBe(true);
+      expect(runtime.openResponsesConfig?.transportPolicy?.mode).toBe("auto");
+      expect(runtime.openResponsesConfig?.transportCapabilityMatrix?.entries).toHaveLength(1);
+    });
+  });
 });

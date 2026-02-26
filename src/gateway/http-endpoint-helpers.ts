@@ -43,3 +43,37 @@ export async function handleGatewayPostJsonEndpoint(
 
   return { body };
 }
+
+export async function handleGatewayGetEndpoint(
+  req: IncomingMessage,
+  res: ServerResponse,
+  opts: {
+    pathname: string;
+    auth: ResolvedGatewayAuth;
+    trustedProxies?: string[];
+    rateLimiter?: AuthRateLimiter;
+  },
+): Promise<false | { url: URL } | undefined> {
+  const url = new URL(req.url ?? "/", `http://${req.headers.host || "localhost"}`);
+  if (url.pathname !== opts.pathname) {
+    return false;
+  }
+
+  if (req.method !== "GET") {
+    sendMethodNotAllowed(res);
+    return undefined;
+  }
+
+  const authorized = await authorizeGatewayBearerRequestOrReply({
+    req,
+    res,
+    auth: opts.auth,
+    trustedProxies: opts.trustedProxies,
+    rateLimiter: opts.rateLimiter,
+  });
+  if (!authorized) {
+    return undefined;
+  }
+
+  return { url };
+}

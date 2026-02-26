@@ -12,6 +12,7 @@ import {
 import { normalizeControlUiBasePath } from "./control-ui-shared.js";
 import { resolveHooksConfig } from "./hooks.js";
 import { isLoopbackHost, resolveGatewayBindHost } from "./net.js";
+import { validateOpenResponsesTransportConfig } from "./openresponses-transport-config.js";
 
 export type GatewayRuntimeConfig = {
   bindHost: string;
@@ -51,6 +52,14 @@ export async function resolveGatewayRuntimeConfig(params: {
     false;
   const openResponsesConfig = params.cfg.gateway?.http?.endpoints?.responses;
   const openResponsesEnabled = params.openResponsesEnabled ?? openResponsesConfig?.enabled ?? false;
+  if (openResponsesEnabled) {
+    const transportValidation = validateOpenResponsesTransportConfig(openResponsesConfig);
+    if (!transportValidation.ok) {
+      throw new Error(
+        `invalid gateway.http.endpoints.responses transport config: ${transportValidation.errors.join("; ")}`,
+      );
+    }
+  }
   const controlUiBasePath = normalizeControlUiBasePath(params.cfg.gateway?.controlUi?.basePath);
   const controlUiRootRaw = params.cfg.gateway?.controlUi?.root;
   const controlUiRoot =

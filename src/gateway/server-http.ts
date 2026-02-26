@@ -52,7 +52,10 @@ import { sendGatewayAuthFailure } from "./http-common.js";
 import { getBearerToken, getHeader } from "./http-utils.js";
 import { isPrivateOrLoopbackAddress, resolveGatewayClientIp } from "./net.js";
 import { handleOpenAiHttpRequest } from "./openai-http.js";
-import { handleOpenResponsesHttpRequest } from "./openresponses-http.js";
+import {
+  handleOpenResponsesHttpRequest,
+  handleOpenResponsesTransportStatusHttpRequest,
+} from "./openresponses-http.js";
 import type { GatewayWsClient } from "./server/ws-types.js";
 import { handleToolsInvokeHttpRequest } from "./tools-invoke-http.js";
 
@@ -521,6 +524,16 @@ export function createGatewayHttpServer(opts: {
         }
       }
       if (openResponsesEnabled) {
+        if (
+          await handleOpenResponsesTransportStatusHttpRequest(req, res, {
+            auth: resolvedAuth,
+            config: openResponsesConfig,
+            trustedProxies,
+            rateLimiter,
+          })
+        ) {
+          return;
+        }
         if (
           await handleOpenResponsesHttpRequest(req, res, {
             auth: resolvedAuth,

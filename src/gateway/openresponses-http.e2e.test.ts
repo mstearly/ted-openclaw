@@ -57,6 +57,16 @@ async function postResponses(port: number, body: unknown, headers?: Record<strin
   return res;
 }
 
+async function getResponsesTransportStatus(port: number, model?: string) {
+  const query = model ? `?model=${encodeURIComponent(model)}` : "";
+  return fetch(`http://127.0.0.1:${port}/v1/responses/transport${query}`, {
+    method: "GET",
+    headers: {
+      authorization: "Bearer secret",
+    },
+  });
+}
+
 function parseSseEvents(text: string): Array<{ event?: string; data: string }> {
   const events: Array<{ event?: string; data: string }> = [];
   const lines = text.split("\n");
@@ -665,6 +675,79 @@ describe("OpenResponses HTTP API (e2e)", () => {
       }
     } finally {
       // shared server
+    }
+  });
+
+  it("exposes transport status contract and policy-driven fallback metadata", async () => {
+    const transportConfig = {
+      gateway: {
+        http: {
+          endpoints: {
+            responses: {
+              enabled: true,
+              transportCapabilityMatrix: {
+                entries: [
+                  {
+                    provider: "openai",
+                    model: "openclaw",
+                    websocketMode: true,
+                    streaming: true,
+                    continuationSemantics: true,
+                    knownFallbackTriggers: ["ws_connect_failed"],
+                  },
+                ],
+              },
+              transportPolicy: {
+                mode: "websocket",
+                canaryPercent: 100,
+                forceSseOnErrorCode: ["ws_connect_failed"],
+                maxWsRetries: 2,
+              },
+            },
+          },
+        },
+      },
+    };
+    await writeGatewayConfig(transportConfig);
+
+    const transportPort = await getFreePort();
+    const transportServer = await startServer(transportPort, { openResponsesEnabled: true });
+    try {
+      const statusResponse = await getResponsesTransportStatus(transportPort, "openclaw");
+      expect(statusResponse.status).toBe(200);
+      const statusJson = (await statusResponse.json()) as Record<string, unknown>;
+      expect(statusJson.object).toBe("openresponses.transport_status");
+      const selection = (statusJson.selection as Record<string, unknown> | undefined) ?? {};
+      expect(selection.requested_mode).toBe("websocket");
+      expect(selection.selected_transport).toBe("sse");
+      expect(selection.fallback_reason).toBe("websocket_path_not_enabled");
+      const fallbackCodes = (statusJson.fallback_reason_codes as string[] | undefined) ?? [];
+      expect(fallbackCodes).toContain("websocket_path_not_enabled");
+      expect(fallbackCodes).toContain("ws_connect_failed");
+
+      agentCommand.mockReset();
+      agentCommand.mockResolvedValueOnce({ payloads: [{ text: "hello" }] } as never);
+      const runResponse = await postResponses(transportPort, {
+        model: "openclaw",
+        input: "hi",
+      });
+      expect(runResponse.status).toBe(200);
+      const runJson = (await runResponse.json()) as Record<string, unknown>;
+      const runMetadata = (runJson.metadata as Record<string, unknown> | undefined) ?? {};
+      const transportPolicy =
+        (runMetadata.transport_policy as Record<string, unknown> | undefined) ?? {};
+      expect(transportPolicy.requested_mode).toBe("websocket");
+      expect(transportPolicy.selected_transport).toBe("sse");
+      expect(transportPolicy.fallback_reason).toBe("websocket_path_not_enabled");
+
+      const transportSummary = (runMetadata.transport as Record<string, unknown> | undefined) ?? {};
+      const transportRun = (transportSummary.run as Record<string, unknown> | undefined) ?? {};
+      expect(transportRun.fallback_count).toBeGreaterThanOrEqual(1);
+      expect((transportRun.fallback_reasons as string[] | undefined) ?? []).toContain(
+        "websocket_path_not_enabled",
+      );
+    } finally {
+      await transportServer.close({ reason: "transport status policy test done" });
     }
   });
 

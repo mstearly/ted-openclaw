@@ -191,10 +191,52 @@ export type GatewayHttpResponsesConfig = {
    * Default: 8.
    */
   maxUrlParts?: number;
+  /**
+   * Capability artifact for model/provider transport support.
+   * Used by transport policy resolution and startup validation.
+   */
+  transportCapabilityMatrix?: GatewayHttpResponsesTransportCapabilityMatrixConfig;
+  /**
+   * Active transport policy for OpenResponses execution.
+   * Defaults to SSE-only mode until websocket path is enabled.
+   */
+  transportPolicy?: GatewayHttpResponsesTransportPolicyConfig;
   /** File inputs (input_file). */
   files?: GatewayHttpResponsesFilesConfig;
   /** Image inputs (input_image). */
   images?: GatewayHttpResponsesImagesConfig;
+};
+
+export type GatewayHttpResponsesTransportMode = "sse" | "websocket" | "auto";
+
+export type GatewayHttpResponsesTransportCapabilityEntry = {
+  /** Provider id (example: openai, anthropic). */
+  provider: string;
+  /** Model id or model selector handled by the gateway. */
+  model: string;
+  /** Whether websocket path is supported for this model/provider. */
+  websocketMode?: boolean;
+  /** Whether streaming responses are supported. */
+  streaming?: boolean;
+  /** Whether previous_response_id continuation semantics are supported. */
+  continuationSemantics?: boolean;
+  /** Known reason codes that force deterministic SSE fallback. */
+  knownFallbackTriggers?: string[];
+};
+
+export type GatewayHttpResponsesTransportCapabilityMatrixConfig = {
+  entries?: GatewayHttpResponsesTransportCapabilityEntry[];
+};
+
+export type GatewayHttpResponsesTransportPolicyConfig = {
+  /** Requested transport mode. */
+  mode?: GatewayHttpResponsesTransportMode;
+  /** Percent of eligible traffic to attempt websocket mode for. */
+  canaryPercent?: number;
+  /** Error codes that immediately force SSE fallback. */
+  forceSseOnErrorCode?: string[];
+  /** Max websocket retries before deterministic SSE fallback. */
+  maxWsRetries?: number;
 };
 
 export type GatewayHttpResponsesFilesConfig = {

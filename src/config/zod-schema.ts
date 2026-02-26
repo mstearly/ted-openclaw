@@ -500,6 +500,36 @@ export const OpenClawSchema = z
                     enabled: z.boolean().optional(),
                     maxBodyBytes: z.number().int().positive().optional(),
                     maxUrlParts: z.number().int().nonnegative().optional(),
+                    transportCapabilityMatrix: z
+                      .object({
+                        entries: z
+                          .array(
+                            z
+                              .object({
+                                provider: z.string(),
+                                model: z.string(),
+                                websocketMode: z.boolean().optional(),
+                                streaming: z.boolean().optional(),
+                                continuationSemantics: z.boolean().optional(),
+                                knownFallbackTriggers: z.array(z.string()).optional(),
+                              })
+                              .strict(),
+                          )
+                          .optional(),
+                      })
+                      .strict()
+                      .optional(),
+                    transportPolicy: z
+                      .object({
+                        mode: z
+                          .union([z.literal("sse"), z.literal("websocket"), z.literal("auto")])
+                          .optional(),
+                        canaryPercent: z.number().int().min(0).max(100).optional(),
+                        forceSseOnErrorCode: z.array(z.string()).optional(),
+                        maxWsRetries: z.number().int().min(0).optional(),
+                      })
+                      .strict()
+                      .optional(),
                     files: z
                       .object({
                         allowUrl: z.boolean().optional(),

@@ -13,6 +13,7 @@ OpenClaw’s Gateway can serve an OpenResponses-compatible `POST /v1/responses` 
 This endpoint is **disabled by default**. Enable it in config first.
 
 - `POST /v1/responses`
+- `GET /v1/responses/transport` (transport policy + capability status)
 - Same port as the Gateway (WS + HTTP multiplex): `http://<gateway-host>:<port>/v1/responses`
 
 Under the hood, requests are executed as a normal Gateway agent run (same codepath as
@@ -55,6 +56,40 @@ Set `gateway.http.endpoints.responses.enabled` to `true`:
     http: {
       endpoints: {
         responses: { enabled: true },
+      },
+    },
+  },
+}
+```
+
+Optional transport policy + capability matrix:
+
+```json5
+{
+  gateway: {
+    http: {
+      endpoints: {
+        responses: {
+          enabled: true,
+          transportCapabilityMatrix: {
+            entries: [
+              {
+                provider: "openai",
+                model: "openclaw",
+                websocketMode: true,
+                streaming: true,
+                continuationSemantics: true,
+                knownFallbackTriggers: ["ws_connect_failed"],
+              },
+            ],
+          },
+          transportPolicy: {
+            mode: "sse", // sse | websocket | auto
+            canaryPercent: 0,
+            forceSseOnErrorCode: ["ws_connect_failed"],
+            maxWsRetries: 1,
+          },
+        },
       },
     },
   },
@@ -132,6 +167,10 @@ Every OpenResponses run now emits transport telemetry primitives:
 
 The response metadata also carries a transport summary snapshot:
 
+- `metadata.transport_policy`
+  - `requested_mode`
+  - `selected_transport`
+  - `fallback_reason`
 - `metadata.transport.run`
   - `selected_transport`
   - `latency_ms`
@@ -142,6 +181,21 @@ The response metadata also carries a transport summary snapshot:
   - `fallback_ratio`
   - `latency_p50_ms`
   - `latency_p95_ms`
+
+## Transport status endpoint
+
+Use `GET /v1/responses/transport` to inspect active transport decisions without digging through logs.
+
+Optional query:
+
+- `model=<model-id>` (default: `openclaw`)
+
+Response includes:
+
+1. Active policy (`policy`).
+2. Capability matrix entries (`capabilities`).
+3. Per-model decision contract (`selection.requested_mode`, `selection.selected_transport`, `selection.fallback_reason`).
+4. Explicit fallback reason catalog (`fallback_reason_codes`).
 
 ## Context truthfulness release gate
 

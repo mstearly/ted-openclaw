@@ -71,6 +71,7 @@ Planned tasks from SDD 112:
 15. SDD 123 - C3-002 context semantics replay validation report
 16. SDD 124 - C3-003 handoff package to Plan 2 owner
 17. SDD 125 - I4 T0 transport baseline and telemetry execution
+18. SDD 126 - I4 T1 transport policy and matrix execution
 
 ---
 
@@ -115,3 +116,7 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
 11. Executed Plan 2 Wave T0 baseline + telemetry + run summary projection.
 
 - Evidence doc: `SDD 125`
+
+12. Executed Plan 2 Wave T1 capability matrix + policy validation + status endpoint.
+
+- Evidence doc: `SDD 126`
