@@ -75,6 +75,7 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
 1. Implemented explicit unsupported-context-semantics handling in gateway OpenResponses path for:
    - `previous_response_id`,
    - `reasoning`,
+   - `context_management.compaction`,
    - `truncation`.
 2. Added e2e coverage for the three rejected fields with explicit `invalid_request_error` assertions.
 3. Executed gateway e2e test passes:

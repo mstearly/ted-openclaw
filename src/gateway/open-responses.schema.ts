@@ -194,6 +194,18 @@ export const CreateResponseBodySchema = z
         summary: z.enum(["auto", "concise", "detailed"]).optional(),
       })
       .optional(),
+    context_management: z
+      .object({
+        compaction: z
+          .object({
+            mode: z.string().optional(),
+            preserve_recent_turns: z.number().int().nonnegative().optional(),
+            summary_target_tokens: z.number().int().positive().optional(),
+          })
+          .optional(),
+      })
+      .strict()
+      .optional(),
     truncation: z.enum(["auto", "disabled"]).optional(),
   })
   .strict();

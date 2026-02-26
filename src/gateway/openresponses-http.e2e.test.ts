@@ -185,6 +185,27 @@ describe("OpenResponses HTTP API (e2e)", () => {
       await ensureResponseConsumed(resReasoning);
 
       agentCommand.mockReset();
+      const resCompaction = await postResponses(port, {
+        model: "openclaw",
+        input: "hi",
+        context_management: {
+          compaction: {
+            mode: "auto",
+            summary_target_tokens: 512,
+          },
+        },
+      });
+      expect(resCompaction.status).toBe(400);
+      const compactionJson = (await resCompaction.json()) as Record<string, unknown>;
+      const compactionError = (compactionJson.error as Record<string, unknown> | undefined) ?? {};
+      const compactionMessage =
+        typeof compactionError.message === "string" ? compactionError.message : "";
+      expect(compactionError.type).toBe("invalid_request_error");
+      expect(compactionMessage).toContain("context_management.compaction");
+      expect(agentCommand).not.toHaveBeenCalled();
+      await ensureResponseConsumed(resCompaction);
+
+      agentCommand.mockReset();
       const resTruncation = await postResponses(port, {
         model: "openclaw",
         input: "hi",

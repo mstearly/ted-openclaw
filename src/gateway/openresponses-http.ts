@@ -131,7 +131,7 @@ function extractClientTools(body: CreateResponseBody): ClientToolDefinition[] {
 }
 
 type UnsupportedContextSemantic = {
-  field: "previous_response_id" | "reasoning" | "truncation";
+  field: "previous_response_id" | "reasoning" | "context_management.compaction" | "truncation";
   reason: string;
 };
 
@@ -149,6 +149,13 @@ function getUnsupportedContextSemantics(payload: CreateResponseBody): Unsupporte
       field: "reasoning",
       reason:
         "reasoning controls are not implemented in gateway mode yet; remove `reasoning` for now.",
+    });
+  }
+  if (payload.context_management?.compaction) {
+    unsupported.push({
+      field: "context_management.compaction",
+      reason:
+        "compaction controls are not implemented in gateway mode yet; remove `context_management.compaction` for now.",
     });
   }
   if (payload.truncation) {

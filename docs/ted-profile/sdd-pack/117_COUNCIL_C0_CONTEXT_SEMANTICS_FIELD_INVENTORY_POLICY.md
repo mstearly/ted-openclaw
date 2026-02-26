@@ -9,24 +9,26 @@
 
 ## 1. Accepted Request Field Inventory (Gateway `/v1/responses`)
 
-| Field                  | Runtime Status              | Current Policy Decision   |
-| ---------------------- | --------------------------- | ------------------------- |
-| `model`                | Implemented                 | Keep implemented          |
-| `input`                | Implemented                 | Keep implemented          |
-| `instructions`         | Implemented                 | Keep implemented          |
-| `tools`                | Implemented                 | Keep implemented          |
-| `tool_choice`          | Implemented                 | Keep implemented          |
-| `stream`               | Implemented                 | Keep implemented          |
-| `max_output_tokens`    | Implemented                 | Keep implemented          |
-| `user`                 | Implemented                 | Keep implemented          |
-| `previous_response_id` | Previously accepted/ignored | **Reject explicitly**     |
-| `reasoning`            | Previously accepted/ignored | **Reject explicitly**     |
-| `truncation`           | Previously accepted/ignored | **Reject explicitly**     |
-| `max_tool_calls`       | Accepted, no behavior wired | Defer policy finalization |
-| `temperature`          | Accepted, no behavior wired | Defer policy finalization |
-| `top_p`                | Accepted, no behavior wired | Defer policy finalization |
-| `metadata`             | Accepted, no behavior wired | Defer policy finalization |
-| `store`                | Accepted, no behavior wired | Defer policy finalization |
+| Field                           | Runtime Status              | Current Policy Decision   |
+| ------------------------------- | --------------------------- | ------------------------- |
+| `model`                         | Implemented                 | Keep implemented          |
+| `input`                         | Implemented                 | Keep implemented          |
+| `instructions`                  | Implemented                 | Keep implemented          |
+| `tools`                         | Implemented                 | Keep implemented          |
+| `tool_choice`                   | Implemented                 | Keep implemented          |
+| `stream`                        | Implemented                 | Keep implemented          |
+| `max_output_tokens`             | Implemented                 | Keep implemented          |
+| `user`                          | Implemented                 | Keep implemented          |
+| `previous_response_id`          | Previously accepted/ignored | **Reject explicitly**     |
+| `reasoning`                     | Previously accepted/ignored | **Reject explicitly**     |
+| `context_management`            | Implemented parse           | Compaction policy active  |
+| `context_management.compaction` | Previously ambiguous        | **Reject explicitly**     |
+| `truncation`                    | Previously accepted/ignored | **Reject explicitly**     |
+| `max_tool_calls`                | Accepted, no behavior wired | Defer policy finalization |
+| `temperature`                   | Accepted, no behavior wired | Defer policy finalization |
+| `top_p`                         | Accepted, no behavior wired | Defer policy finalization |
+| `metadata`                      | Accepted, no behavior wired | Defer policy finalization |
+| `store`                         | Accepted, no behavior wired | Defer policy finalization |
 
 ---
 
@@ -35,6 +37,7 @@
 1. Explicitly reject unsupported context-semantics fields:
    - `previous_response_id`,
    - `reasoning`,
+   - `context_management.compaction`,
    - `truncation`.
 2. Return deterministic `invalid_request_error` with field-specific details.
 3. Do not silently ignore context-semantics controls.
