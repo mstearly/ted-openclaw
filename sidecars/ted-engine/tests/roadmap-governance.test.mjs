@@ -3,6 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, test } from "vitest";
 import {
+  validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
   validateEsignProviderPolicy,
@@ -26,6 +27,7 @@ const connectorAdmissionPolicyPath = resolve(
 );
 const esignProviderPolicyPath = resolve(__dirname, "../config/esign_provider_policy.json");
 const mobileAlertPolicyPath = resolve(__dirname, "../config/mobile_alert_policy.json");
+const compatibilityPolicyPath = resolve(__dirname, "../config/compatibility_policy.json");
 
 function loadJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -92,12 +94,14 @@ describe("roadmap governance module", () => {
     const admissionPolicy = loadJson(connectorAdmissionPolicyPath);
     const esignPolicy = loadJson(esignProviderPolicyPath);
     const mobileAlertPolicy = loadJson(mobileAlertPolicyPath);
+    const compatibilityPolicy = loadJson(compatibilityPolicyPath);
 
     expect(validateModuleRequestIntakeTemplate(intakeTemplate).ok).toBe(true);
     expect(validateConnectorAuthModePolicy(authModePolicy).ok).toBe(true);
     expect(validateConnectorAdmissionPolicy(admissionPolicy).ok).toBe(true);
     expect(validateEsignProviderPolicy(esignPolicy).ok).toBe(true);
     expect(validateMobileAlertPolicy(mobileAlertPolicy).ok).toBe(true);
+    expect(validateCompatibilityPolicy(compatibilityPolicy).ok).toBe(true);
   });
 
   test("rejects inconsistent e-sign policy combinations", () => {
@@ -129,5 +133,16 @@ describe("roadmap governance module", () => {
     const codes = new Set((result.errors || []).map((entry) => entry.code));
     expect(result.ok).toBe(false);
     expect(codes.has("MOBILE_ALERT_POLICY_FALLBACK_CHAIN_CYCLE")).toBe(true);
+  });
+
+  test("rejects compatibility policy with invalid support window", () => {
+    const compatibilityPolicy = loadJson(compatibilityPolicyPath);
+    const mutated = JSON.parse(JSON.stringify(compatibilityPolicy));
+    mutated.support_window.backward_compatible_releases = 0;
+
+    const result = validateCompatibilityPolicy(mutated);
+    const codes = new Set((result.errors || []).map((entry) => entry.code));
+    expect(result.ok).toBe(false);
+    expect(codes.has("COMPAT_POLICY_SUPPORT_WINDOW_INVALID")).toBe(true);
   });
 });

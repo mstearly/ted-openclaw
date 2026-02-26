@@ -1,0 +1,55 @@
+{
+  "_config_version": 1,
+  "_artifact": "compatibility_policy",
+  "_description": "RF0-001 compatibility charter defining support windows, deprecation SLA, and release gates.",
+  "_last_updated": "2026-02-26",
+  "support_window": {
+    "min_supported_api_version": "2026-02",
+    "backward_compatible_releases": 2,
+    "sunset_grace_releases": 1
+  },
+  "deprecation": {
+    "min_notice_days": 30,
+    "default_notice_days": 60,
+    "max_notice_days": 180,
+    "required_status_fields": ["deprecated_routes", "sunset_schedule"],
+    "requires_operator_notice": true,
+    "enforcement_mode": "fail_closed_after_sunset"
+  },
+  "compatibility_classes": {
+    "workflow_definition": {
+      "support_window_releases": 2,
+      "breaking_change_policy": "publish_new_version_and_keep_prior_versions_queryable",
+      "required_migration_controls": ["definition_hash", "version_lineage", "legacy_read_fallback"]
+    },
+    "event_ledger_schema": {
+      "support_window_releases": 2,
+      "breaking_change_policy": "require_upcaster_and_replay_evidence",
+      "required_migration_controls": ["upcaster", "schema_version_marker", "replay_validation"]
+    },
+    "route_contract": {
+      "support_window_releases": 2,
+      "breaking_change_policy": "serve_dual_shape_until_sunset",
+      "required_migration_controls": [
+        "route_contract_update",
+        "deprecation_entry",
+        "status_surface_notice"
+      ]
+    },
+    "connector_contract": {
+      "support_window_releases": 2,
+      "breaking_change_policy": "gate_with_admission_policy_and_callback_drills",
+      "required_migration_controls": ["idempotency_keys", "callback_authenticity", "retry_policy"]
+    },
+    "config_schema": {
+      "support_window_releases": 2,
+      "breaking_change_policy": "require_manifested_migration_and_dry_run_report",
+      "required_migration_controls": ["migration_manifest", "dry_run_report", "rollback_checkpoint"]
+    }
+  },
+  "release_gates": {
+    "require_replay_gate_pass": true,
+    "require_upcaster_for_schema_bump": true,
+    "require_deprecation_entry_for_breaking_changes": true
+  }
+}

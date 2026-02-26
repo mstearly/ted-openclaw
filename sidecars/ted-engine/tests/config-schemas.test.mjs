@@ -13,6 +13,7 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import {
+  validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
   validateEsignProviderPolicy,
@@ -372,6 +373,13 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("compatibility_policy.json passes structural validation", () => {
+    const policy = configs.get("compatibility_policy.json");
+    const result = validateCompatibilityPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -404,6 +412,7 @@ describe("Required config files exist", () => {
     "connector_admission_policy.json",
     "esign_provider_policy.json",
     "mobile_alert_policy.json",
+    "compatibility_policy.json",
   ];
 
   test.each(requiredConfigs)("%s exists in config directory", (file) => {

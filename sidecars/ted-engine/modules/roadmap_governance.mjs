@@ -588,6 +588,186 @@ export function validateEsignProviderPolicy(policy) {
   };
 }
 
+export function validateCompatibilityPolicy(policy) {
+  const errors = [];
+
+  if (!isObject(policy)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "COMPAT_POLICY_INVALID_ROOT",
+          message: "compatibility_policy must be an object",
+        },
+      ],
+    };
+  }
+
+  const supportWindow = isObject(policy.support_window) ? policy.support_window : null;
+  if (!supportWindow) {
+    errors.push({
+      code: "COMPAT_POLICY_SUPPORT_WINDOW_MISSING",
+      message: "support_window must be present",
+    });
+  } else {
+    if (
+      typeof supportWindow.min_supported_api_version !== "string" ||
+      supportWindow.min_supported_api_version.trim().length === 0
+    ) {
+      errors.push({
+        code: "COMPAT_POLICY_MIN_API_VERSION_MISSING",
+        message: "support_window.min_supported_api_version must be a non-empty string",
+      });
+    }
+    if (
+      !Number.isInteger(supportWindow.backward_compatible_releases) ||
+      supportWindow.backward_compatible_releases < 1
+    ) {
+      errors.push({
+        code: "COMPAT_POLICY_SUPPORT_WINDOW_INVALID",
+        message: "support_window.backward_compatible_releases must be an integer >= 1",
+      });
+    }
+  }
+
+  const deprecation = isObject(policy.deprecation) ? policy.deprecation : null;
+  if (!deprecation) {
+    errors.push({
+      code: "COMPAT_POLICY_DEPRECATION_MISSING",
+      message: "deprecation must be present",
+    });
+  } else {
+    const minNotice = deprecation.min_notice_days;
+    const maxNotice = deprecation.max_notice_days;
+    const defaultNotice = deprecation.default_notice_days;
+    if (!Number.isInteger(minNotice) || minNotice < 1) {
+      errors.push({
+        code: "COMPAT_POLICY_DEPRECATION_MIN_INVALID",
+        message: "deprecation.min_notice_days must be an integer >= 1",
+      });
+    }
+    if (!Number.isInteger(maxNotice) || maxNotice < 1) {
+      errors.push({
+        code: "COMPAT_POLICY_DEPRECATION_MAX_INVALID",
+        message: "deprecation.max_notice_days must be an integer >= 1",
+      });
+    }
+    if (!Number.isInteger(defaultNotice) || defaultNotice < 1) {
+      errors.push({
+        code: "COMPAT_POLICY_DEPRECATION_DEFAULT_INVALID",
+        message: "deprecation.default_notice_days must be an integer >= 1",
+      });
+    }
+    if (Number.isInteger(minNotice) && Number.isInteger(maxNotice) && minNotice > maxNotice) {
+      errors.push({
+        code: "COMPAT_POLICY_DEPRECATION_WINDOW_INVALID",
+        message: "deprecation.min_notice_days cannot exceed deprecation.max_notice_days",
+      });
+    }
+    if (
+      Number.isInteger(defaultNotice) &&
+      Number.isInteger(minNotice) &&
+      Number.isInteger(maxNotice) &&
+      (defaultNotice < minNotice || defaultNotice > maxNotice)
+    ) {
+      errors.push({
+        code: "COMPAT_POLICY_DEPRECATION_DEFAULT_OUT_OF_RANGE",
+        message: "deprecation.default_notice_days must be within min/max notice window",
+      });
+    }
+
+    const requiredStatusFields = Array.isArray(deprecation.required_status_fields)
+      ? deprecation.required_status_fields
+      : [];
+    for (const field of ["deprecated_routes", "sunset_schedule"]) {
+      if (!requiredStatusFields.includes(field)) {
+        errors.push({
+          code: "COMPAT_POLICY_DEPRECATION_STATUS_FIELD_MISSING",
+          message: `deprecation.required_status_fields must include ${field}`,
+        });
+      }
+    }
+  }
+
+  const compatibilityClasses = isObject(policy.compatibility_classes)
+    ? policy.compatibility_classes
+    : null;
+  const requiredClasses = [
+    "workflow_definition",
+    "event_ledger_schema",
+    "route_contract",
+    "connector_contract",
+    "config_schema",
+  ];
+  if (!compatibilityClasses) {
+    errors.push({
+      code: "COMPAT_POLICY_CLASSES_MISSING",
+      message: "compatibility_classes must be present",
+    });
+  } else {
+    for (const classId of requiredClasses) {
+      const entry = compatibilityClasses[classId];
+      if (!isObject(entry)) {
+        errors.push({
+          code: "COMPAT_POLICY_CLASS_MISSING",
+          message: `compatibility_classes.${classId} must be present`,
+        });
+        continue;
+      }
+      if (!Number.isInteger(entry.support_window_releases) || entry.support_window_releases < 1) {
+        errors.push({
+          code: "COMPAT_POLICY_CLASS_SUPPORT_WINDOW_INVALID",
+          message: `compatibility_classes.${classId}.support_window_releases must be an integer >= 1`,
+        });
+      }
+      if (
+        typeof entry.breaking_change_policy !== "string" ||
+        entry.breaking_change_policy.trim().length === 0
+      ) {
+        errors.push({
+          code: "COMPAT_POLICY_CLASS_BREAKING_POLICY_MISSING",
+          message: `compatibility_classes.${classId}.breaking_change_policy must be a non-empty string`,
+        });
+      }
+      const requiredControls = Array.isArray(entry.required_migration_controls)
+        ? entry.required_migration_controls
+        : [];
+      if (requiredControls.length === 0) {
+        errors.push({
+          code: "COMPAT_POLICY_CLASS_MIGRATION_CONTROLS_MISSING",
+          message: `compatibility_classes.${classId}.required_migration_controls must be non-empty`,
+        });
+      }
+    }
+  }
+
+  const releaseGates = isObject(policy.release_gates) ? policy.release_gates : null;
+  if (!releaseGates) {
+    errors.push({
+      code: "COMPAT_POLICY_RELEASE_GATES_MISSING",
+      message: "release_gates must be present",
+    });
+  } else {
+    for (const field of [
+      "require_replay_gate_pass",
+      "require_upcaster_for_schema_bump",
+      "require_deprecation_entry_for_breaking_changes",
+    ]) {
+      if (typeof releaseGates[field] !== "boolean") {
+        errors.push({
+          code: "COMPAT_POLICY_RELEASE_GATE_INVALID",
+          message: `release_gates.${field} must be boolean`,
+        });
+      }
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}
+
 function isValidTimeOfDay(value) {
   if (typeof value !== "string") {
     return false;

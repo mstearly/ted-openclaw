@@ -5,6 +5,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
   validateEsignProviderPolicy,
@@ -168,6 +169,7 @@ const syntheticCanariesConfigPath = path.join(__dirname, "config", "synthetic_ca
 const replayCorpusConfigPath = path.join(__dirname, "config", "replay_corpus.json");
 const schedulerConfigPath = path.join(__dirname, "config", "scheduler_config.json");
 const mobileAlertPolicyConfigPath = path.join(__dirname, "config", "mobile_alert_policy.json");
+const compatibilityPolicyConfigPath = path.join(__dirname, "config", "compatibility_policy.json");
 const schedulerDir = path.join(__dirname, "scheduler");
 fs.mkdirSync(schedulerDir, { recursive: true });
 const pendingDeliveryPath = path.join(schedulerDir, "pending_delivery.jsonl");
@@ -338,6 +340,7 @@ function snapshotPolicyState() {
     const hardBans = readConfigFile(hardBansConfigPath);
     const autonomy = readConfigFile(autonomyLadderConfigPath);
     const llmProvider = readConfigFile(llmProviderConfigPath);
+    const compatibilityPolicy = readConfigFile(compatibilityPolicyConfigPath);
     const snapshot = {
       hard_bans_count: Array.isArray(hardBans?.hard_ban_strings)
         ? hardBans.hard_ban_strings.length
@@ -346,6 +349,10 @@ function snapshotPolicyState() {
           : 0,
       autonomy_level: autonomy?.default_mode || autonomy?.current_level || "unknown",
       llm_provider: llmProvider?.active_provider || llmProvider?.default_provider || "unknown",
+      compatibility_window_releases:
+        compatibilityPolicy?.support_window?.backward_compatible_releases ?? null,
+      compatibility_default_notice_days:
+        compatibilityPolicy?.deprecation?.default_notice_days ?? null,
     };
     appendJsonlLine(policyLedgerPath, {
       kind: "policy_snapshot",
@@ -386,6 +393,7 @@ const MONITORED_CONFIGS = [
   "graph_sync_strategy.json",
   "roadmap_master.json",
   "module_lifecycle_policy.json",
+  "compatibility_policy.json",
 ];
 
 function hashConfigFile(filePath) {
@@ -1167,6 +1175,7 @@ function validateStartupIntegrity() {
     connectorAdmissionPolicyConfigPath,
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
+    compatibilityPolicyConfigPath,
   ]);
   const allConfigPaths = [
     operatorProfileConfigPath,
@@ -1187,6 +1196,7 @@ function validateStartupIntegrity() {
     connectorAdmissionPolicyConfigPath,
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
+    compatibilityPolicyConfigPath,
     hardBansConfigPath,
     briefConfigPath,
     urgencyRulesConfigPath,
@@ -1333,6 +1343,22 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: mobileAlertValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === compatibilityPolicyConfigPath) {
+        const compatibilityPolicyValidation = validateCompatibilityPolicy(parsed);
+        if (!compatibilityPolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `compatibility_policy validation failed: ${compatibilityPolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: compatibilityPolicyValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;
