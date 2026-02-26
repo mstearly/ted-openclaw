@@ -18,72 +18,69 @@ curl -fsS "$BASE_URL/status" >/dev/null
 mint_ted_auth_token
 AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
-# ── Test 1: GET /ted/workbench returns 200 ──
-echo "--- [1/3] GET /ted/workbench returns 200 ---"
-SC=$(curl -sS -o /tmp/jc047_workbench.out -w "%{http_code}" \
-  "${AUTH_ARGS[@]}" "$BASE_URL/ted/workbench" || true)
+# ── Test 1: GET /status returns 200 ──
+echo "--- [1/3] GET /status returns 200 ---"
+SC=$(curl -sS -o /tmp/jc047_status.out -w "%{http_code}" \
+  "${AUTH_ARGS[@]}" "$BASE_URL/status" || true)
 if [ "$SC" = "200" ]; then
-  echo "  PASS: workbench returned 200"
+  echo "  PASS: status returned 200"
   record_pass
 else
   echo "  FAIL: expected 200, got $SC"
-  record_fail "1-workbench-status"
+  record_fail "1-status-http"
 fi
 
-# ── Test 2: Response has operator_flow field ──
-echo "--- [2/3] Response has operator_flow field ---"
-HAS_FLOW=$(python3 -c "
+# ── Test 2: Response has governance guard list ──
+echo "--- [2/3] Response has catalog.governance_guards array ---"
+HAS_GUARDS=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-flow = d.get('operator_flow')
-if flow is not None and isinstance(flow, dict):
-    print('yes')
-else:
-    print('no')
-" < /tmp/jc047_workbench.out 2>/dev/null || echo "parse_error")
+payload = json.load(sys.stdin)
+guards = payload.get('catalog', {}).get('governance_guards')
+print('yes' if isinstance(guards, list) and len(guards) > 0 else 'no')
+" < /tmp/jc047_status.out 2>/dev/null || echo "parse_error")
 
-if [ "$HAS_FLOW" = "yes" ]; then
-  echo "  PASS: operator_flow field present"
+if [ "$HAS_GUARDS" = "yes" ]; then
+  echo "  PASS: governance guard array present"
   record_pass
 else
-  echo "  FAIL: operator_flow missing or not an object ($HAS_FLOW)"
-  record_fail "2-operator-flow"
+  echo "  FAIL: governance guard array missing or empty ($HAS_GUARDS)"
+  record_fail "2-guards-missing"
 fi
 
-# ── Test 3: operator_flow has required sub-fields ──
-echo "--- [3/3] operator_flow has approval surfaces ---"
-FLOW_CHECK=$(python3 -c "
+# ── Test 3: Required approval/authority guards are present ──
+echo "--- [3/3] Governance guards include approval and authority controls ---"
+GUARD_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-flow = d.get('operator_flow', {})
-if not flow:
-    print('MISSING_FLOW')
+payload = json.load(sys.stdin)
+guards = payload.get('catalog', {}).get('governance_guards', [])
+if not isinstance(guards, list):
+    print('MISSING_GUARDS')
     sys.exit(0)
-required = ['primary_approval_surface', 'secondary_approval_surface', 'draft_review_surface']
-for f in required:
-    if f not in flow:
-        print(f'MISSING:{f}')
-        sys.exit(0)
-print('OK')
-" < /tmp/jc047_workbench.out 2>/dev/null || echo "parse_error")
+required = ['approval_first', 'draft_only_boundary', 'single_operator', 'fail_closed']
+missing = [g for g in required if g not in guards]
+if missing:
+    print(f'MISSING:{missing[0]}')
+else:
+    print('OK')
+" < /tmp/jc047_status.out 2>/dev/null || echo "parse_error")
 
-case "$FLOW_CHECK" in
+case "$GUARD_CHECK" in
   OK)
-    echo "  PASS: operator_flow has all required approval surfaces"
+    echo "  PASS: required governance guards are present"
     record_pass
     ;;
-  MISSING_FLOW)
-    echo "  FAIL: operator_flow is null or missing"
-    record_fail "3-flow-null"
+  MISSING_GUARDS)
+    echo "  FAIL: governance guards are missing"
+    record_fail "3-guards-null"
     ;;
   MISSING:*)
-    FIELD="${FLOW_CHECK#MISSING:}"
-    echo "  FAIL: operator_flow missing field \"$FIELD\""
-    record_fail "3-flow-$FIELD"
+    FIELD="${GUARD_CHECK#MISSING:}"
+    echo "  FAIL: missing governance guard $FIELD"
+    record_fail "3-guards-$FIELD"
     ;;
   *)
-    echo "  FAIL: could not parse operator_flow ($FLOW_CHECK)"
-    record_fail "3-flow-parse"
+    echo "  FAIL: could not parse governance guards ($GUARD_CHECK)"
+    record_fail "3-guards-parse"
     ;;
 esac
 

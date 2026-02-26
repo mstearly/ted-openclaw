@@ -13,13 +13,18 @@ FAILURES=()
 record_pass() { PASS=$((PASS + 1)); TESTED=$((TESTED + 1)); }
 record_fail() { FAIL=$((FAIL + 1)); TESTED=$((TESTED + 1)); FAILURES+=("$1"); }
 
+# ── sidecar must be reachable + auth token minted ──
+curl -fsS "$BASE_URL/status" >/dev/null
+mint_ted_auth_token
+AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
+
 # ---------------------------------------------------------------------------
 # 1. GET /events/stats returns valid response
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- [1/6] Event log stats endpoint (GET /events/stats) ---"
 SC="$(curl -sS -o /tmp/jc087_stats.out -w "%{http_code}" \
-  -H "Authorization: Bearer $TOKEN" "$BASE_URL/events/stats" || true)"
+  "${AUTH_ARGS[@]}" "$BASE_URL/events/stats" || true)"
 if [ "$SC" = "200" ]; then
   echo "  HTTP 200 OK"
   if python3 -c "import json,sys; d=json.load(sys.stdin); assert 'total_events' in d; assert 'event_type_counts' in d" < /tmp/jc087_stats.out 2>/dev/null; then
@@ -39,16 +44,15 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- [2/6] Commitment create emits event_log entry ---"
-# Record initial event count
-BEFORE="$(curl -sS -H "Authorization: Bearer $TOKEN" "$BASE_URL/events/stats" | python3 -c "import json,sys; print(json.load(sys.stdin).get('total_events',0))" 2>/dev/null || echo 0)"
+BEFORE="$(curl -sS "${AUTH_ARGS[@]}" "$BASE_URL/events/stats" | python3 -c "import json,sys; print(json.load(sys.stdin).get('total_events',0))" 2>/dev/null || echo 0)"
 
 SC="$(curl -sS -o /tmp/jc087_commit.out -w "%{http_code}" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"who_owes":"Isaac","who_to":"Clint","what":"Send PSA draft","entity":"olumie"}' \
+  "${AUTH_ARGS[@]}" -H "Content-Type: application/json" \
+  -d '{"description":"Send PSA draft","owner":"Isaac","who_to":"Clint","entity":"olumie"}' \
   "$BASE_URL/commitments/create" || true)"
 
 if [ "$SC" = "200" ]; then
-  AFTER="$(curl -sS -H "Authorization: Bearer $TOKEN" "$BASE_URL/events/stats" | python3 -c "import json,sys; print(json.load(sys.stdin).get('total_events',0))" 2>/dev/null || echo 0)"
+  AFTER="$(curl -sS "${AUTH_ARGS[@]}" "$BASE_URL/events/stats" | python3 -c "import json,sys; print(json.load(sys.stdin).get('total_events',0))" 2>/dev/null || echo 0)"
   if [ "$AFTER" -gt "$BEFORE" ]; then
     echo "  PASS: event count increased ($BEFORE -> $AFTER)"
     record_pass
@@ -67,12 +71,12 @@ fi
 echo ""
 echo "--- [3/6] Recent events include commitment.created ---"
 SC="$(curl -sS -o /tmp/jc087_recent.out -w "%{http_code}" \
-  -H "Authorization: Bearer $TOKEN" "$BASE_URL/events/recent?event_type=commitment.created&limit=5" || true)"
+  "${AUTH_ARGS[@]}" "$BASE_URL/events/recent?event_type=commitment.created&limit=5" || true)"
 if [ "$SC" = "200" ]; then
   HAS_EVENT="$(python3 -c "
 import json,sys
-d=json.load(sys.stdin)
-events=d.get('events',[])
+payload=json.load(sys.stdin)
+events=payload.get('events',[])
 found=any(e.get('event_type')=='commitment.created' for e in events)
 print('yes' if found else 'no')
 " < /tmp/jc087_recent.out 2>/dev/null || echo no)"
@@ -94,12 +98,12 @@ fi
 echo ""
 echo "--- [4/6] Audit ledger separation ---"
 SC="$(curl -sS -o /tmp/jc087_events2.out -w "%{http_code}" \
-  -H "Authorization: Bearer $TOKEN" "$BASE_URL/events/recent?event_type=audit.action&limit=5" || true)"
+  "${AUTH_ARGS[@]}" "$BASE_URL/events/recent?event_type=audit.action&limit=5" || true)"
 if [ "$SC" = "200" ]; then
   HAS_AUDIT="$(python3 -c "
 import json,sys
-d=json.load(sys.stdin)
-found=any(e.get('event_type')=='audit.action' for e in d.get('events',[]))
+payload=json.load(sys.stdin)
+found=any(e.get('event_type')=='audit.action' for e in payload.get('events',[]))
 print('yes' if found else 'no')
 " < /tmp/jc087_events2.out 2>/dev/null || echo no)"
   if [ "$HAS_AUDIT" = "yes" ]; then
@@ -119,16 +123,14 @@ fi
 # ---------------------------------------------------------------------------
 echo ""
 echo "--- [5/6] Ops pause state persistence ---"
-# Pause automation
 SC="$(curl -sS -o /dev/null -w "%{http_code}" \
-  -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  "${AUTH_ARGS[@]}" -H "Content-Type: application/json" \
   -d '{"reason":"proof_test_pause"}' \
   "$BASE_URL/ops/pause" || true)"
 if [ "$SC" = "200" ]; then
-  # Check ops.paused event emitted
-  HAS_OPS="$(curl -sS -H "Authorization: Bearer $TOKEN" \
+  HAS_OPS="$(curl -sS "${AUTH_ARGS[@]}" \
     "$BASE_URL/events/recent?event_type=ops.paused&limit=3" | \
-    python3 -c "import json,sys; d=json.load(sys.stdin); print('yes' if any(e.get('event_type')=='ops.paused' for e in d.get('events',[])) else 'no')" 2>/dev/null || echo no)"
+    python3 -c "import json,sys; payload=json.load(sys.stdin); print('yes' if any(e.get('event_type')=='ops.paused' for e in payload.get('events',[])) else 'no')" 2>/dev/null || echo no)"
   if [ "$HAS_OPS" = "yes" ]; then
     echo "  PASS: ops.paused event emitted"
     record_pass
@@ -136,9 +138,7 @@ if [ "$SC" = "200" ]; then
     echo "  FAIL: ops.paused event not found"
     record_fail "5-ops-event"
   fi
-  # Resume to clean up
-  curl -sS -o /dev/null -H "Authorization: Bearer $TOKEN" \
-    "$BASE_URL/ops/resume" || true
+  curl -sS -o /dev/null "${AUTH_ARGS[@]}" "$BASE_URL/ops/resume" || true
 else
   echo "  FAIL: pause returned $SC"
   record_fail "5-pause-http"
@@ -150,18 +150,18 @@ fi
 echo ""
 echo "--- [6/6] Event envelope schema validation ---"
 SC="$(curl -sS -o /tmp/jc087_envelope.out -w "%{http_code}" \
-  -H "Authorization: Bearer $TOKEN" "$BASE_URL/events/recent?limit=1" || true)"
+  "${AUTH_ARGS[@]}" "$BASE_URL/events/recent?limit=1" || true)"
 if [ "$SC" = "200" ]; then
   VALID="$(python3 -c "
 import json,sys
-d=json.load(sys.stdin)
-events=d.get('events',[])
+payload=json.load(sys.stdin)
+events=payload.get('events',[])
 if not events:
   print('no_events')
 else:
-  e=events[-1]
+  event=events[-1]
   required=['event_id','event_type','timestamp','source','payload']
-  missing=[f for f in required if f not in e]
+  missing=[f for f in required if f not in event]
   print('valid' if not missing else 'missing:'+','.join(missing))
 " < /tmp/jc087_envelope.out 2>/dev/null || echo error)"
   if [ "$VALID" = "valid" ]; then

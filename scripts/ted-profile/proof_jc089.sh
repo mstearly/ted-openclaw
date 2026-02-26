@@ -28,12 +28,12 @@ DRAFT_COUNT=0
 if [ "$SC" = "200" ]; then
   QUEUE_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-drafts = d.get('drafts', None)
+payload = json.load(sys.stdin)
+drafts = payload.get('drafts', None)
 if drafts is not None and isinstance(drafts, list):
     print(f'OK:count={len(drafts)}')
 else:
-    keys = list(d.keys())
+    keys = list(payload.keys())
     print(f'MISSING:drafts:keys={keys[:5]}')
 " < /tmp/jc089_queue.out 2>/dev/null || echo "parse_error")
   case "$QUEUE_CHECK" in
@@ -52,24 +52,26 @@ else
   record_fail "1-queue-status"
 fi
 
+# Ensure fallback queue snapshot exists even if step 2 fails
+cp /tmp/jc089_queue.out /tmp/jc089_queue2.out 2>/dev/null || true
+
 # ── Test 2: Commitment creates draft — POST /commitments/create ──
 echo "--- [2/6] POST /commitments/create (may trigger draft) ---"
 SC=$(curl -sS -o /tmp/jc089_commit.out -w "%{http_code}" \
   -X POST "$BASE_URL/commitments/create" \
   "${AUTH_ARGS[@]}" \
   -H "Content-Type: application/json" \
-  -d '{"who_owes":"Test","who_to":"User","what":"Follow up on JC-089 draft queue proof","entity":"olumie"}' || true)
+  -d '{"description":"Follow up on JC-089 draft queue proof","owner":"Test","who_to":"User","entity":"olumie"}' || true)
 
+COMMIT_ID=""
 if [ "$SC" = "200" ]; then
-  # Extract commitment_id for later cleanup awareness
   COMMIT_ID=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-print(d.get('commitment_id', d.get('id', '')))
+payload = json.load(sys.stdin)
+print(payload.get('commitment_id', payload.get('id', '')))
 " < /tmp/jc089_commit.out 2>/dev/null || echo "")
   echo "  PASS: commitment created (id=$COMMIT_ID), checking draft queue..."
 
-  # Re-check draft queue
   sleep 0.5
   SC2=$(curl -sS -o /tmp/jc089_queue2.out -w "%{http_code}" \
     -X GET "$BASE_URL/drafts/queue" \
@@ -77,8 +79,8 @@ print(d.get('commitment_id', d.get('id', '')))
   if [ "$SC2" = "200" ]; then
     NEW_COUNT=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-drafts = d.get('drafts', [])
+payload = json.load(sys.stdin)
+drafts = payload.get('drafts', [])
 print(len(drafts))
 " < /tmp/jc089_queue2.out 2>/dev/null || echo "0")
     echo "  PASS: draft queue re-checked after commitment (before=$DRAFT_COUNT, after=$NEW_COUNT)"
@@ -96,8 +98,8 @@ fi
 echo "--- [3/6] Draft edit lifecycle ---"
 FIRST_DRAFT_ID=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-drafts = d.get('drafts', [])
+payload = json.load(sys.stdin)
+drafts = payload.get('drafts', [])
 if len(drafts) > 0:
     print(drafts[0].get('draft_id', drafts[0].get('id', '')))
 else:
@@ -119,7 +121,6 @@ if [ -n "$FIRST_DRAFT_ID" ]; then
   fi
 else
   echo "  SKIP: no drafts in queue to edit — verifying endpoint exists"
-  # Try with a fake ID to confirm 404 (endpoint exists) vs 500 (broken)
   SC=$(curl -sS -o /tmp/jc089_edit.out -w "%{http_code}" \
     -X POST "$BASE_URL/drafts/nonexistent-id/edit" \
     "${AUTH_ARGS[@]}" \
@@ -205,16 +206,7 @@ SC=$(curl -sS -o /tmp/jc089_mcp.out -w "%{http_code}" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"ted_draft_queue_list","arguments":{}}}' || true)
 
 if [ "$SC" = "200" ]; then
-  MCP_CHECK=$(python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-result = d.get('result', None)
-if result is not None:
-    print('OK')
-else:
-    error = d.get('error', {})
-    print(f'ERROR:{error.get(\"code\",\"?\")}:{error.get(\"message\",\"?\")[:40]}')
-" < /tmp/jc089_mcp.out 2>/dev/null || echo "parse_error")
+  MCP_CHECK=$(node -e "const fs=require('fs');try{const payload=JSON.parse(fs.readFileSync('/tmp/jc089_mcp.out','utf8'));if(payload.result!=null){process.stdout.write('OK')}else{const err=payload.error||{};process.stdout.write('ERROR:'+String(err.code??'?')+':'+String(err.message??'?').slice(0,40))}}catch{process.stdout.write('parse_error')}")
   case "$MCP_CHECK" in
     OK)
       echo "  PASS: MCP ted_draft_queue_list returned result"

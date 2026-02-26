@@ -20,39 +20,39 @@ AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode
 
 # ── Test 1: Triage normalizer — ingest then verify normalized event fields ──
 echo "--- [1/5] Triage normalizer: ingest -> verify normalized event ---"
+TRIAGE_ITEM_ID="jc092-item-$(date +%s)"
 SC=$(curl -sS -o /tmp/jc092_triage.out -w "%{http_code}" \
   -X POST "$BASE_URL/triage/ingest" \
   "${AUTH_ARGS[@]}" \
   -H "Content-Type: application/json" \
-  -d '{"source_type":"email","subject":"JC092 normalization proof","entity":"olumie","body":"test body for event normalization verification"}' || true)
+  -d "{\"item_id\":\"${TRIAGE_ITEM_ID}\",\"source_type\":\"email\",\"source_ref\":\"mail:test-${TRIAGE_ITEM_ID}\",\"summary\":\"JC092 normalization proof\",\"entity\":\"olumie\"}" || true)
 
-if [ "$SC" = "200" ]; then
+if [ "$SC" = "200" ] || [ "$SC" = "201" ]; then
   echo "  Triage ingested, checking event log..."
   sleep 0.5
   SC2=$(curl -sS -o /tmp/jc092_triage_event.out -w "%{http_code}" \
-    -X GET "$BASE_URL/events/recent?event_type=triage.ingested&limit=1" \
+    -X GET "$BASE_URL/events/recent?event_type=triage.ingested&limit=5" \
     "${AUTH_ARGS[@]}" || true)
 
   if [ "$SC2" = "200" ]; then
     TRIAGE_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if not events:
     print('EMPTY:no_events')
     sys.exit(0)
 ev = events[0]
-payload = ev.get('payload', {})
-# Check normalized fields in the event or its payload
+inner = ev.get('payload', {})
 fields_found = []
 fields_missing = []
-for f in ['item_id', 'source_type', 'entity', 'action']:
-    if f in ev or f in payload:
-        fields_found.append(f)
+for field in ['item_id', 'source_type', 'entity', 'action']:
+    if field in ev or field in inner:
+        fields_found.append(field)
     else:
-        fields_missing.append(f)
+        fields_missing.append(field)
 if len(fields_missing) == 0:
-    print(f'OK:all_fields')
+    print('OK:all_fields')
 elif len(fields_found) > 0:
     print(f'PARTIAL:found={fields_found}:missing={fields_missing}')
 else:
@@ -88,38 +88,38 @@ fi
 
 # ── Test 2: Deal normalizer — create deal then verify event ──
 echo "--- [2/5] Deal normalizer: create deal -> verify normalized event ---"
+DEAL_ID="jc092-deal-$(date +%s)"
 SC=$(curl -sS -o /tmp/jc092_deal.out -w "%{http_code}" \
   -X POST "$BASE_URL/deals/create" \
   "${AUTH_ARGS[@]}" \
   -H "Content-Type: application/json" \
-  -d '{"name":"JC092 Normalization Deal","entity":"olumie","type":"test","description":"Event normalization proof"}' || true)
+  -d "{\"deal_id\":\"${DEAL_ID}\",\"deal_name\":\"JC092 Normalization Deal\",\"entity\":\"olumie\",\"deal_type\":\"acquisition\"}" || true)
 
 if [ "$SC" = "200" ]; then
   echo "  Deal created, checking event log..."
   sleep 0.5
   SC2=$(curl -sS -o /tmp/jc092_deal_event.out -w "%{http_code}" \
-    -X GET "$BASE_URL/events/recent?event_type=deal.created&limit=1" \
+    -X GET "$BASE_URL/events/recent?event_type=deal.created&limit=5" \
     "${AUTH_ARGS[@]}" || true)
 
   if [ "$SC2" = "200" ]; then
     DEAL_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if not events:
     print('EMPTY:no_deal_events')
     sys.exit(0)
 ev = events[0]
-payload = ev.get('payload', {})
-# Verify deal-specific normalized fields
-has_deal_ref = 'deal_id' in ev or 'deal_id' in payload or 'id' in payload
+inner = ev.get('payload', {})
+has_deal_ref = 'deal_id' in ev or 'deal_id' in inner or 'id' in inner
 has_type = ev.get('event_type', '') == 'deal.created'
 if has_deal_ref and has_type:
     print('OK:deal_normalized')
 elif has_type:
     print('PARTIAL:type_ok:no_deal_id')
 else:
-    print(f'MISSING:event_type={ev.get(\"event_type\",\"?\")}')
+    print(f\"MISSING:event_type={ev.get('event_type','?')}\")
 " < /tmp/jc092_deal_event.out 2>/dev/null || echo "parse_error")
 
     case "$DEAL_CHECK" in
@@ -157,8 +157,8 @@ SC=$(curl -sS -o /tmp/jc092_cal.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   CAL_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if isinstance(events, list):
     print(f'OK:count={len(events)}')
 else:
@@ -188,8 +188,8 @@ SC=$(curl -sS -o /tmp/jc092_mail.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   MAIL_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if isinstance(events, list):
     print(f'OK:count={len(events)}')
 else:
@@ -219,8 +219,8 @@ SC=$(curl -sS -o /tmp/jc092_envelope.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   ENVELOPE_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if not events:
     print('EMPTY:no_events_at_all')
     sys.exit(0)
@@ -228,13 +228,13 @@ ev = events[0]
 required = ['event_id', 'event_type', 'timestamp', 'source', 'payload']
 found = []
 missing = []
-for f in required:
-    if f in ev:
-        found.append(f)
+for field in required:
+    if field in ev:
+        found.append(field)
     else:
-        missing.append(f)
+        missing.append(field)
 if not missing:
-    print(f'OK:all_envelope_fields')
+    print('OK:all_envelope_fields')
 else:
     print(f'MISSING:{missing}:found={found}:keys={list(ev.keys())[:8]}')
 " < /tmp/jc092_envelope.out 2>/dev/null || echo "parse_error")

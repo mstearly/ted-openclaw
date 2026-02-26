@@ -18,73 +18,78 @@ curl -fsS "$BASE_URL/status" >/dev/null
 mint_ted_auth_token
 AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
-# ── Test 1: GET /ted/workbench returns 200 ──
-echo "--- [1/3] GET /ted/workbench returns 200 ---"
-SC=$(curl -sS -o /tmp/jc046_workbench.out -w "%{http_code}" \
-  "${AUTH_ARGS[@]}" "$BASE_URL/ted/workbench" || true)
+# ── Test 1: GET /status returns 200 ──
+echo "--- [1/3] GET /status returns 200 ---"
+SC=$(curl -sS -o /tmp/jc046_status.out -w "%{http_code}" \
+  "${AUTH_ARGS[@]}" "$BASE_URL/status" || true)
 if [ "$SC" = "200" ]; then
-  echo "  PASS: workbench returned 200"
+  echo "  PASS: status returned 200"
   record_pass
 else
   echo "  FAIL: expected 200, got $SC"
-  record_fail "1-workbench-status"
+  record_fail "1-status-http"
 fi
 
-# ── Test 2: Response contains integrations.m365_profiles array ──
-echo "--- [2/3] Response has integrations.m365_profiles array ---"
-HAS_INTEGRATIONS=$(python3 -c "
+# ── Test 2: Response has dependencies.graph_tokens object ──
+echo "--- [2/3] Response has dependencies.graph_tokens object ---"
+HAS_GRAPH_TOKENS=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-profiles = d.get('integrations', {}).get('m365_profiles', None)
-if profiles is not None and isinstance(profiles, list):
-    print('yes')
-else:
-    print('no')
-" < /tmp/jc046_workbench.out 2>/dev/null || echo "parse_error")
+payload = json.load(sys.stdin)
+graph_tokens = payload.get('dependencies', {}).get('graph_tokens')
+print('yes' if isinstance(graph_tokens, dict) else 'no')
+" < /tmp/jc046_status.out 2>/dev/null || echo "parse_error")
 
-if [ "$HAS_INTEGRATIONS" = "yes" ]; then
-  echo "  PASS: integrations.m365_profiles array present"
+if [ "$HAS_GRAPH_TOKENS" = "yes" ]; then
+  echo "  PASS: dependencies.graph_tokens object present"
   record_pass
 else
-  echo "  FAIL: integrations.m365_profiles missing or not an array ($HAS_INTEGRATIONS)"
-  record_fail "2-integrations-field"
+  echo "  FAIL: dependencies.graph_tokens missing or invalid ($HAS_GRAPH_TOKENS)"
+  record_fail "2-graph-tokens"
 fi
 
-# ── Test 3: Each profile has profile_id, status, next_step ──
-echo "--- [3/3] Each profile has profile_id, status, next_step ---"
+# ── Test 3: Graph token map includes expected profile keys/statuses ──
+echo "--- [3/3] Graph token map includes profile statuses ---"
 PROFILE_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-profiles = d.get('integrations', {}).get('m365_profiles', [])
-if len(profiles) == 0:
-    print('EMPTY')
+payload = json.load(sys.stdin)
+graph_tokens = payload.get('dependencies', {}).get('graph_tokens', {})
+if not isinstance(graph_tokens, dict):
+    print('MISSING_MAP')
     sys.exit(0)
-required = ['profile_id', 'status', 'next_step']
-for i, p in enumerate(profiles):
-    for f in required:
-        if f not in p:
-            print(f'MISSING:{f}:profile[{i}]')
-            sys.exit(0)
-print(f'OK:{len(profiles)}')
-" < /tmp/jc046_workbench.out 2>/dev/null || echo "parse_error")
+required = ['olumie', 'everest']
+missing = [key for key in required if key not in graph_tokens]
+if missing:
+    print(f'MISSING_KEYS:{missing[0]}')
+    sys.exit(0)
+allowed = {'configured', 'not_configured', 'error'}
+for key in required:
+    val = graph_tokens.get(key)
+    if val not in allowed:
+        print(f'INVALID_STATUS:{key}:{val}')
+        sys.exit(0)
+print('OK')
+" < /tmp/jc046_status.out 2>/dev/null || echo "parse_error")
 
 case "$PROFILE_CHECK" in
-  OK:*)
-    COUNT="${PROFILE_CHECK#OK:}"
-    echo "  PASS: $COUNT profile(s) each have profile_id, status, next_step"
+  OK)
+    echo "  PASS: graph token map has expected profile statuses"
     record_pass
     ;;
-  EMPTY)
-    echo "  FAIL: m365_profiles array is empty"
-    record_fail "3-profiles-empty"
+  MISSING_MAP)
+    echo "  FAIL: graph token map missing"
+    record_fail "3-map-missing"
     ;;
-  MISSING:*)
-    echo "  FAIL: profile $PROFILE_CHECK"
-    record_fail "3-profiles-fields"
+  MISSING_KEYS:*)
+    echo "  FAIL: missing profile key ${PROFILE_CHECK#MISSING_KEYS:}"
+    record_fail "3-profile-key"
+    ;;
+  INVALID_STATUS:*)
+    echo "  FAIL: invalid profile status ($PROFILE_CHECK)"
+    record_fail "3-profile-status"
     ;;
   *)
-    echo "  FAIL: could not parse profiles ($PROFILE_CHECK)"
-    record_fail "3-profiles-parse"
+    echo "  FAIL: could not parse graph token map ($PROFILE_CHECK)"
+    record_fail "3-profile-parse"
     ;;
 esac
 

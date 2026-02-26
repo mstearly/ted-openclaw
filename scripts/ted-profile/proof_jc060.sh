@@ -36,8 +36,8 @@ fi
 echo "--- [2/3] Response has narrative field ---"
 NARRATIVE_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-narrative = d.get('narrative')
+payload = json.load(sys.stdin)
+narrative = payload.get('narrative')
 if narrative is not None and len(str(narrative)) > 0:
     print('OK')
 elif narrative is None:
@@ -54,40 +54,46 @@ else
   record_fail "2-narrative"
 fi
 
-# ── Test 3: Response has snapshot with required sub-fields ──
-echo "--- [3/3] Response has snapshot with inbox/commitments/meetings/actions ---"
-SNAPSHOT_CHECK=$(python3 -c "
+# ── Test 3: Response has current brief snapshot sections ──
+echo "--- [3/3] Response has detail/commitments/meetings/actions sections ---"
+SECTION_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-snapshot = d.get('snapshot', {})
-if not snapshot:
-    print('MISSING_SNAPSHOT')
-    sys.exit(0)
-required = ['inbox_count', 'commitments_snapshot', 'meetings_snapshot', 'actions_snapshot']
-missing = [f for f in required if f not in snapshot]
+payload = json.load(sys.stdin)
+missing = []
+detail = payload.get('detail')
+commitments = payload.get('commitments_snapshot')
+meetings = payload.get('meetings_today')
+actions = payload.get('actions_snapshot')
+if not isinstance(detail, dict):
+    missing.append('detail')
+if not isinstance(commitments, dict):
+    missing.append('commitments_snapshot')
+if not isinstance(meetings, list):
+    missing.append('meetings_today')
+if not isinstance(actions, dict):
+    missing.append('actions_snapshot')
+for field in ['triage_open', 'deals_active', 'filing_pending_count']:
+    if not isinstance(detail, dict) or field not in detail:
+        missing.append(f'detail.{field}')
 if missing:
-    print(f'MISSING:{missing[0]}')
+    print('MISSING:' + missing[0])
 else:
     print('OK')
 " < /tmp/jc060_brief.out 2>/dev/null || echo "parse_error")
 
-case "$SNAPSHOT_CHECK" in
+case "$SECTION_CHECK" in
   OK)
-    echo "  PASS: snapshot has all required sub-fields"
+    echo "  PASS: morning brief includes required sections"
     record_pass
     ;;
-  MISSING_SNAPSHOT)
-    echo "  FAIL: snapshot field is missing"
-    record_fail "3-snapshot"
-    ;;
   MISSING:*)
-    FIELD="${SNAPSHOT_CHECK#MISSING:}"
-    echo "  FAIL: snapshot missing field $FIELD"
-    record_fail "3-snapshot-$FIELD"
+    FIELD="${SECTION_CHECK#MISSING:}"
+    echo "  FAIL: missing field $FIELD"
+    record_fail "3-$FIELD"
     ;;
   *)
-    echo "  FAIL: could not parse snapshot ($SNAPSHOT_CHECK)"
-    record_fail "3-snapshot-parse"
+    echo "  FAIL: could not parse section fields ($SECTION_CHECK)"
+    record_fail "3-sections-parse"
     ;;
 esac
 

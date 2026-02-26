@@ -18,23 +18,20 @@ curl -fsS "$BASE_URL/status" >/dev/null
 mint_ted_auth_token
 AUTH_ARGS=(-H "Authorization: Bearer ${TED_AUTH_TOKEN}" -H "x-ted-execution-mode: DETERMINISTIC")
 
-# ── Test 1: Trust ledger — POST /reporting/trust-metrics has trust_validations ──
-echo "--- [1/6] POST /reporting/trust-metrics has trust_validations field ---"
+# ── Test 1: Trust ledger — GET /reporting/trust-metrics has trust_validations ──
+echo "--- [1/6] GET /reporting/trust-metrics has trust_validations field ---"
 SC=$(curl -sS -o /tmp/jc088_trust.out -w "%{http_code}" \
-  -X POST "$BASE_URL/reporting/trust-metrics" \
-  "${AUTH_ARGS[@]}" \
-  -H "Content-Type: application/json" \
-  -d '{}' || true)
+  -X GET "$BASE_URL/reporting/trust-metrics?period=week" \
+  "${AUTH_ARGS[@]}" || true)
 
 if [ "$SC" = "200" ]; then
   TRUST_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-if 'trust_validations' in d:
+payload = json.load(sys.stdin)
+if 'trust_validations' in payload:
     print('OK')
 else:
-    # Check alternative field names
-    keys = list(d.keys())
+    keys = list(payload.keys())
     print(f'MISSING:trust_validations:keys={keys[:5]}')
 " < /tmp/jc088_trust.out 2>/dev/null || echo "parse_error")
   if [ "$TRUST_CHECK" = "OK" ]; then
@@ -58,8 +55,8 @@ SC=$(curl -sS -o /tmp/jc088_policy.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   POLICY_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if isinstance(events, list):
     print(f'OK:count={len(events)}')
 else:
@@ -89,11 +86,11 @@ SC=$(curl -sS -o /tmp/jc088_deepwork.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   DW_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-if 'ledger_sessions' in d:
+payload = json.load(sys.stdin)
+if 'ledger_sessions' in payload:
     print('OK')
 else:
-    keys = list(d.keys())
+    keys = list(payload.keys())
     print(f'MISSING:ledger_sessions:keys={keys[:5]}')
 " < /tmp/jc088_deepwork.out 2>/dev/null || echo "parse_error")
   if [ "$DW_CHECK" = "OK" ]; then
@@ -117,8 +114,8 @@ SC=$(curl -sS -o /tmp/jc088_graph.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   GRAPH_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if isinstance(events, list):
     print(f'OK:count={len(events)}')
 else:
@@ -148,12 +145,12 @@ SC=$(curl -sS -o /tmp/jc088_stats.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   STATS_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-if 'event_type_counts' in d:
-    counts = d['event_type_counts']
+payload = json.load(sys.stdin)
+if 'event_type_counts' in payload:
+    counts = payload['event_type_counts']
     print(f'OK:types={len(counts)}')
 else:
-    keys = list(d.keys())
+    keys = list(payload.keys())
     print(f'MISSING:event_type_counts:keys={keys[:5]}')
 " < /tmp/jc088_stats.out 2>/dev/null || echo "parse_error")
   case "$STATS_CHECK" in
@@ -181,7 +178,6 @@ SC=$(curl -sS -o /tmp/jc088_para.out -w "%{http_code}" \
 
 if [ "$SC" = "200" ]; then
   echo "  PARA classify returned 200, checking event log..."
-  # Brief pause to allow event write
   sleep 0.5
   SC2=$(curl -sS -o /tmp/jc088_para_event.out -w "%{http_code}" \
     -X GET "$BASE_URL/events/recent?event_type=filing.para.classified&limit=1" \
@@ -189,8 +185,8 @@ if [ "$SC" = "200" ]; then
   if [ "$SC2" = "200" ]; then
     PARA_CHECK=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-events = d.get('events', [])
+payload = json.load(sys.stdin)
+events = payload.get('events', [])
 if isinstance(events, list) and len(events) > 0:
     print('OK:event_found')
 elif isinstance(events, list):

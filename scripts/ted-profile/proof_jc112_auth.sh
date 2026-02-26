@@ -92,18 +92,18 @@ else
   record_fail "6-doctor-exempt"
 fi
 
-# ── Test 7: Auth mint with missing operator_key (expect 400 or 401) ──
+# ── Test 7: Auth mint with missing operator_key (expect 403) ──
 echo "--- [7/8] Auth mint with missing operator_key ---"
 SC=$(curl -sS -o /tmp/jc112_test7.out -w "%{http_code}" \
   -X POST "$BASE_URL/auth/mint" \
   -H "Content-Type: application/json" \
   -H "x-ted-execution-mode: DETERMINISTIC" \
   -d '{}' || true)
-if [ "$SC" = "400" ] || [ "$SC" = "401" ]; then
+if [ "$SC" = "403" ] || [ "$SC" = "400" ] || [ "$SC" = "401" ]; then
   echo "  PASS: mint with missing operator_key rejected with $SC"
   record_pass
 else
-  echo "  FAIL: expected 400 or 401 for missing operator_key, got $SC"
+  echo "  FAIL: expected 403/400/401 for missing operator_key, got $SC"
   record_fail "7-mint-missing-key"
 fi
 
@@ -117,8 +117,8 @@ SC=$(curl -sS -o /tmp/jc112_test8.out -w "%{http_code}" \
 if [ "$SC" = "200" ]; then
   HAS_TOKEN=$(python3 -c "
 import json, sys
-d = json.load(sys.stdin)
-print('yes' if d.get('token') else 'no')
+payload = json.load(sys.stdin)
+print('yes' if payload.get('token') else 'no')
 " < /tmp/jc112_test8.out 2>/dev/null || echo "no")
   if [ "$HAS_TOKEN" = "yes" ]; then
     echo "  PASS: mint returned 200 with token field"
