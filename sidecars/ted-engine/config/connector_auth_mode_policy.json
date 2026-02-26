@@ -1,0 +1,20 @@
+{
+  "_config_version": 1,
+  "_artifact": "connector_auth_mode_policy",
+  "_description": "MR0-003 auth mode decision contract for Monday and RightSignature.",
+  "_last_updated": "2026-02-26",
+  "providers": {
+    "monday": {
+      "preferred_auth_mode": "oauth",
+      "allowed_auth_modes": ["oauth"],
+      "token_model_requires_operator_override": true,
+      "rationale": "Durable automation and consent lifecycle management require OAuth."
+    },
+    "rightsignature": {
+      "preferred_auth_mode": "oauth",
+      "allowed_auth_modes": ["oauth", "token"],
+      "token_model_requires_operator_override": true,
+      "rationale": "OAuth preferred for production; token model permitted only for explicitly approved fallback/testing."
+    }
+  }
+}

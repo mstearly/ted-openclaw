@@ -5,6 +5,10 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  validateConnectorAdmissionPolicy,
+  validateConnectorAuthModePolicy,
+  validateEsignProviderPolicy,
+  validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
   validateRoadmapMaster,
 } from "./modules/roadmap_governance.mjs";
@@ -141,6 +145,22 @@ const moduleLifecyclePolicyConfigPath = path.join(
   "config",
   "module_lifecycle_policy.json",
 );
+const moduleRequestIntakeTemplateConfigPath = path.join(
+  __dirname,
+  "config",
+  "module_request_intake_template.json",
+);
+const connectorAuthModePolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "connector_auth_mode_policy.json",
+);
+const connectorAdmissionPolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "connector_admission_policy.json",
+);
+const esignProviderPolicyConfigPath = path.join(__dirname, "config", "esign_provider_policy.json");
 const outputContractsConfigPath = path.join(__dirname, "config", "output_contracts.json");
 const evaluationGradersConfigPath = path.join(__dirname, "config", "evaluation_graders.json");
 const syntheticCanariesConfigPath = path.join(__dirname, "config", "synthetic_canaries.json");
@@ -1140,6 +1160,10 @@ function validateStartupIntegrity() {
     llmProviderConfigPath,
     roadmapMasterConfigPath,
     moduleLifecyclePolicyConfigPath,
+    moduleRequestIntakeTemplateConfigPath,
+    connectorAuthModePolicyConfigPath,
+    connectorAdmissionPolicyConfigPath,
+    esignProviderPolicyConfigPath,
   ]);
   const allConfigPaths = [
     operatorProfileConfigPath,
@@ -1155,6 +1179,10 @@ function validateStartupIntegrity() {
     graphSyncStrategyConfigPath,
     roadmapMasterConfigPath,
     moduleLifecyclePolicyConfigPath,
+    moduleRequestIntakeTemplateConfigPath,
+    connectorAuthModePolicyConfigPath,
+    connectorAdmissionPolicyConfigPath,
+    esignProviderPolicyConfigPath,
     hardBansConfigPath,
     briefConfigPath,
     urgencyRulesConfigPath,
@@ -1221,6 +1249,70 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: policyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === moduleRequestIntakeTemplateConfigPath) {
+        const intakeValidation = validateModuleRequestIntakeTemplate(parsed);
+        if (!intakeValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `module_request_intake_template validation failed: ${intakeValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: intakeValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === connectorAuthModePolicyConfigPath) {
+        const authModeValidation = validateConnectorAuthModePolicy(parsed);
+        if (!authModeValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `connector_auth_mode_policy validation failed: ${authModeValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: authModeValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === connectorAdmissionPolicyConfigPath) {
+        const admissionValidation = validateConnectorAdmissionPolicy(parsed);
+        if (!admissionValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `connector_admission_policy validation failed: ${admissionValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: admissionValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === esignProviderPolicyConfigPath) {
+        const esignValidation = validateEsignProviderPolicy(parsed);
+        if (!esignValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `esign_provider_policy validation failed: ${esignValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: esignValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;

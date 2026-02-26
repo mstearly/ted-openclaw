@@ -3,6 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  validateConnectorAdmissionPolicy,
+  validateConnectorAuthModePolicy,
+  validateEsignProviderPolicy,
+  validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
   validateRoadmapMaster,
 } from "../../sidecars/ted-engine/modules/roadmap_governance.mjs";
@@ -15,6 +19,19 @@ function parseArgs(argv) {
   const out = {
     roadmap: path.join(repoRoot, "sidecars/ted-engine/config/roadmap_master.json"),
     policy: path.join(repoRoot, "sidecars/ted-engine/config/module_lifecycle_policy.json"),
+    intakeTemplate: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/module_request_intake_template.json",
+    ),
+    connectorAuthPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/connector_auth_mode_policy.json",
+    ),
+    connectorAdmissionPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/connector_admission_policy.json",
+    ),
+    esignPolicy: path.join(repoRoot, "sidecars/ted-engine/config/esign_provider_policy.json"),
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -25,6 +42,22 @@ function parseArgs(argv) {
     }
     if (arg === "--policy") {
       out.policy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--intake-template") {
+      out.intakeTemplate = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--connector-auth-policy") {
+      out.connectorAuthPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--connector-admission-policy") {
+      out.connectorAdmissionPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--esign-policy") {
+      out.esignPolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
   }
@@ -44,8 +77,10 @@ function printFindings(kind, result) {
       console.log(
         `[OK] roadmap_master valid (waves=${stats.waves || 0}, tasks=${stats.tasks || 0}, task_edges=${stats.task_edges || 0})`,
       );
-    } else {
+    } else if (kind === "module lifecycle") {
       console.log("[OK] module_lifecycle_policy valid");
+    } else {
+      console.log(`[OK] ${kind} valid`);
     }
     return;
   }
@@ -58,41 +93,60 @@ function printFindings(kind, result) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  let roadmap;
-  let policy;
+  const files = [
+    { kind: "roadmap", path: args.roadmap, validator: validateRoadmapMaster },
+    { kind: "module lifecycle", path: args.policy, validator: validateModuleLifecyclePolicy },
+    {
+      kind: "module request intake template",
+      path: args.intakeTemplate,
+      validator: validateModuleRequestIntakeTemplate,
+    },
+    {
+      kind: "connector auth mode policy",
+      path: args.connectorAuthPolicy,
+      validator: validateConnectorAuthModePolicy,
+    },
+    {
+      kind: "connector admission policy",
+      path: args.connectorAdmissionPolicy,
+      validator: validateConnectorAdmissionPolicy,
+    },
+    {
+      kind: "e-sign provider policy",
+      path: args.esignPolicy,
+      validator: validateEsignProviderPolicy,
+    },
+  ];
 
-  try {
-    roadmap = readJson(args.roadmap);
-  } catch (err) {
-    console.error(
-      `[FAIL] could not read roadmap JSON at ${args.roadmap}: ${err?.message || String(err)}`,
-    );
-    process.exit(1);
+  const results = [];
+  for (const file of files) {
+    let parsed;
+    try {
+      parsed = readJson(file.path);
+    } catch (err) {
+      console.error(
+        `[FAIL] could not read ${file.kind} JSON at ${file.path}: ${err?.message || String(err)}`,
+      );
+      process.exit(1);
+    }
+    const result = file.validator(parsed);
+    results.push({ kind: file.kind, result });
   }
 
-  try {
-    policy = readJson(args.policy);
-  } catch (err) {
-    console.error(
-      `[FAIL] could not read module lifecycle JSON at ${args.policy}: ${err?.message || String(err)}`,
-    );
-    process.exit(1);
+  for (const item of results) {
+    printFindings(item.kind, item.result);
   }
 
-  const roadmapResult = validateRoadmapMaster(roadmap);
-  const policyResult = validateModuleLifecyclePolicy(policy);
+  const roadmapResult = results.find((entry) => entry.kind === "roadmap")?.result;
 
-  printFindings("roadmap", roadmapResult);
-  printFindings("module lifecycle", policyResult);
-
-  if (Array.isArray(roadmapResult.warnings) && roadmapResult.warnings.length > 0) {
+  if (roadmapResult && Array.isArray(roadmapResult.warnings) && roadmapResult.warnings.length > 0) {
     console.log("[WARN] roadmap non-fatal findings:");
     for (const warning of roadmapResult.warnings) {
       console.log(`  - ${warning.code}: ${warning.message}`);
     }
   }
 
-  if (!roadmapResult.ok || !policyResult.ok) {
+  if (results.some((entry) => !entry.result.ok)) {
     process.exit(1);
   }
 }

@@ -1,0 +1,31 @@
+{
+  "_config_version": 1,
+  "_artifact": "connector_admission_policy",
+  "_description": "MR0-004 connector admission policy for Monday and RightSignature.",
+  "_last_updated": "2026-02-26",
+  "default_mode": "read_only",
+  "providers": {
+    "monday": {
+      "trust_tier": "tier2_partner_api",
+      "allowed_operations_by_phase": {
+        "MR0": ["config_only"],
+        "MR1": ["read", "webhook_ingest"],
+        "MR3": ["write_confirmed"]
+      },
+      "requires_queue_first_webhooks": true,
+      "requires_idempotency_keys": true,
+      "production_activation_gate": "P0-4_GATE"
+    },
+    "rightsignature": {
+      "trust_tier": "tier2_partner_api",
+      "allowed_operations_by_phase": {
+        "MR0": ["config_only"],
+        "MR2": ["read", "callback_ingest"],
+        "MR3": ["send_confirmed"]
+      },
+      "requires_queue_first_webhooks": true,
+      "requires_idempotency_keys": true,
+      "production_activation_gate": "P0-4_GATE"
+    }
+  }
+}

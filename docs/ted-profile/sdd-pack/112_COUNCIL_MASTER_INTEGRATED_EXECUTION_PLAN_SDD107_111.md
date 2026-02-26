@@ -297,22 +297,23 @@ Dependencies:
 
 ## 5. Readiness to Start Executing
 
-Current readiness verdict: **Execution active (Wave I4 after I0-I3 completion checkpoints).**
+Current readiness verdict: **Execution active (I4 closeout and I5 prep).**
 
 Immediate executable tasks:
 
-1. I4 remaining tasks:
-   - SDD 108 T2-001/T2-002/T2-003/T2-004,
-   - SDD 110 R1-001/R1-002/R1-003/R1-004,
-   - SDD 111 MR0-003/MR0-004/MR0-005.
-2. Progress to I5 only after I4 exit criteria are signed.
+1. I4 closeout:
+   - close MR0-001 operator account identifiers (SDD 115 open items),
+   - sign I4 exit criteria.
+2. I5 executable tasks:
+   - SDD 109 M0-001/M0-002/M0-003.
+3. T2 transport runtime path remains queued for I6 sequencing.
 
 Preconditions already satisfied:
 
 1. Detailed task-level plans exist for all workstreams (SDD 107-111).
 2. Cross-plan dependency conflicts resolved in SDD 104/105.
 3. Boardroom sequence and gates documented in SDD 106.
-4. Plan 1 C3 handoff is complete (SDD 124) and transport T0/T1 evidence is captured (SDD 125/126).
+4. Plan 1 C3 handoff is complete (SDD 124); transport T0/T1 and R1/MR0 policy evidence is captured (SDD 125/126/127).
 
 ---
 

@@ -13,6 +13,10 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import {
+  validateConnectorAdmissionPolicy,
+  validateConnectorAuthModePolicy,
+  validateEsignProviderPolicy,
+  validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
   validateRoadmapMaster,
 } from "../modules/roadmap_governance.mjs";
@@ -332,6 +336,34 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("module_request_intake_template.json passes structural validation", () => {
+    const template = configs.get("module_request_intake_template.json");
+    const result = validateModuleRequestIntakeTemplate(template);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("connector_auth_mode_policy.json passes structural validation", () => {
+    const policy = configs.get("connector_auth_mode_policy.json");
+    const result = validateConnectorAuthModePolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("connector_admission_policy.json passes structural validation", () => {
+    const policy = configs.get("connector_admission_policy.json");
+    const result = validateConnectorAdmissionPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("esign_provider_policy.json passes structural validation", () => {
+    const policy = configs.get("esign_provider_policy.json");
+    const result = validateEsignProviderPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -359,6 +391,10 @@ describe("Required config files exist", () => {
     "ted_agent.json",
     "roadmap_master.json",
     "module_lifecycle_policy.json",
+    "module_request_intake_template.json",
+    "connector_auth_mode_policy.json",
+    "connector_admission_policy.json",
+    "esign_provider_policy.json",
   ];
 
   test.each(requiredConfigs)("%s exists in config directory", (file) => {

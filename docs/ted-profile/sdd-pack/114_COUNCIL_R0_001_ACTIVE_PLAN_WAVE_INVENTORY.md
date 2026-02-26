@@ -28,8 +28,8 @@ This inventory captures the currently active council execution package from SDD 
 | 107 | Plan 1 context truthfulness                | Task-level execution plan | Completed       | Closed at C3-003 handoff checkpoint              |
 | 108 | Plan 2 transport optimization              | Task-level execution plan | In execution    | Start T2-001 transport selector precedence logic |
 | 109 | Plan 3 mobile governance                   | Task-level execution plan | Ready           | Start at integrated Wave I5                      |
-| 110 | Plan 4 roadmap/module lifecycle            | Task-level execution plan | In execution    | R0 active now                                    |
-| 111 | Plan 5 Monday/RightSignature               | Task-level execution plan | In execution    | MR-0 active now                                  |
+| 110 | Plan 4 roadmap/module lifecycle            | Task-level execution plan | In execution    | Start R2 KPI schema and release gate evaluator   |
+| 111 | Plan 5 Monday/RightSignature               | Task-level execution plan | In execution    | Close MR0-001 operator ids, then start MR1/MR2   |
 | 112 | Master integrated execution plan           | Master wave plan          | Active          | Execute waves I0-I11                             |
 | 113 | Wave I0 execution log                      | Execution log             | Active          | Update with I0 outcomes                          |
 
@@ -57,7 +57,7 @@ This inventory captures the currently active council execution package from SDD 
 ## 4. Immediate Execution Position
 
 1. Wave I0 completion checkpoint is satisfied.
-2. SDD 107 C3 gate is complete and Wave I4 T0/T1 are executed (SDD 125/126 evidence).
+2. SDD 107 C3 gate is complete and Wave I4 T0/T1 + R1/MR0 policy lock are executed (SDD 125/126/127 evidence).
 3. Production gates remain unchanged:
    - no transport Wave T2/T3 before completing T0/T1 prerequisites,
    - no connector MR-1/MR-2 production activation before P0-4 signoff.

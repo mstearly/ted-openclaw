@@ -1,0 +1,35 @@
+{
+  "_config_version": 1,
+  "_artifact": "module_request_intake_template",
+  "_description": "Required intake structure for new module/capability requests before execution planning.",
+  "_last_updated": "2026-02-26",
+  "required_fields": [
+    "requester",
+    "jtbd",
+    "entities",
+    "data_sensitivity",
+    "permissions",
+    "success_metrics",
+    "plane_mapping",
+    "ledger_read_write_map",
+    "rollout_plan",
+    "rollback_plan"
+  ],
+  "field_schema": {
+    "requester": { "type": "string", "required": true },
+    "jtbd": { "type": "string", "required": true },
+    "entities": { "type": "array", "items": "string", "required": true },
+    "data_sensitivity": { "type": "string", "required": true },
+    "permissions": { "type": "array", "items": "string", "required": true },
+    "success_metrics": { "type": "array", "items": "string", "required": true },
+    "plane_mapping": { "type": "array", "items": "string", "required": true },
+    "ledger_read_write_map": { "type": "array", "items": "string", "required": true },
+    "rollout_plan": { "type": "string", "required": true },
+    "rollback_plan": { "type": "string", "required": true }
+  },
+  "submission_rules": {
+    "reject_if_missing_required_field": true,
+    "reject_if_plane_mapping_missing": true,
+    "reject_if_ledger_map_missing": true
+  }
+}

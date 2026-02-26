@@ -314,3 +314,276 @@ export function validateModuleLifecyclePolicy(policy) {
     errors,
   };
 }
+
+export function validateModuleRequestIntakeTemplate(template) {
+  const errors = [];
+
+  if (!isObject(template)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "MODULE_INTAKE_INVALID_ROOT",
+          message: "module_request_intake_template must be an object",
+        },
+      ],
+    };
+  }
+
+  const requiredFields = Array.isArray(template.required_fields) ? template.required_fields : [];
+  if (requiredFields.length < 5) {
+    errors.push({
+      code: "MODULE_INTAKE_REQUIRED_FIELDS_WEAK",
+      message: "required_fields must include a meaningful minimum set",
+    });
+  }
+  const mustInclude = [
+    "jtbd",
+    "permissions",
+    "success_metrics",
+    "plane_mapping",
+    "ledger_read_write_map",
+  ];
+  for (const field of mustInclude) {
+    if (!requiredFields.includes(field)) {
+      errors.push({
+        code: "MODULE_INTAKE_REQUIRED_FIELD_MISSING",
+        message: `required_fields missing ${field}`,
+      });
+    }
+  }
+
+  if (!isObject(template.field_schema)) {
+    errors.push({
+      code: "MODULE_INTAKE_SCHEMA_MISSING",
+      message: "field_schema must be present",
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}
+
+function validateProviderAuthEntry(params) {
+  const errors = [];
+  if (!isObject(params.entry)) {
+    errors.push({
+      code: "CONNECTOR_AUTH_PROVIDER_INVALID",
+      message: `provider ${params.providerId} auth policy must be an object`,
+    });
+    return errors;
+  }
+
+  const preferred =
+    typeof params.entry.preferred_auth_mode === "string" ? params.entry.preferred_auth_mode : "";
+  const allowedModes = Array.isArray(params.entry.allowed_auth_modes)
+    ? params.entry.allowed_auth_modes
+    : [];
+  if (allowedModes.length === 0) {
+    errors.push({
+      code: "CONNECTOR_AUTH_ALLOWED_MODES_MISSING",
+      message: `provider ${params.providerId} must define allowed_auth_modes`,
+    });
+  }
+  if (!preferred) {
+    errors.push({
+      code: "CONNECTOR_AUTH_PREFERRED_MODE_MISSING",
+      message: `provider ${params.providerId} must define preferred_auth_mode`,
+    });
+  } else if (!allowedModes.includes(preferred)) {
+    errors.push({
+      code: "CONNECTOR_AUTH_PREFERRED_MODE_INVALID",
+      message: `provider ${params.providerId} preferred_auth_mode must be listed in allowed_auth_modes`,
+    });
+  }
+
+  return errors;
+}
+
+export function validateConnectorAuthModePolicy(policy) {
+  const errors = [];
+
+  if (!isObject(policy)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "CONNECTOR_AUTH_POLICY_INVALID_ROOT",
+          message: "connector_auth_mode_policy must be an object",
+        },
+      ],
+    };
+  }
+
+  const providers = isObject(policy.providers) ? policy.providers : null;
+  if (!providers) {
+    errors.push({
+      code: "CONNECTOR_AUTH_POLICY_NO_PROVIDERS",
+      message: "providers must be present",
+    });
+  } else {
+    for (const providerId of ["monday", "rightsignature"]) {
+      const entry = providers[providerId];
+      if (!isObject(entry)) {
+        errors.push({
+          code: "CONNECTOR_AUTH_POLICY_PROVIDER_MISSING",
+          message: `providers.${providerId} must be present`,
+        });
+        continue;
+      }
+      errors.push(
+        ...validateProviderAuthEntry({
+          providerId,
+          entry,
+        }),
+      );
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}
+
+function validateAdmissionProvider(params) {
+  const errors = [];
+  if (!isObject(params.entry)) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_PROVIDER_INVALID",
+      message: `providers.${params.providerId} must be an object`,
+    });
+    return errors;
+  }
+
+  if (typeof params.entry.trust_tier !== "string" || params.entry.trust_tier.trim().length === 0) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_TRUST_TIER_MISSING",
+      message: `providers.${params.providerId}.trust_tier must be a non-empty string`,
+    });
+  }
+  if (!isObject(params.entry.allowed_operations_by_phase)) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_PHASE_POLICY_MISSING",
+      message: `providers.${params.providerId}.allowed_operations_by_phase must be an object`,
+    });
+  }
+
+  return errors;
+}
+
+export function validateConnectorAdmissionPolicy(policy) {
+  const errors = [];
+
+  if (!isObject(policy)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "CONNECTOR_ADMISSION_INVALID_ROOT",
+          message: "connector_admission_policy must be an object",
+        },
+      ],
+    };
+  }
+
+  if (typeof policy.default_mode !== "string" || policy.default_mode.trim().length === 0) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_DEFAULT_MODE_MISSING",
+      message: "default_mode must be a non-empty string",
+    });
+  }
+
+  const providers = isObject(policy.providers) ? policy.providers : null;
+  if (!providers) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_NO_PROVIDERS",
+      message: "providers must be present",
+    });
+  } else {
+    for (const providerId of ["monday", "rightsignature"]) {
+      const entry = providers[providerId];
+      if (!entry) {
+        errors.push({
+          code: "CONNECTOR_ADMISSION_PROVIDER_MISSING",
+          message: `providers.${providerId} must be present`,
+        });
+        continue;
+      }
+      errors.push(...validateAdmissionProvider({ providerId, entry }));
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}
+
+export function validateEsignProviderPolicy(policy) {
+  const errors = [];
+  if (!isObject(policy)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "ESIGN_POLICY_INVALID_ROOT",
+          message: "esign_provider_policy must be an object",
+        },
+      ],
+    };
+  }
+
+  const activePolicy = typeof policy.active_policy === "string" ? policy.active_policy : "";
+  const validPolicies = ["docusign_only", "rightsignature_only", "dual_provider"];
+  if (!validPolicies.includes(activePolicy)) {
+    errors.push({
+      code: "ESIGN_POLICY_ACTIVE_INVALID",
+      message: `active_policy must be one of: ${validPolicies.join(", ")}`,
+    });
+  }
+
+  const providers = isObject(policy.providers) ? policy.providers : null;
+  if (!providers) {
+    errors.push({
+      code: "ESIGN_POLICY_PROVIDERS_MISSING",
+      message: "providers must be present",
+    });
+  } else {
+    const docusignEnabled = providers.docusign?.enabled === true;
+    const rightsignatureEnabled = providers.rightsignature?.enabled === true;
+    if (activePolicy === "docusign_only" && rightsignatureEnabled) {
+      errors.push({
+        code: "ESIGN_POLICY_RIGHTSIGNATURE_DISABLED_REQUIRED",
+        message: "rightsignature must be disabled when active_policy=docusign_only",
+      });
+    }
+    if (activePolicy === "rightsignature_only" && docusignEnabled) {
+      errors.push({
+        code: "ESIGN_POLICY_DOCUSIGN_DISABLED_REQUIRED",
+        message: "docusign must be disabled when active_policy=rightsignature_only",
+      });
+    }
+    if (activePolicy === "dual_provider" && (!docusignEnabled || !rightsignatureEnabled)) {
+      errors.push({
+        code: "ESIGN_POLICY_DUAL_PROVIDER_REQUIRES_BOTH_ENABLED",
+        message:
+          "both docusign and rightsignature must be enabled when active_policy=dual_provider",
+      });
+    }
+  }
+
+  if (!isObject(policy.routing)) {
+    errors.push({
+      code: "ESIGN_POLICY_ROUTING_MISSING",
+      message: "routing must be present",
+    });
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}

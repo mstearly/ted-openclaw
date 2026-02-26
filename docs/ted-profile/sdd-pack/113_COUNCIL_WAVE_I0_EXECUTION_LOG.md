@@ -72,6 +72,7 @@ Planned tasks from SDD 112:
 16. SDD 124 - C3-003 handoff package to Plan 2 owner
 17. SDD 125 - I4 T0 transport baseline and telemetry execution
 18. SDD 126 - I4 T1 transport policy and matrix execution
+19. SDD 127 - I4 R1 + MR0 policy lock execution
 
 ---
 
@@ -120,3 +121,7 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
 12. Executed Plan 2 Wave T1 capability matrix + policy validation + status endpoint.
 
 - Evidence doc: `SDD 126`
+
+13. Executed Plan 4 R1 + Plan 5 MR0 policy-lock artifacts with fail-closed validators.
+
+- Evidence doc: `SDD 127`

@@ -1,0 +1,23 @@
+{
+  "_config_version": 1,
+  "_artifact": "esign_provider_policy",
+  "_description": "MR0-005 e-sign provider routing and migration contract.",
+  "_last_updated": "2026-02-26",
+  "active_policy": "dual_provider",
+  "providers": {
+    "docusign": {
+      "enabled": true,
+      "phase": "active_legacy"
+    },
+    "rightsignature": {
+      "enabled": true,
+      "phase": "mr0_planned"
+    }
+  },
+  "routing": {
+    "default_read_provider": "docusign",
+    "default_write_provider": "docusign",
+    "migration_strategy": "rightsignature_read_track_first",
+    "requires_operator_approval_for_provider_switch": true
+  }
+}
