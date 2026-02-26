@@ -189,6 +189,9 @@ jobs:
             task: test-sidecar
             command: npx vitest run --config vitest.sidecar.config.ts
           - runtime: node
+            task: context-semantics-gate
+            command: pnpm test:context-semantics-gate
+          - runtime: node
             task: protocol
             command: pnpm protocol:check
           - runtime: bun

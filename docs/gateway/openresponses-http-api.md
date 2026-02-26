@@ -122,6 +122,19 @@ For `openclaw` models, the gateway applies explicit continuation behavior:
    - `metadata.context_semantics.continuation_status = "fallback"`
    - `metadata.context_semantics.fallback_reason = "previous_response_not_found"`
 
+## Context truthfulness release gate
+
+Run the dedicated gate before release/promotion:
+
+```bash
+pnpm test:context-semantics-gate
+```
+
+The gate verifies:
+
+1. Unit policy branches for context semantics decisions.
+2. OpenResponses gateway e2e/parity contract behavior.
+
 ## Items (input)
 
 ### `message`
