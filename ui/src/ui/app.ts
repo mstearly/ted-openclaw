@@ -137,6 +137,11 @@ import {
   searchTedSharePoint,
   uploadTedSharePointFile,
   createTedSharePointFolder,
+  loadTedExternalMcpServers,
+  loadTedExternalMcpTools,
+  testTedExternalMcpServer,
+  upsertTedExternalMcpServer,
+  removeTedExternalMcpServer,
 } from "./controllers/ted.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
@@ -605,6 +610,20 @@ export class OpenClawApp extends LitElement {
   @state() tedDiscoveryRunBusy = false;
   @state() tedDiscoveryRunError: string | null = null;
   @state() tedDiscoveryRunResult: Record<string, unknown> | null = null;
+  // External MCP connections
+  @state() tedExternalMcpServers: import("./types.ts").TedExternalMcpServersResponse | null = null;
+  @state() tedExternalMcpServersLoading = false;
+  @state() tedExternalMcpServersError: string | null = null;
+  @state() tedExternalMcpTools: import("./types.ts").TedExternalMcpToolsResponse | null = null;
+  @state() tedExternalMcpToolsLoading = false;
+  @state() tedExternalMcpToolsError: string | null = null;
+  @state() tedExternalMcpTestResult: import("./types.ts").TedExternalMcpServerTestResponse | null =
+    null;
+  @state() tedExternalMcpTestBusyServerId: string | null = null;
+  @state() tedExternalMcpTestError: string | null = null;
+  @state() tedExternalMcpMutationBusy = false;
+  @state() tedExternalMcpMutationError: string | null = null;
+  @state() tedExternalMcpMutationResult: string | null = null;
   // SharePoint state
   @state() tedSharePointSites: Array<{
     id: string;
@@ -1140,6 +1159,50 @@ export class OpenClawApp extends LitElement {
     await triggerTedDiscovery(
       this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
       profileId,
+    );
+  }
+
+  async loadTedExternalMcpServers() {
+    await loadTedExternalMcpServers(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async loadTedExternalMcpTools(params?: { server_id?: string; refresh?: boolean }) {
+    await loadTedExternalMcpTools(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      params,
+    );
+  }
+
+  async testTedExternalMcpServer(serverId: string) {
+    await testTedExternalMcpServer(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      serverId,
+    );
+  }
+
+  async upsertTedExternalMcpServer(payload: {
+    server_id: string;
+    url: string;
+    enabled?: boolean;
+    timeout_ms?: number;
+    auth_token_env?: string;
+    auth_header_name?: string;
+    description?: string;
+    allow_tools?: string[];
+    deny_tools?: string[];
+  }) {
+    await upsertTedExternalMcpServer(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      payload,
+    );
+  }
+
+  async removeTedExternalMcpServer(serverId: string) {
+    await removeTedExternalMcpServer(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      serverId,
     );
   }
 

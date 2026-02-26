@@ -34,6 +34,9 @@ import type {
   TedPolicyKey,
   TedSourceDocument,
   TedWorkbenchSnapshot,
+  TedExternalMcpServersResponse,
+  TedExternalMcpToolsResponse,
+  TedExternalMcpServerTestResponse,
 } from "../types.ts";
 
 function formatFileSize(bytes: number): string {
@@ -342,6 +345,34 @@ export type TedViewProps = {
   discoveryRunResult: Record<string, unknown> | null;
   onLoadDiscoveryStatus: () => void;
   onTriggerDiscovery: (profileId: string) => void;
+  // External MCP connections
+  externalMcpServers: TedExternalMcpServersResponse | null;
+  externalMcpServersLoading: boolean;
+  externalMcpServersError: string | null;
+  externalMcpTools: TedExternalMcpToolsResponse | null;
+  externalMcpToolsLoading: boolean;
+  externalMcpToolsError: string | null;
+  externalMcpTestResult: TedExternalMcpServerTestResponse | null;
+  externalMcpTestBusyServerId: string | null;
+  externalMcpTestError: string | null;
+  externalMcpMutationBusy: boolean;
+  externalMcpMutationError: string | null;
+  externalMcpMutationResult: string | null;
+  onLoadExternalMcpServers: () => void;
+  onLoadExternalMcpTools: (serverId?: string, refresh?: boolean) => void;
+  onTestExternalMcpServer: (serverId: string) => void;
+  onUpsertExternalMcpServer: (payload: {
+    server_id: string;
+    url: string;
+    enabled?: boolean;
+    timeout_ms?: number;
+    auth_token_env?: string;
+    auth_header_name?: string;
+    description?: string;
+    allow_tools?: string[];
+    deny_tools?: string[];
+  }) => void;
+  onRemoveExternalMcpServer: (serverId: string) => void;
   // SharePoint
   tedSharePointSites: Array<{
     id: string;
@@ -2078,6 +2109,382 @@ function renderDiscoveryStatusCard(props: TedViewProps): typeof nothing | Return
       `
       }
       ${runResult && !runBusy ? html`<div style="margin-top: 8px; padding: 8px; background: var(--color-bg-secondary, #f9fafb); border-radius: 6px; font-size: 12px;"><pre class="mono" style="white-space: pre-wrap; margin: 0;">${JSON.stringify(runResult, null, 2)}</pre></div>` : nothing}
+    </div>
+  `;
+}
+
+function renderExternalMcpConnectionsCard(
+  props: TedViewProps,
+): typeof nothing | ReturnType<typeof html> {
+  const servers = props.externalMcpServers?.servers ?? [];
+  const tools = props.externalMcpTools;
+  const loadingServers = props.externalMcpServersLoading;
+  const loadingTools = props.externalMcpToolsLoading;
+  const mutationBusy = props.externalMcpMutationBusy;
+  const testingServer = props.externalMcpTestBusyServerId;
+
+  const readInput = (id: string): string => {
+    const el = document.getElementById(id);
+    if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
+      return "";
+    }
+    return el.value.trim();
+  };
+
+  const readChecked = (id: string): boolean => {
+    const el = document.getElementById(id);
+    if (!(el instanceof HTMLInputElement)) {
+      return false;
+    }
+    return el.checked;
+  };
+
+  const setInputValue = (id: string, value: string) => {
+    const el = document.getElementById(id);
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+      el.value = value;
+    }
+  };
+
+  const setChecked = (id: string, checked: boolean) => {
+    const el = document.getElementById(id);
+    if (el instanceof HTMLInputElement) {
+      el.checked = checked;
+    }
+  };
+
+  const setFormError = (message: string | null) => {
+    const el = document.getElementById("ted-mcp-form-error");
+    if (!(el instanceof HTMLElement)) {
+      return;
+    }
+    if (message) {
+      el.textContent = message;
+      el.style.display = "block";
+      return;
+    }
+    el.textContent = "";
+    el.style.display = "none";
+  };
+
+  const parseToolList = (raw: string): string[] =>
+    raw
+      .split(/[\n,]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+  const clearForm = () => {
+    setInputValue("ted-mcp-server-id", "");
+    setInputValue("ted-mcp-url", "");
+    setChecked("ted-mcp-enabled", true);
+    setInputValue("ted-mcp-timeout-ms", "12000");
+    setInputValue("ted-mcp-auth-token-env", "");
+    setInputValue("ted-mcp-auth-header-name", "");
+    setInputValue("ted-mcp-description", "");
+    setInputValue("ted-mcp-allow-tools", "");
+    setInputValue("ted-mcp-deny-tools", "");
+    setFormError(null);
+  };
+
+  const populateForm = (server: TedExternalMcpServersResponse["servers"][number]) => {
+    setInputValue("ted-mcp-server-id", server.server_id);
+    setInputValue("ted-mcp-url", server.url);
+    setChecked("ted-mcp-enabled", server.enabled);
+    setInputValue("ted-mcp-timeout-ms", String(server.timeout_ms || 12000));
+    setInputValue("ted-mcp-auth-token-env", server.auth_token_env || "");
+    setInputValue("ted-mcp-auth-header-name", server.auth_header_name || "");
+    setInputValue("ted-mcp-description", server.description || "");
+    setInputValue("ted-mcp-allow-tools", (server.allow_tools || []).join("\n"));
+    setInputValue("ted-mcp-deny-tools", (server.deny_tools || []).join("\n"));
+    setFormError(null);
+  };
+
+  const saveFromForm = () => {
+    setFormError(null);
+    const serverId = readInput("ted-mcp-server-id");
+    const url = readInput("ted-mcp-url");
+    if (!serverId) {
+      setFormError("Server ID is required.");
+      return;
+    }
+    if (!url) {
+      setFormError("Server URL is required.");
+      return;
+    }
+    const timeoutRaw = readInput("ted-mcp-timeout-ms");
+    const timeoutValue = timeoutRaw ? Number.parseInt(timeoutRaw, 10) : undefined;
+    const timeoutMs =
+      typeof timeoutValue === "number" && Number.isFinite(timeoutValue) ? timeoutValue : undefined;
+
+    props.onUpsertExternalMcpServer({
+      server_id: serverId,
+      url,
+      enabled: readChecked("ted-mcp-enabled"),
+      timeout_ms: timeoutMs,
+      auth_token_env: readInput("ted-mcp-auth-token-env") || undefined,
+      auth_header_name: readInput("ted-mcp-auth-header-name") || undefined,
+      description: readInput("ted-mcp-description") || undefined,
+      allow_tools: parseToolList(readInput("ted-mcp-allow-tools")),
+      deny_tools: parseToolList(readInput("ted-mcp-deny-tools")),
+    });
+  };
+
+  return html`
+    <div class="card" style="margin-top: 16px; margin-bottom: 0;">
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">External MCP Connections</div>
+        <div class="row" style="gap: 6px;">
+          <button
+            class="btn btn--sm"
+            aria-label="Refresh external MCP servers"
+            ?disabled=${loadingServers}
+            @click=${() => props.onLoadExternalMcpServers()}
+          >
+            ${loadingServers ? "Loading..." : "Refresh"}
+          </button>
+          <button
+            class="btn btn--sm"
+            aria-label="Refresh external MCP tools"
+            ?disabled=${loadingTools}
+            @click=${() => props.onLoadExternalMcpTools(undefined, true)}
+          >
+            ${loadingTools ? "Loading..." : "Refresh Tools"}
+          </button>
+        </div>
+      </div>
+      <div class="card-sub">
+        Add, edit, test, and inspect external MCP servers from Ted without curl.
+      </div>
+
+      ${props.externalMcpServersError ? html`<div class="callout danger" style="margin-top: 8px;">${props.externalMcpServersError}</div>` : nothing}
+      ${props.externalMcpMutationError ? html`<div class="callout danger" style="margin-top: 8px;">${props.externalMcpMutationError}</div>` : nothing}
+      ${props.externalMcpTestError ? html`<div class="callout danger" style="margin-top: 8px;">${props.externalMcpTestError}</div>` : nothing}
+      ${props.externalMcpToolsError ? html`<div class="callout danger" style="margin-top: 8px;">${props.externalMcpToolsError}</div>` : nothing}
+      ${props.externalMcpMutationResult ? html`<div class="callout" style="margin-top: 8px;">${props.externalMcpMutationResult}</div>` : nothing}
+
+      <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <label>
+          <div class="card-sub">Server ID</div>
+          <input id="ted-mcp-server-id" class="input mono" placeholder="matrix-hq" />
+        </label>
+        <label>
+          <div class="card-sub">Server URL</div>
+          <input id="ted-mcp-url" class="input mono" placeholder="https://mcp.example.com/mcp" />
+        </label>
+      </div>
+      <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+        <label>
+          <div class="card-sub">Timeout (ms)</div>
+          <input id="ted-mcp-timeout-ms" class="input mono" type="number" min="1000" max="60000" value="12000" />
+        </label>
+        <label>
+          <div class="card-sub">Auth Token Env</div>
+          <input id="ted-mcp-auth-token-env" class="input mono" placeholder="MCP_MATRIX_TOKEN" />
+        </label>
+        <label>
+          <div class="card-sub">Auth Header</div>
+          <input id="ted-mcp-auth-header-name" class="input mono" placeholder="Authorization" />
+        </label>
+      </div>
+      <div style="margin-top: 10px;">
+        <label class="row" style="gap: 8px; align-items: center;">
+          <input id="ted-mcp-enabled" type="checkbox" checked />
+          <span class="card-sub">Enabled</span>
+        </label>
+      </div>
+      <div style="margin-top: 10px;">
+        <div class="card-sub">Description</div>
+        <input id="ted-mcp-description" class="input" placeholder="Optional label for operators" />
+      </div>
+      <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <label>
+          <div class="card-sub">Allow Tools (newline or comma separated)</div>
+          <textarea id="ted-mcp-allow-tools" class="input mono" style="min-height: 90px;"></textarea>
+        </label>
+        <label>
+          <div class="card-sub">Deny Tools (newline or comma separated)</div>
+          <textarea id="ted-mcp-deny-tools" class="input mono" style="min-height: 90px;"></textarea>
+        </label>
+      </div>
+      <div id="ted-mcp-form-error" class="callout danger" style="margin-top: 8px; display: none;"></div>
+
+      <div class="row" style="justify-content: flex-end; gap: 8px; margin-top: 10px;">
+        <button class="btn ghost" aria-label="Clear external MCP form" ?disabled=${mutationBusy} @click=${clearForm}>Clear</button>
+        <button
+          class="btn ghost"
+          aria-label="List tools for selected server"
+          ?disabled=${loadingTools}
+          @click=${() => {
+            const serverId = readInput("ted-mcp-server-id");
+            props.onLoadExternalMcpTools(serverId || undefined, true);
+          }}
+        >
+          ${loadingTools ? "Loading..." : "List Tools"}
+        </button>
+        <button
+          class="btn ghost"
+          aria-label="Test selected external MCP server"
+          ?disabled=${!!testingServer}
+          @click=${() => {
+            const serverId = readInput("ted-mcp-server-id");
+            if (!serverId) {
+              setFormError("Server ID is required to run a test.");
+              return;
+            }
+            setFormError(null);
+            props.onTestExternalMcpServer(serverId);
+          }}
+        >
+          ${testingServer ? "Testing..." : "Test"}
+        </button>
+        <button
+          class="btn"
+          aria-label="Save external MCP server"
+          ?disabled=${mutationBusy}
+          @click=${saveFromForm}
+        >
+          ${mutationBusy ? "Saving..." : "Save Server"}
+        </button>
+        <button
+          class="btn ghost"
+          aria-label="Remove selected external MCP server"
+          ?disabled=${mutationBusy}
+          @click=${() => {
+            const serverId = readInput("ted-mcp-server-id");
+            if (!serverId) {
+              setFormError("Server ID is required to remove a server.");
+              return;
+            }
+            setFormError(null);
+            if (confirm(`Remove external MCP server "${serverId}"?`)) {
+              props.onRemoveExternalMcpServer(serverId);
+            }
+          }}
+        >
+          ${mutationBusy ? "Removing..." : "Remove"}
+        </button>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <div class="card-sub">Configured Servers (${props.externalMcpServers?.total_count ?? 0})</div>
+        ${
+          servers.length === 0 && !loadingServers
+            ? html`
+                <div class="muted" style="margin-top: 8px">No external MCP servers configured yet.</div>
+              `
+            : html`
+                <table class="ted-table" style="width: 100%; margin-top: 8px; font-size: 0.85em; border-collapse: collapse;">
+                  <thead>
+                    <tr>
+                      <th style="text-align:left;padding:4px 8px;">Server</th>
+                      <th style="text-align:left;padding:4px 8px;">Status</th>
+                      <th style="text-align:left;padding:4px 8px;">URL</th>
+                      <th style="text-align:left;padding:4px 8px;">Auth</th>
+                      <th style="text-align:left;padding:4px 8px;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${servers.map(
+                      (server) => html`
+                        <tr style="border-bottom:1px solid var(--border-color,#333);">
+                          <td style="padding:4px 8px;">
+                            <div class="mono">${server.server_id}</div>
+                            <div class="muted" style="font-size: 11px;">timeout ${server.timeout_ms}ms</div>
+                          </td>
+                          <td style="padding:4px 8px;">
+                            <span class="pill ${server.enabled ? "" : "warn"}">${server.enabled ? "enabled" : "disabled"}</span>
+                          </td>
+                          <td style="padding:4px 8px;" class="mono">${server.url}</td>
+                          <td style="padding:4px 8px;" class="mono">${server.auth_token_env || "none"}</td>
+                          <td style="padding:4px 8px;">
+                            <div class="row" style="gap: 4px;">
+                              <button class="btn btn--sm ghost" @click=${() => populateForm(server)}>Edit</button>
+                              <button
+                                class="btn btn--sm ghost"
+                                ?disabled=${!!testingServer}
+                                @click=${() => props.onTestExternalMcpServer(server.server_id)}
+                              >
+                                ${testingServer === server.server_id ? "Testing..." : "Test"}
+                              </button>
+                              <button
+                                class="btn btn--sm ghost"
+                                ?disabled=${loadingTools}
+                                @click=${() => props.onLoadExternalMcpTools(server.server_id, true)}
+                              >
+                                Tools
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      `,
+                    )}
+                  </tbody>
+                </table>
+              `
+        }
+      </div>
+
+      ${
+        props.externalMcpTestResult
+          ? html`
+              <div style="margin-top: 12px;">
+                <div class="card-sub">Connection Test</div>
+                <div class="callout ${props.externalMcpTestResult.ok ? "" : "danger"}" style="margin-top: 6px;">
+                  ${props.externalMcpTestResult.server_id}: ${
+                    props.externalMcpTestResult.ok
+                      ? `ok (${props.externalMcpTestResult.tool_count ?? 0} tools)`
+                      : props.externalMcpTestResult.error || "failed"
+                  }
+                </div>
+              </div>
+            `
+          : nothing
+      }
+
+      ${
+        tools
+          ? html`
+              <div style="margin-top: 12px;">
+                <div class="card-sub">Discovered Tools (${tools.total_count})</div>
+                ${
+                  tools.errors.length > 0
+                    ? html`<div class="callout warn" style="margin-top: 6px;">
+                        ${tools.errors.map((entry) => `${entry.server_id}: ${entry.error}`).join(" | ")}
+                      </div>`
+                    : nothing
+                }
+                ${
+                  tools.tools.length > 0
+                    ? html`
+                        <table class="ted-table" style="width: 100%; margin-top: 8px; font-size: 0.85em; border-collapse: collapse;">
+                          <thead>
+                            <tr>
+                              <th style="text-align:left;padding:4px 8px;">Local Tool</th>
+                              <th style="text-align:left;padding:4px 8px;">Remote Tool</th>
+                              <th style="text-align:left;padding:4px 8px;">Server</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            ${tools.tools.map(
+                              (tool) => html`
+                                <tr style="border-bottom:1px solid var(--border-color,#333);">
+                                  <td style="padding:4px 8px;" class="mono">${tool.local_name}</td>
+                                  <td style="padding:4px 8px;" class="mono">${tool.remote_name}</td>
+                                  <td style="padding:4px 8px;" class="mono">${tool.server_id}</td>
+                                </tr>
+                              `,
+                            )}
+                          </tbody>
+                        </table>
+                      `
+                    : html`
+                        <div class="muted" style="margin-top: 8px">No tools discovered for current selection.</div>
+                      `
+                }
+              </div>
+            `
+          : nothing
+      }
     </div>
   `;
 }
@@ -4549,6 +4956,7 @@ export function renderTed(props: TedViewProps) {
 
               ${showOperate ? renderIngestionStatusCard(props) : nothing}
               ${showOperate ? renderDiscoveryStatusCard(props) : nothing}
+              ${showOperate ? renderExternalMcpConnectionsCard(props) : nothing}
 
               <!-- SharePoint Documents -->
               ${

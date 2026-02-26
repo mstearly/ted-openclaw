@@ -1439,6 +1439,50 @@ export type TedTrustFailureReason = {
   banned_phrases: Record<string, number>;
 };
 
+// ─── External MCP Connections Types ───
+
+export interface TedExternalMcpServer {
+  server_id: string;
+  enabled: boolean;
+  transport: "http";
+  url: string;
+  timeout_ms: number;
+  auth_token_env?: string;
+  auth_header_name?: string;
+  description?: string;
+  allow_tools: string[];
+  deny_tools: string[];
+}
+
+export interface TedExternalMcpServersResponse {
+  servers: TedExternalMcpServer[];
+  total_count: number;
+  cache_ttl_ms: number;
+}
+
+export interface TedExternalMcpToolsResponse {
+  tools: Array<{
+    local_name: string;
+    remote_name: string;
+    server_id: string;
+    description?: string;
+    inputSchema?: Record<string, unknown>;
+  }>;
+  total_count: number;
+  errors: Array<{ server_id: string; error: string; source?: string }>;
+  refreshed: boolean;
+}
+
+export interface TedExternalMcpServerTestResponse {
+  ok: boolean;
+  server_id: string;
+  stale?: boolean;
+  source?: string;
+  tool_count?: number;
+  tools_preview?: Array<{ local_name: string; remote_name: string }>;
+  error?: string;
+}
+
 // ─── SharePoint Types ───
 
 export interface TedSharePointSite {

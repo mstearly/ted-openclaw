@@ -5951,6 +5951,201 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
     },
   );
 
+  // --- External MCP connections gateway ---
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.servers.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/external/servers",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp servers list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.tools.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { server_id?: unknown; refresh?: unknown })
+            : {};
+        const body: Record<string, unknown> = {};
+        if (typeof payloadIn.server_id === "string" && payloadIn.server_id.trim().length > 0) {
+          body.server_id = payloadIn.server_id.trim();
+        }
+        if (payloadIn.refresh === true) {
+          body.refresh = true;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/external/servers/tools/list",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp tools list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.server.test",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { server_id?: unknown })
+            : {};
+        const serverId = typeof payloadIn.server_id === "string" ? payloadIn.server_id.trim() : "";
+        if (!serverId) {
+          respond(false, { error: "server_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/external/servers/test",
+          { server_id: serverId },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp server test failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.server.upsert",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                server_id?: unknown;
+                url?: unknown;
+                enabled?: unknown;
+                timeout_ms?: unknown;
+                auth_token_env?: unknown;
+                auth_header_name?: unknown;
+                description?: unknown;
+                allow_tools?: unknown;
+                deny_tools?: unknown;
+              })
+            : {};
+        const serverId = typeof payloadIn.server_id === "string" ? payloadIn.server_id.trim() : "";
+        const url = typeof payloadIn.url === "string" ? payloadIn.url.trim() : "";
+        if (!serverId) {
+          respond(false, { error: "server_id is required" });
+          return;
+        }
+        if (!url) {
+          respond(false, { error: "url is required" });
+          return;
+        }
+        const body: Record<string, unknown> = {
+          server_id: serverId,
+          url,
+        };
+        if (typeof payloadIn.enabled === "boolean") {
+          body.enabled = payloadIn.enabled;
+        }
+        if (typeof payloadIn.timeout_ms === "number" && Number.isFinite(payloadIn.timeout_ms)) {
+          body.timeout_ms = payloadIn.timeout_ms;
+        }
+        if (typeof payloadIn.auth_token_env === "string") {
+          body.auth_token_env = payloadIn.auth_token_env.trim();
+        }
+        if (typeof payloadIn.auth_header_name === "string") {
+          body.auth_header_name = payloadIn.auth_header_name.trim();
+        }
+        if (typeof payloadIn.description === "string") {
+          body.description = payloadIn.description.trim();
+        }
+        if (Array.isArray(payloadIn.allow_tools)) {
+          body.allow_tools = payloadIn.allow_tools.filter(
+            (value): value is string => typeof value === "string" && value.trim().length > 0,
+          );
+        }
+        if (Array.isArray(payloadIn.deny_tools)) {
+          body.deny_tools = payloadIn.deny_tools.filter(
+            (value): value is string => typeof value === "string" && value.trim().length > 0,
+          );
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/external/servers/upsert",
+          body,
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp server upsert failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.server.remove",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { server_id?: unknown })
+            : {};
+        const serverId = typeof payloadIn.server_id === "string" ? payloadIn.server_id.trim() : "";
+        if (!serverId) {
+          respond(false, { error: "server_id is required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/external/servers/remove",
+          { server_id: serverId },
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp server remove failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
   // ─── C10-023: Missing gateway methods for sidecar routes ────────────────────
 
   // --- Graph: calendar list (GET) ---

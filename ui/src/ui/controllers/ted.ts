@@ -41,6 +41,9 @@ import type {
   TedImprovementApplyResponse,
   TedTrustAutonomyEvaluation,
   TedFailureAggregationResponse,
+  TedExternalMcpServersResponse,
+  TedExternalMcpToolsResponse,
+  TedExternalMcpServerTestResponse,
 } from "../types.ts";
 
 const TED_REQUEST_TIMEOUT_MS = 12_000;
@@ -270,6 +273,19 @@ export type TedWorkbenchState = {
   tedDiscoveryRunBusy: boolean;
   tedDiscoveryRunError: string | null;
   tedDiscoveryRunResult: Record<string, unknown> | null;
+  // External MCP connections
+  tedExternalMcpServers: TedExternalMcpServersResponse | null;
+  tedExternalMcpServersLoading: boolean;
+  tedExternalMcpServersError: string | null;
+  tedExternalMcpTools: TedExternalMcpToolsResponse | null;
+  tedExternalMcpToolsLoading: boolean;
+  tedExternalMcpToolsError: string | null;
+  tedExternalMcpTestResult: TedExternalMcpServerTestResponse | null;
+  tedExternalMcpTestBusyServerId: string | null;
+  tedExternalMcpTestError: string | null;
+  tedExternalMcpMutationBusy: boolean;
+  tedExternalMcpMutationError: string | null;
+  tedExternalMcpMutationResult: string | null;
   // SharePoint state
   tedSharePointSites: Array<{
     id: string;
@@ -1988,6 +2004,145 @@ export async function triggerTedDiscovery(
     state.tedDiscoveryRunError = err instanceof Error ? err.message : String(err);
   } finally {
     state.tedDiscoveryRunBusy = false;
+  }
+}
+
+export async function loadTedExternalMcpServers(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedExternalMcpServersLoading) {
+    return;
+  }
+  state.tedExternalMcpServersLoading = true;
+  state.tedExternalMcpServersError = null;
+  try {
+    const result = await requestTedWithTimeout<TedExternalMcpServersResponse>(
+      state.client,
+      "ted.ops.mcp.external.servers.list",
+      {},
+    );
+    state.tedExternalMcpServers = result;
+  } catch (err) {
+    state.tedExternalMcpServersError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedExternalMcpServersLoading = false;
+  }
+}
+
+export async function loadTedExternalMcpTools(
+  state: TedWorkbenchState,
+  params?: { server_id?: string; refresh?: boolean },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedExternalMcpToolsLoading) {
+    return;
+  }
+  state.tedExternalMcpToolsLoading = true;
+  state.tedExternalMcpToolsError = null;
+  try {
+    const payload: Record<string, unknown> = {};
+    if (params?.server_id) {
+      payload.server_id = params.server_id;
+    }
+    if (params?.refresh) {
+      payload.refresh = true;
+    }
+    const result = await requestTedWithTimeout<TedExternalMcpToolsResponse>(
+      state.client,
+      "ted.ops.mcp.external.tools.list",
+      payload,
+    );
+    state.tedExternalMcpTools = result;
+  } catch (err) {
+    state.tedExternalMcpToolsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedExternalMcpToolsLoading = false;
+  }
+}
+
+export async function testTedExternalMcpServer(
+  state: TedWorkbenchState,
+  serverId: string,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedExternalMcpTestBusyServerId) {
+    return;
+  }
+  state.tedExternalMcpTestBusyServerId = serverId;
+  state.tedExternalMcpTestError = null;
+  state.tedExternalMcpTestResult = null;
+  try {
+    const result = await requestTedWithTimeout<TedExternalMcpServerTestResponse>(
+      state.client,
+      "ted.ops.mcp.external.server.test",
+      { server_id: serverId },
+    );
+    state.tedExternalMcpTestResult = result;
+  } catch (err) {
+    state.tedExternalMcpTestError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedExternalMcpTestBusyServerId = null;
+  }
+}
+
+export async function upsertTedExternalMcpServer(
+  state: TedWorkbenchState,
+  payload: {
+    server_id: string;
+    url: string;
+    enabled?: boolean;
+    timeout_ms?: number;
+    auth_token_env?: string;
+    auth_header_name?: string;
+    description?: string;
+    allow_tools?: string[];
+    deny_tools?: string[];
+  },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedExternalMcpMutationBusy) {
+    return;
+  }
+  state.tedExternalMcpMutationBusy = true;
+  state.tedExternalMcpMutationError = null;
+  state.tedExternalMcpMutationResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.mcp.external.server.upsert",
+      payload,
+    );
+    state.tedExternalMcpMutationResult = `Saved ${payload.server_id}`;
+    await loadTedExternalMcpServers(state);
+    await loadTedExternalMcpTools(state, { server_id: payload.server_id, refresh: true });
+  } catch (err) {
+    state.tedExternalMcpMutationError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedExternalMcpMutationBusy = false;
+  }
+}
+
+export async function removeTedExternalMcpServer(
+  state: TedWorkbenchState,
+  serverId: string,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedExternalMcpMutationBusy) {
+    return;
+  }
+  state.tedExternalMcpMutationBusy = true;
+  state.tedExternalMcpMutationError = null;
+  state.tedExternalMcpMutationResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.mcp.external.server.remove",
+      { server_id: serverId },
+    );
+    state.tedExternalMcpMutationResult = `Removed ${serverId}`;
+    if (state.tedExternalMcpTestResult?.server_id === serverId) {
+      state.tedExternalMcpTestResult = null;
+    }
+    await loadTedExternalMcpServers(state);
+    await loadTedExternalMcpTools(state, { refresh: true });
+  } catch (err) {
+    state.tedExternalMcpMutationError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedExternalMcpMutationBusy = false;
   }
 }
 

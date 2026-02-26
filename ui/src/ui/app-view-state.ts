@@ -58,6 +58,9 @@ import type {
   TedImprovementProposal,
   TedTrustAutonomyEvaluation,
   TedFailureAggregationResponse,
+  TedExternalMcpServersResponse,
+  TedExternalMcpToolsResponse,
+  TedExternalMcpServerTestResponse,
   SkillStatusReport,
   StatusSummary,
 } from "./types.ts";
@@ -472,10 +475,38 @@ export type AppViewState = {
   tedDiscoveryRunBusy: boolean;
   tedDiscoveryRunError: string | null;
   tedDiscoveryRunResult: Record<string, unknown> | null;
+  // External MCP connections
+  tedExternalMcpServers: TedExternalMcpServersResponse | null;
+  tedExternalMcpServersLoading: boolean;
+  tedExternalMcpServersError: string | null;
+  tedExternalMcpTools: TedExternalMcpToolsResponse | null;
+  tedExternalMcpToolsLoading: boolean;
+  tedExternalMcpToolsError: string | null;
+  tedExternalMcpTestResult: TedExternalMcpServerTestResponse | null;
+  tedExternalMcpTestBusyServerId: string | null;
+  tedExternalMcpTestError: string | null;
+  tedExternalMcpMutationBusy: boolean;
+  tedExternalMcpMutationError: string | null;
+  tedExternalMcpMutationResult: string | null;
   loadTedIngestionStatus: () => Promise<void>;
   triggerTedIngestion: () => Promise<void>;
   loadTedDiscoveryStatus: () => Promise<void>;
   triggerTedDiscovery: (profileId: string) => Promise<void>;
+  loadTedExternalMcpServers: () => Promise<void>;
+  loadTedExternalMcpTools: (params?: { server_id?: string; refresh?: boolean }) => Promise<void>;
+  testTedExternalMcpServer: (serverId: string) => Promise<void>;
+  upsertTedExternalMcpServer: (payload: {
+    server_id: string;
+    url: string;
+    enabled?: boolean;
+    timeout_ms?: number;
+    auth_token_env?: string;
+    auth_header_name?: string;
+    description?: string;
+    allow_tools?: string[];
+    deny_tools?: string[];
+  }) => Promise<void>;
+  removeTedExternalMcpServer: (serverId: string) => Promise<void>;
   // Self-Healing Dashboard
   fetchSelfHealingStatus: () => Promise<void>;
   fetchCorrectionTaxonomy: () => Promise<void>;

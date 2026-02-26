@@ -691,6 +691,36 @@ export function renderApp(state: AppViewState) {
                 onLoadDiscoveryStatus: () => void state.loadTedDiscoveryStatus(),
                 onTriggerDiscovery: (profileId: string) =>
                   void state.triggerTedDiscovery(profileId),
+                externalMcpServers: state.tedExternalMcpServers,
+                externalMcpServersLoading: state.tedExternalMcpServersLoading,
+                externalMcpServersError: state.tedExternalMcpServersError,
+                externalMcpTools: state.tedExternalMcpTools,
+                externalMcpToolsLoading: state.tedExternalMcpToolsLoading,
+                externalMcpToolsError: state.tedExternalMcpToolsError,
+                externalMcpTestResult: state.tedExternalMcpTestResult,
+                externalMcpTestBusyServerId: state.tedExternalMcpTestBusyServerId,
+                externalMcpTestError: state.tedExternalMcpTestError,
+                externalMcpMutationBusy: state.tedExternalMcpMutationBusy,
+                externalMcpMutationError: state.tedExternalMcpMutationError,
+                externalMcpMutationResult: state.tedExternalMcpMutationResult,
+                onLoadExternalMcpServers: () => void state.loadTedExternalMcpServers(),
+                onLoadExternalMcpTools: (serverId?: string, refresh?: boolean) =>
+                  void state.loadTedExternalMcpTools({ server_id: serverId, refresh }),
+                onTestExternalMcpServer: (serverId: string) =>
+                  void state.testTedExternalMcpServer(serverId),
+                onUpsertExternalMcpServer: (payload: {
+                  server_id: string;
+                  url: string;
+                  enabled?: boolean;
+                  timeout_ms?: number;
+                  auth_token_env?: string;
+                  auth_header_name?: string;
+                  description?: string;
+                  allow_tools?: string[];
+                  deny_tools?: string[];
+                }) => void state.upsertTedExternalMcpServer(payload),
+                onRemoveExternalMcpServer: (serverId: string) =>
+                  void state.removeTedExternalMcpServer(serverId),
                 // SharePoint
                 tedSharePointSites: state.tedSharePointSites,
                 tedSharePointSitesLoading: state.tedSharePointSitesLoading,
