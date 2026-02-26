@@ -336,6 +336,87 @@ describe("Workflow registry metadata contract", () => {
     expect(typeof body.workflow.published_at).toBe("string");
     expect(body.workflow.published_at.length).toBeGreaterThan(0);
     expect(body.workflow).toHaveProperty("supersedes_version");
+    expect(body.version_published).toBe(true);
+  });
+
+  test("workflow upsert publishes immutable versions with lineage and events", async () => {
+    const workflowId = `rf1-version-${Date.now().toString(36)}`;
+    const v1Payload = {
+      workflow_id: workflowId,
+      name: "RF1 Version Publish Test",
+      steps: [
+        {
+          step_id: "inspect-llm",
+          kind: "route_call",
+          method: "GET",
+          route: "/ops/llm-provider",
+        },
+      ],
+    };
+    const v1Resp = await fetch(`${baseUrl}/ops/workflows`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(v1Payload),
+    });
+    expect(v1Resp.status).toBe(200);
+    const v1Body = await v1Resp.json();
+    expect(v1Body.workflow.workflow_version).toBe(1);
+    expect(v1Body.workflow.supersedes_version).toBeNull();
+    const v1Hash = v1Body.workflow.definition_hash;
+
+    const v2Payload = {
+      ...v1Payload,
+      steps: [
+        {
+          step_id: "inspect-tools",
+          kind: "route_call",
+          method: "GET",
+          route: "/ops/tool-usage",
+        },
+      ],
+    };
+    const v2Resp = await fetch(`${baseUrl}/ops/workflows`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(v2Payload),
+    });
+    expect(v2Resp.status).toBe(200);
+    const v2Body = await v2Resp.json();
+    expect(v2Body.workflow.workflow_version).toBe(2);
+    expect(v2Body.workflow.supersedes_version).toBe(1);
+    expect(v2Body.workflow.definition_hash).not.toBe(v1Hash);
+    expect(v2Body.version_published).toBe(true);
+
+    const registryResp = await fetch(`${baseUrl}/ops/workflows`, { headers: authHeaders });
+    expect(registryResp.status).toBe(200);
+    const registryBody = await registryResp.json();
+    const active = registryBody.workflows.find((workflow) => workflow.workflow_id === workflowId);
+    expect(active).toBeDefined();
+    expect(active.workflow_version).toBe(2);
+    const lineage = (registryBody.version_lineage || []).find(
+      (entry) => entry.workflow_id === workflowId,
+    );
+    expect(lineage).toBeDefined();
+    expect(lineage.active_version).toBe(2);
+    expect(lineage.version_count).toBeGreaterThanOrEqual(2);
+
+    const eventsResp = await fetch(
+      `${baseUrl}/events/recent?event_type=workflow.registry.version_published&limit=50`,
+      { headers: authHeaders },
+    );
+    expect(eventsResp.status).toBe(200);
+    const eventsBody = await eventsResp.json();
+    const publishedEvent = (eventsBody.events || []).find(
+      (event) =>
+        event?.payload?.workflow_id === workflowId && event?.payload?.workflow_version === 2,
+    );
+    expect(publishedEvent).toBeDefined();
   });
 
   test("GET /ops/workflows returns versioned workflow metadata", async () => {

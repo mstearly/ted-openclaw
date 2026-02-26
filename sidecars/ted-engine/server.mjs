@@ -230,6 +230,7 @@ const externalMcpLedgerPath = path.join(externalMcpDir, "external_mcp.jsonl");
 const externalMcpRevalidationPath = path.join(externalMcpDir, "revalidation.jsonl");
 const workflowRunsDir = path.join(artifactsDir, "workflows");
 const workflowRunsPath = path.join(workflowRunsDir, "workflow_runs.jsonl");
+const workflowVersionsPath = path.join(workflowRunsDir, "workflow_versions.jsonl");
 const memoryDir = path.join(artifactsDir, "memory");
 const memoryLedgerPath = path.join(memoryDir, "preferences.jsonl");
 const frictionDir = path.join(artifactsDir, "friction");
@@ -1136,6 +1137,7 @@ function validateStartupIntegrity() {
     externalMcpLedgerPath,
     externalMcpRevalidationPath,
     workflowRunsPath,
+    workflowVersionsPath,
     memoryLedgerPath,
     jobFrictionLedgerPath,
     frictionRollupsPath,
@@ -18232,11 +18234,28 @@ function normalizeWorkflowDefinition(rawWorkflow, options = {}) {
   const trigger = wf.trigger && typeof wf.trigger === "object" ? wf.trigger : {};
   const triggerKind = typeof trigger.kind === "string" ? trigger.kind.trim() : "manual";
   const existingVersion = normalizePositiveInteger(existingWorkflow?.workflow_version, 1);
-  const workflowVersion = normalizePositiveInteger(wf.workflow_version, existingVersion);
-  const supersedesVersion = normalizeNullablePositiveInteger(
-    wf.supersedes_version,
-    existingWorkflow?.supersedes_version,
-  );
+  const forcedWorkflowVersion =
+    Number.isInteger(options.forcedWorkflowVersion) && options.forcedWorkflowVersion > 0
+      ? options.forcedWorkflowVersion
+      : null;
+  const workflowVersion =
+    forcedWorkflowVersion !== null
+      ? forcedWorkflowVersion
+      : normalizePositiveInteger(wf.workflow_version, existingVersion);
+  let supersedesVersion;
+  if (options.forcedSupersedesVersion === null) {
+    supersedesVersion = null;
+  } else if (
+    Number.isInteger(options.forcedSupersedesVersion) &&
+    options.forcedSupersedesVersion > 0
+  ) {
+    supersedesVersion = options.forcedSupersedesVersion;
+  } else {
+    supersedesVersion = normalizeNullablePositiveInteger(
+      wf.supersedes_version,
+      existingWorkflow?.supersedes_version,
+    );
+  }
   const updatedAt =
     normalizeTimestampString(wf.updated_at, options.defaultUpdatedAt) ||
     normalizeTimestampString(existingWorkflow?.updated_at, null) ||
@@ -18693,6 +18712,62 @@ function listWorkflowRuns(options = {}) {
   }
   filtered.sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
   return filtered.slice(0, limit);
+}
+
+function listWorkflowVersionRecords(options = {}) {
+  const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
+  const limitRaw = Number.parseInt(String(options.limit || ""), 10);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 2000)) : 200;
+  let records = readJsonlLines(workflowVersionsPath, "workflow_versions").filter(
+    (entry) => entry.kind === "workflow_version_published",
+  );
+  if (workflowId) {
+    records = records.filter((entry) => entry.workflow_id === workflowId);
+  }
+  records.sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
+  return records.slice(0, limit);
+}
+
+function summarizeWorkflowVersionLineage(activeWorkflows) {
+  const active = Array.isArray(activeWorkflows) ? activeWorkflows : [];
+  const records = listWorkflowVersionRecords({ limit: 5000 });
+  const byWorkflowId = new Map();
+  for (const record of records) {
+    const workflowId = typeof record.workflow_id === "string" ? record.workflow_id : "";
+    if (!workflowId) {
+      continue;
+    }
+    const current = byWorkflowId.get(workflowId) || [];
+    current.push(record);
+    byWorkflowId.set(workflowId, current);
+  }
+
+  return active
+    .map((workflow) => {
+      const workflowId = workflow.workflow_id;
+      const history = byWorkflowId.get(workflowId) || [];
+      const versionSet = new Set();
+      for (const entry of history) {
+        if (Number.isInteger(entry.workflow_version) && entry.workflow_version > 0) {
+          versionSet.add(entry.workflow_version);
+        }
+      }
+      if (Number.isInteger(workflow.workflow_version) && workflow.workflow_version > 0) {
+        versionSet.add(workflow.workflow_version);
+      }
+      const latestPublishedAt =
+        history.length > 0
+          ? history[0].published_at || workflow.published_at || null
+          : workflow.published_at || null;
+      return {
+        workflow_id: workflowId,
+        active_version: workflow.workflow_version || 1,
+        version_count: versionSet.size,
+        latest_definition_hash: workflow.definition_hash || null,
+        latest_published_at: latestPublishedAt,
+      };
+    })
+    .toSorted((a, b) => a.workflow_id.localeCompare(b.workflow_id));
 }
 
 function parseLimit(value, fallback = 25, max = 500) {
@@ -19538,10 +19613,13 @@ function replayRunsEndpoint(parsedUrl, res, route) {
 
 function workflowsRegistryEndpoint(res, route) {
   const cfg = getWorkflowRegistryConfig();
+  const versionLineage = summarizeWorkflowVersionLineage(cfg.workflows);
   sendJson(res, 200, {
     workflows: cfg.workflows,
     total_count: cfg.workflows.length,
     run_count: listWorkflowRuns({ limit: 1_000_000 }).length,
+    version_lineage: versionLineage,
+    lineage_count: versionLineage.length,
   });
   appendAudit("WORKFLOW_REGISTRY_LIST", { count: cfg.workflows.length });
   logLine(`GET ${route} -> 200`);
@@ -19581,16 +19659,16 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
       ? cfg.workflows.find((wf) => wf.workflow_id === candidateWorkflowId) || null
       : null;
   const nowIso = new Date().toISOString();
-  const normalized = normalizeWorkflowDefinition(candidateWorkflow, {
+  const normalizedCandidate = normalizeWorkflowDefinition(candidateWorkflow, {
     existingWorkflow,
     defaultUpdatedAt: nowIso,
     defaultPublishedAt: existingWorkflow?.published_at || nowIso,
   });
-  if (!normalized) {
+  if (!normalizedCandidate) {
     sendJson(res, 400, { error: "invalid_workflow_definition" });
     return;
   }
-  const lintReport = evaluateWorkflowRiskLint(normalized);
+  const lintReport = evaluateWorkflowRiskLint(normalizedCandidate);
   if (!lintReport.lint.pass) {
     const blockingItems = lintReport.policy_explainability.filter(
       (item) => item.severity === "blocking",
@@ -19600,17 +19678,17 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
         ? blockingItems[0].next_safe_step
         : "Add approval_gate checkpoints before high-risk steps and rerun workflow lint.";
     appendEvent("workflow.risk_lint.failed", route, {
-      workflow_id: normalized.workflow_id,
+      workflow_id: normalizedCandidate.workflow_id,
       blocking_count: lintReport.lint.blocking_count,
       warning_count: lintReport.lint.warning_count,
     });
     appendEvent("workflow.publish.blocked_by_lint", route, {
-      workflow_id: normalized.workflow_id,
+      workflow_id: normalizedCandidate.workflow_id,
       blocking_count: lintReport.lint.blocking_count,
       top_hotspot: lintReport.friction_forecast.top_hotspot,
     });
     appendAudit("WORKFLOW_REGISTRY_UPSERT_BLOCKED", {
-      workflow_id: normalized.workflow_id,
+      workflow_id: normalizedCandidate.workflow_id,
       blocking_count: lintReport.lint.blocking_count,
       top_hotspot: lintReport.friction_forecast.top_hotspot,
     });
@@ -19618,7 +19696,7 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
       ok: false,
       error: "workflow_risk_lint_failed",
       message: "Workflow publish blocked by risk lint.",
-      workflow_id: normalized.workflow_id,
+      workflow_id: normalizedCandidate.workflow_id,
       lint: lintReport.lint,
       policy_explainability: blockingItems,
       friction_forecast: lintReport.friction_forecast,
@@ -19626,6 +19704,41 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
     });
     return;
   }
+
+  if (
+    existingWorkflow &&
+    existingWorkflow.definition_hash === normalizedCandidate.definition_hash
+  ) {
+    sendJson(res, 200, {
+      ok: true,
+      workflow: existingWorkflow,
+      total_count: cfg.workflows.length,
+      lint: lintReport.lint,
+      friction_forecast: lintReport.friction_forecast,
+      version_published: false,
+      reason: "definition_unchanged",
+    });
+    return;
+  }
+
+  const nextVersion = existingWorkflow
+    ? normalizePositiveInteger(existingWorkflow.workflow_version, 1) + 1
+    : 1;
+  const supersedesVersion = existingWorkflow
+    ? normalizePositiveInteger(existingWorkflow.workflow_version, 1)
+    : null;
+  const normalized = normalizeWorkflowDefinition(candidateWorkflow, {
+    existingWorkflow,
+    forcedWorkflowVersion: nextVersion,
+    forcedSupersedesVersion: supersedesVersion,
+    defaultUpdatedAt: nowIso,
+    defaultPublishedAt: nowIso,
+  });
+  if (!normalized) {
+    sendJson(res, 400, { error: "invalid_workflow_definition" });
+    return;
+  }
+
   const existingIdx = cfg.workflows.findIndex((wf) => wf.workflow_id === normalized.workflow_id);
   const nextWorkflows = [...cfg.workflows];
   if (existingIdx >= 0) {
@@ -19634,6 +19747,57 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
     nextWorkflows.push(normalized);
   }
   writeWorkflowRegistryConfig({ workflows: nextWorkflows });
+
+  const existingHistory = listWorkflowVersionRecords({
+    workflow_id: normalized.workflow_id,
+    limit: 1_000,
+  });
+  if (existingWorkflow && existingHistory.length === 0) {
+    appendJsonlLine(workflowVersionsPath, {
+      kind: "workflow_version_published",
+      workflow_id: existingWorkflow.workflow_id,
+      workflow_name: existingWorkflow.name,
+      workflow_version: normalizePositiveInteger(existingWorkflow.workflow_version, 1),
+      supersedes_version: existingWorkflow.supersedes_version ?? null,
+      definition_hash: existingWorkflow.definition_hash,
+      published_at: existingWorkflow.published_at || nowIso,
+      updated_at: existingWorkflow.updated_at || existingWorkflow.published_at || nowIso,
+      active_version: false,
+      backfilled_from_legacy: true,
+      workflow: existingWorkflow,
+      trace_id: null,
+      emitted_at: nowIso,
+    });
+  }
+  appendJsonlLine(workflowVersionsPath, {
+    kind: "workflow_version_published",
+    workflow_id: normalized.workflow_id,
+    workflow_name: normalized.name,
+    workflow_version: normalized.workflow_version,
+    supersedes_version: normalized.supersedes_version ?? null,
+    definition_hash: normalized.definition_hash,
+    published_at: normalized.published_at,
+    updated_at: normalized.updated_at,
+    active_version: true,
+    backfilled_from_legacy: false,
+    workflow: normalized,
+    trace_id: null,
+    emitted_at: nowIso,
+  });
+
+  appendEvent("workflow.registry.version_published", route, {
+    workflow_id: normalized.workflow_id,
+    workflow_version: normalized.workflow_version,
+    supersedes_version: normalized.supersedes_version,
+    definition_hash: normalized.definition_hash,
+    published_at: normalized.published_at,
+  });
+  appendAudit("WORKFLOW_REGISTRY_VERSION_PUBLISH", {
+    workflow_id: normalized.workflow_id,
+    workflow_version: normalized.workflow_version,
+    supersedes_version: normalized.supersedes_version,
+    definition_hash: normalized.definition_hash,
+  });
   appendEvent("workflow.registry.upserted", route, {
     workflow_id: normalized.workflow_id,
     workflow_version: normalized.workflow_version,
@@ -19655,6 +19819,7 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
     total_count: nextWorkflows.length,
     lint: lintReport.lint,
     friction_forecast: lintReport.friction_forecast,
+    version_published: true,
   });
 }
 
