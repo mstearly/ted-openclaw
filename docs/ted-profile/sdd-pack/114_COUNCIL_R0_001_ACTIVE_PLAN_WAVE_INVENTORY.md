@@ -33,7 +33,7 @@ This inventory captures the currently active council execution package from SDD 
 | 112 | Master integrated execution plan            | Master wave plan          | Active          | Execute waves I0-I11                             |
 | 113 | Wave I0 execution log                       | Execution log             | Active          | Update with I0 outcomes                          |
 | 128 | Future-proofing retrofit assessment         | Council decision package  | Active baseline | Convert to task-level execution package          |
-| 129 | Future-proofing retrofit task-level plan    | Task-level execution plan | In execution    | Start RF5-001 integrated certification matrix    |
+| 129 | Future-proofing retrofit task-level plan    | Task-level execution plan | Completed       | Closed via RF5-001 and RF5-002 completion packet |
 | 130 | RF0-002 baseline freeze execution log       | Execution log             | Completed       | Use as RF1 baseline evidence                     |
 | 131 | RF1-001 workflow schema evolution log       | Execution log             | Completed       | Use as RF1-002 handoff context                   |
 | 132 | RF1-002 immutable publish execution log     | Execution log             | Completed       | Use as RF1-003 handoff context                   |
@@ -48,6 +48,8 @@ This inventory captures the currently active council execution package from SDD 
 | 141 | RF4-001 connector reliability execution log | Execution log             | Completed       | Use as RF4-002 handoff context                   |
 | 142 | RF4-002 deprecation surface execution log   | Execution log             | Completed       | Use as RF4-003 handoff context                   |
 | 143 | RF4-003 connector replay execution log      | Execution log             | Completed       | Use as RF5-001 handoff context                   |
+| 144 | RF5-001 regression matrix execution log     | Execution log             | Completed       | Use as RF5-002 handoff context                   |
+| 145 | RF5-002 board readiness packet              | Execution log             | Completed       | Retrofit package closeout                        |
 
 ---
 
@@ -75,7 +77,7 @@ This inventory captures the currently active council execution package from SDD 
 1. Wave I0 completion checkpoint is satisfied.
 2. SDD 107 C3 gate is complete and Wave I4 T0/T1 + R1/MR0 policy lock are executed (SDD 125/126/127 evidence).
 3. SDD 128 retrofit direction is ratified as active baseline; SDD 129 provides task-level execution waves RF0-RF5.
-4. RF0-001, RF0-002, RF1-001, RF1-002, RF1-003, RF1-004, RF2-001, RF2-002, RF2-003, RF3-001, RF3-002, RF3-003, RF4-001, RF4-002, and RF4-003 are complete with evidence in SDD 130-143; execution handoff is RF5-001.
+4. RF0-001, RF0-002, RF1-001, RF1-002, RF1-003, RF1-004, RF2-001, RF2-002, RF2-003, RF3-001, RF3-002, RF3-003, RF4-001, RF4-002, RF4-003, RF5-001, and RF5-002 are complete with evidence in SDD 130-145; retrofit execution package is closed.
 5. Production gates remain unchanged:
    - no transport Wave T2/T3 before completing T0/T1 prerequisites,
    - no connector MR-1/MR-2 production activation before P0-4 signoff.

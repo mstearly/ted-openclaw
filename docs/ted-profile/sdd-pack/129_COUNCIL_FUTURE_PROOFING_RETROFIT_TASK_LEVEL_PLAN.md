@@ -1,6 +1,6 @@
 # SDD 129: Council Future Proofing Retrofit Task Level Plan
 
-**Status:** Active  
+**Status:** Completed  
 **Version:** v1  
 **Date:** 2026-02-26  
 **Parents:** SDD 106, SDD 112, SDD 114, SDD 128  
