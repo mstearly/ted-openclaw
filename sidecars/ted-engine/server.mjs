@@ -8,6 +8,7 @@ import {
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
   validateEsignProviderPolicy,
+  validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
   validateRoadmapMaster,
@@ -166,6 +167,7 @@ const evaluationGradersConfigPath = path.join(__dirname, "config", "evaluation_g
 const syntheticCanariesConfigPath = path.join(__dirname, "config", "synthetic_canaries.json");
 const replayCorpusConfigPath = path.join(__dirname, "config", "replay_corpus.json");
 const schedulerConfigPath = path.join(__dirname, "config", "scheduler_config.json");
+const mobileAlertPolicyConfigPath = path.join(__dirname, "config", "mobile_alert_policy.json");
 const schedulerDir = path.join(__dirname, "scheduler");
 fs.mkdirSync(schedulerDir, { recursive: true });
 const pendingDeliveryPath = path.join(schedulerDir, "pending_delivery.jsonl");
@@ -1164,6 +1166,7 @@ function validateStartupIntegrity() {
     connectorAuthModePolicyConfigPath,
     connectorAdmissionPolicyConfigPath,
     esignProviderPolicyConfigPath,
+    mobileAlertPolicyConfigPath,
   ]);
   const allConfigPaths = [
     operatorProfileConfigPath,
@@ -1183,6 +1186,7 @@ function validateStartupIntegrity() {
     connectorAuthModePolicyConfigPath,
     connectorAdmissionPolicyConfigPath,
     esignProviderPolicyConfigPath,
+    mobileAlertPolicyConfigPath,
     hardBansConfigPath,
     briefConfigPath,
     urgencyRulesConfigPath,
@@ -1313,6 +1317,22 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: esignValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === mobileAlertPolicyConfigPath) {
+        const mobileAlertValidation = validateMobileAlertPolicy(parsed);
+        if (!mobileAlertValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `mobile_alert_policy validation failed: ${mobileAlertValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: mobileAlertValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;

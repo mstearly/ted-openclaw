@@ -587,3 +587,238 @@ export function validateEsignProviderPolicy(policy) {
     errors,
   };
 }
+
+function isValidTimeOfDay(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+  return /^([01]\d|2[0-3]):([0-5]\d)$/.test(value.trim());
+}
+
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry) => typeof entry === "string" && entry.trim().length > 0);
+}
+
+function severityRankMap(severityLadder) {
+  const map = new Map();
+  severityLadder.forEach((severity, index) => {
+    map.set(severity, index);
+  });
+  return map;
+}
+
+export function validateMobileAlertPolicy(policy) {
+  const errors = [];
+
+  if (!isObject(policy)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "MOBILE_ALERT_POLICY_INVALID_ROOT",
+          message: "mobile_alert_policy must be an object",
+        },
+      ],
+    };
+  }
+
+  const classes = isObject(policy.classes) ? policy.classes : null;
+  const severityLadder = normalizeStringArray(policy.severity_ladder);
+  const channels = normalizeStringArray(policy.channels);
+  const routing = isObject(policy.routing) ? policy.routing : null;
+  const quietHours = isObject(policy.quiet_hours) ? policy.quiet_hours : null;
+  const escalation = isObject(policy.escalation) ? policy.escalation : null;
+
+  const requiredClasses = [
+    "approval_required",
+    "deadline_risk",
+    "compliance_risk",
+    "critical_incident",
+  ];
+  if (!classes) {
+    errors.push({
+      code: "MOBILE_ALERT_POLICY_CLASSES_MISSING",
+      message: "classes must be present",
+    });
+  } else {
+    for (const classId of requiredClasses) {
+      const classEntry = classes[classId];
+      if (!isObject(classEntry)) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_CLASS_MISSING",
+          message: `classes.${classId} must be present`,
+        });
+      }
+    }
+  }
+
+  if (severityLadder.length < 3) {
+    errors.push({
+      code: "MOBILE_ALERT_POLICY_SEVERITY_LADDER_WEAK",
+      message: "severity_ladder must include at least 3 ordered severities",
+    });
+  }
+  if (channels.length < 2) {
+    errors.push({
+      code: "MOBILE_ALERT_POLICY_CHANNELS_WEAK",
+      message: "channels must include at least 2 channel ids",
+    });
+  }
+
+  if (!routing) {
+    errors.push({
+      code: "MOBILE_ALERT_POLICY_ROUTING_MISSING",
+      message: "routing must be present",
+    });
+  } else {
+    for (const classId of requiredClasses) {
+      const classRouting = routing[classId];
+      if (!isObject(classRouting)) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_CLASS_ROUTING_MISSING",
+          message: `routing.${classId} must be present`,
+        });
+        continue;
+      }
+      for (const severity of severityLadder) {
+        const severityRouting = classRouting[severity];
+        if (!isObject(severityRouting)) {
+          errors.push({
+            code: "MOBILE_ALERT_POLICY_SEVERITY_ROUTING_MISSING",
+            message: `routing.${classId}.${severity} must be present`,
+          });
+          continue;
+        }
+        const primaryChannel = severityRouting.primary_channel;
+        const fallbackChain = normalizeStringArray(severityRouting.fallback_chain);
+
+        if (typeof primaryChannel !== "string" || primaryChannel.trim().length === 0) {
+          errors.push({
+            code: "MOBILE_ALERT_POLICY_PRIMARY_CHANNEL_MISSING",
+            message: `routing.${classId}.${severity}.primary_channel must be a non-empty string`,
+          });
+          continue;
+        }
+        if (!channels.includes(primaryChannel)) {
+          errors.push({
+            code: "MOBILE_ALERT_POLICY_CHANNEL_UNKNOWN",
+            message: `routing.${classId}.${severity}.primary_channel references unknown channel ${primaryChannel}`,
+          });
+        }
+
+        const seen = new Set([primaryChannel]);
+        for (const channel of fallbackChain) {
+          if (!channels.includes(channel)) {
+            errors.push({
+              code: "MOBILE_ALERT_POLICY_CHANNEL_UNKNOWN",
+              message: `routing.${classId}.${severity}.fallback_chain references unknown channel ${channel}`,
+            });
+          }
+          if (seen.has(channel)) {
+            errors.push({
+              code: "MOBILE_ALERT_POLICY_FALLBACK_CHAIN_CYCLE",
+              message: `routing.${classId}.${severity}.fallback_chain contains a repeated channel ${channel}`,
+            });
+          }
+          seen.add(channel);
+        }
+      }
+    }
+  }
+
+  if (!quietHours) {
+    errors.push({
+      code: "MOBILE_ALERT_POLICY_QUIET_HOURS_MISSING",
+      message: "quiet_hours must be present",
+    });
+  } else {
+    if (!isValidTimeOfDay(quietHours.start)) {
+      errors.push({
+        code: "MOBILE_ALERT_POLICY_QUIET_HOURS_START_INVALID",
+        message: "quiet_hours.start must be HH:MM",
+      });
+    }
+    if (!isValidTimeOfDay(quietHours.end)) {
+      errors.push({
+        code: "MOBILE_ALERT_POLICY_QUIET_HOURS_END_INVALID",
+        message: "quiet_hours.end must be HH:MM",
+      });
+    }
+    const overrideRules = Array.isArray(quietHours.override_rules) ? quietHours.override_rules : [];
+    const severityRank = severityRankMap(severityLadder);
+    for (const [index, rule] of overrideRules.entries()) {
+      if (!isObject(rule)) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_QUIET_OVERRIDE_INVALID",
+          message: `quiet_hours.override_rules[${index}] must be an object`,
+        });
+        continue;
+      }
+      if (typeof rule.class !== "string" || !requiredClasses.includes(rule.class)) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_QUIET_OVERRIDE_CLASS_INVALID",
+          message: `quiet_hours.override_rules[${index}].class must be a known class`,
+        });
+      }
+      if (typeof rule.min_severity !== "string" || !severityRank.has(rule.min_severity)) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_QUIET_OVERRIDE_SEVERITY_INVALID",
+          message: `quiet_hours.override_rules[${index}].min_severity must be in severity_ladder`,
+        });
+      }
+      if (rule.bypass_quiet_hours !== true) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_QUIET_OVERRIDE_BYPASS_INVALID",
+          message: `quiet_hours.override_rules[${index}].bypass_quiet_hours must be true`,
+        });
+      }
+    }
+  }
+
+  if (!escalation) {
+    errors.push({
+      code: "MOBILE_ALERT_POLICY_ESCALATION_MISSING",
+      message: "escalation must be present",
+    });
+  } else {
+    if (
+      typeof escalation.default_delay_seconds !== "number" ||
+      !Number.isFinite(escalation.default_delay_seconds) ||
+      escalation.default_delay_seconds < 0
+    ) {
+      errors.push({
+        code: "MOBILE_ALERT_POLICY_ESCALATION_DELAY_INVALID",
+        message: "escalation.default_delay_seconds must be a non-negative number",
+      });
+    }
+    if (!isObject(escalation.retry_limits)) {
+      errors.push({
+        code: "MOBILE_ALERT_POLICY_ESCALATION_LIMITS_MISSING",
+        message: "escalation.retry_limits must be present",
+      });
+    } else {
+      const perChannel = escalation.retry_limits.per_channel;
+      const maxDepth = escalation.retry_limits.max_chain_depth;
+      if (!Number.isInteger(perChannel) || perChannel < 0) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_ESCALATION_PER_CHANNEL_INVALID",
+          message: "escalation.retry_limits.per_channel must be a non-negative integer",
+        });
+      }
+      if (!Number.isInteger(maxDepth) || maxDepth < 1) {
+        errors.push({
+          code: "MOBILE_ALERT_POLICY_ESCALATION_MAX_DEPTH_INVALID",
+          message: "escalation.retry_limits.max_chain_depth must be an integer >= 1",
+        });
+      }
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}

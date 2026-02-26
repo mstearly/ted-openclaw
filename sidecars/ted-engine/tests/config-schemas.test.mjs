@@ -16,6 +16,7 @@ import {
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
   validateEsignProviderPolicy,
+  validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
   validateRoadmapMaster,
@@ -364,6 +365,13 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("mobile_alert_policy.json passes structural validation", () => {
+    const policy = configs.get("mobile_alert_policy.json");
+    const result = validateMobileAlertPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -395,6 +403,7 @@ describe("Required config files exist", () => {
     "connector_auth_mode_policy.json",
     "connector_admission_policy.json",
     "esign_provider_policy.json",
+    "mobile_alert_policy.json",
   ];
 
   test.each(requiredConfigs)("%s exists in config directory", (file) => {

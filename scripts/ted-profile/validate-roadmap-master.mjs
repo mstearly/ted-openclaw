@@ -6,6 +6,7 @@ import {
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
   validateEsignProviderPolicy,
+  validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
   validateRoadmapMaster,
@@ -32,6 +33,7 @@ function parseArgs(argv) {
       "sidecars/ted-engine/config/connector_admission_policy.json",
     ),
     esignPolicy: path.join(repoRoot, "sidecars/ted-engine/config/esign_provider_policy.json"),
+    mobileAlertPolicy: path.join(repoRoot, "sidecars/ted-engine/config/mobile_alert_policy.json"),
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -58,6 +60,10 @@ function parseArgs(argv) {
     }
     if (arg === "--esign-policy") {
       out.esignPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--mobile-alert-policy") {
+      out.mobileAlertPolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
   }
@@ -115,6 +121,11 @@ function main() {
       kind: "e-sign provider policy",
       path: args.esignPolicy,
       validator: validateEsignProviderPolicy,
+    },
+    {
+      kind: "mobile alert policy",
+      path: args.mobileAlertPolicy,
+      validator: validateMobileAlertPolicy,
     },
   ];
 

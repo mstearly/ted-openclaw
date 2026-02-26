@@ -1,0 +1,79 @@
+{
+  "_config_version": 1,
+  "_artifact": "mobile_alert_policy",
+  "_description": "M0 policy contract for mobile alert classification, routing, quiet hours, and escalation behavior.",
+  "_last_updated": "2026-02-26",
+  "classes": {
+    "approval_required": {
+      "description": "Operator approval requests that should be acknowledged promptly.",
+      "default_severity": "high"
+    },
+    "deadline_risk": {
+      "description": "Upcoming deadline risks where action timing can prevent slippage.",
+      "default_severity": "medium"
+    },
+    "compliance_risk": {
+      "description": "Compliance-related signals that may require legal or process intervention.",
+      "default_severity": "high"
+    },
+    "critical_incident": {
+      "description": "Outage or governance incidents requiring immediate interruption.",
+      "default_severity": "critical"
+    }
+  },
+  "severity_ladder": ["low", "medium", "high", "critical"],
+  "channels": ["telegram", "email", "sms"],
+  "routing": {
+    "approval_required": {
+      "low": { "primary_channel": "telegram", "fallback_chain": ["email"] },
+      "medium": { "primary_channel": "telegram", "fallback_chain": ["email", "sms"] },
+      "high": { "primary_channel": "telegram", "fallback_chain": ["sms", "email"] },
+      "critical": { "primary_channel": "sms", "fallback_chain": ["telegram", "email"] }
+    },
+    "deadline_risk": {
+      "low": { "primary_channel": "email", "fallback_chain": ["telegram"] },
+      "medium": { "primary_channel": "telegram", "fallback_chain": ["email"] },
+      "high": { "primary_channel": "telegram", "fallback_chain": ["sms", "email"] },
+      "critical": { "primary_channel": "sms", "fallback_chain": ["telegram", "email"] }
+    },
+    "compliance_risk": {
+      "low": { "primary_channel": "email", "fallback_chain": ["telegram"] },
+      "medium": { "primary_channel": "telegram", "fallback_chain": ["email"] },
+      "high": { "primary_channel": "sms", "fallback_chain": ["telegram", "email"] },
+      "critical": { "primary_channel": "sms", "fallback_chain": ["telegram", "email"] }
+    },
+    "critical_incident": {
+      "low": { "primary_channel": "telegram", "fallback_chain": ["email"] },
+      "medium": { "primary_channel": "telegram", "fallback_chain": ["sms", "email"] },
+      "high": { "primary_channel": "sms", "fallback_chain": ["telegram", "email"] },
+      "critical": { "primary_channel": "sms", "fallback_chain": ["telegram", "email"] }
+    }
+  },
+  "quiet_hours": {
+    "enabled": true,
+    "start": "21:00",
+    "end": "07:00",
+    "timezone": "America/New_York",
+    "override_rules": [
+      {
+        "class": "critical_incident",
+        "min_severity": "high",
+        "bypass_quiet_hours": true
+      },
+      {
+        "class": "compliance_risk",
+        "min_severity": "critical",
+        "bypass_quiet_hours": true
+      }
+    ]
+  },
+  "escalation": {
+    "default_delay_seconds": 300,
+    "retry_limits": {
+      "per_channel": 2,
+      "max_chain_depth": 3
+    },
+    "retry_backoff_seconds": [30, 120],
+    "force_escalation_after_seconds": 1800
+  }
+}

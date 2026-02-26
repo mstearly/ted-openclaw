@@ -6,6 +6,7 @@ import {
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
   validateEsignProviderPolicy,
+  validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
   validateRoadmapMaster,
@@ -24,6 +25,7 @@ const connectorAdmissionPolicyPath = resolve(
   "../config/connector_admission_policy.json",
 );
 const esignProviderPolicyPath = resolve(__dirname, "../config/esign_provider_policy.json");
+const mobileAlertPolicyPath = resolve(__dirname, "../config/mobile_alert_policy.json");
 
 function loadJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -89,11 +91,13 @@ describe("roadmap governance module", () => {
     const authModePolicy = loadJson(connectorAuthModePolicyPath);
     const admissionPolicy = loadJson(connectorAdmissionPolicyPath);
     const esignPolicy = loadJson(esignProviderPolicyPath);
+    const mobileAlertPolicy = loadJson(mobileAlertPolicyPath);
 
     expect(validateModuleRequestIntakeTemplate(intakeTemplate).ok).toBe(true);
     expect(validateConnectorAuthModePolicy(authModePolicy).ok).toBe(true);
     expect(validateConnectorAdmissionPolicy(admissionPolicy).ok).toBe(true);
     expect(validateEsignProviderPolicy(esignPolicy).ok).toBe(true);
+    expect(validateMobileAlertPolicy(mobileAlertPolicy).ok).toBe(true);
   });
 
   test("rejects inconsistent e-sign policy combinations", () => {
@@ -114,5 +118,16 @@ describe("roadmap governance module", () => {
     const codes = new Set((result.errors || []).map((entry) => entry.code));
     expect(result.ok).toBe(false);
     expect(codes.has("ESIGN_POLICY_RIGHTSIGNATURE_DISABLED_REQUIRED")).toBe(true);
+  });
+
+  test("rejects mobile alert policy fallback channel cycles", () => {
+    const mobileAlertPolicy = loadJson(mobileAlertPolicyPath);
+    const mutated = JSON.parse(JSON.stringify(mobileAlertPolicy));
+    mutated.routing.approval_required.high.fallback_chain = ["telegram", "email", "telegram"];
+
+    const result = validateMobileAlertPolicy(mutated);
+    const codes = new Set((result.errors || []).map((entry) => entry.code));
+    expect(result.ok).toBe(false);
+    expect(codes.has("MOBILE_ALERT_POLICY_FALLBACK_CHAIN_CYCLE")).toBe(true);
   });
 });
