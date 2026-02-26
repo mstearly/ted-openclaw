@@ -14,6 +14,25 @@
       },
       "requires_queue_first_webhooks": true,
       "requires_idempotency_keys": true,
+      "idempotency_strategy": {
+        "key_source": "header:x-idempotency-key",
+        "replay_window_hours": 72,
+        "dedupe_scope": "connector_operation"
+      },
+      "callback_authenticity": {
+        "verification_mode": "hmac_sha256",
+        "signature_header": "x-ted-signature",
+        "timestamp_header": "x-ted-timestamp",
+        "max_clock_skew_seconds": 300,
+        "secret_env_var": "TED_MONDAY_WEBHOOK_SECRET"
+      },
+      "retry_backoff_policy": {
+        "strategy": "exponential_jitter",
+        "max_retries": 5,
+        "base_delay_ms": 500,
+        "max_delay_ms": 30000,
+        "retryable_status_codes": [408, 409, 425, 429, 500, 502, 503, 504]
+      },
       "production_activation_gate": "P0-4_GATE"
     },
     "rightsignature": {
@@ -25,6 +44,25 @@
       },
       "requires_queue_first_webhooks": true,
       "requires_idempotency_keys": true,
+      "idempotency_strategy": {
+        "key_source": "header:x-idempotency-key",
+        "replay_window_hours": 72,
+        "dedupe_scope": "connector_operation"
+      },
+      "callback_authenticity": {
+        "verification_mode": "hmac_sha256",
+        "signature_header": "x-rightsignature-signature",
+        "timestamp_header": "x-rightsignature-timestamp",
+        "max_clock_skew_seconds": 300,
+        "secret_env_var": "TED_RIGHTSIGNATURE_WEBHOOK_SECRET"
+      },
+      "retry_backoff_policy": {
+        "strategy": "exponential_jitter",
+        "max_retries": 5,
+        "base_delay_ms": 500,
+        "max_delay_ms": 30000,
+        "retryable_status_codes": [408, 409, 425, 429, 500, 502, 503, 504]
+      },
       "production_activation_gate": "P0-4_GATE"
     }
   }

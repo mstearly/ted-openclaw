@@ -448,6 +448,15 @@ export function validateConnectorAuthModePolicy(policy) {
   };
 }
 
+function isNonEmptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function parseInteger(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
 function validateAdmissionProvider(params) {
   const errors = [];
   if (!isObject(params.entry)) {
@@ -469,6 +478,156 @@ function validateAdmissionProvider(params) {
       code: "CONNECTOR_ADMISSION_PHASE_POLICY_MISSING",
       message: `providers.${params.providerId}.allowed_operations_by_phase must be an object`,
     });
+  }
+  if (params.entry.requires_queue_first_webhooks !== true) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_QUEUE_FIRST_REQUIRED",
+      message: `providers.${params.providerId}.requires_queue_first_webhooks must be true`,
+    });
+  }
+  if (params.entry.requires_idempotency_keys !== true) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_IDEMPOTENCY_REQUIRED",
+      message: `providers.${params.providerId}.requires_idempotency_keys must be true`,
+    });
+  }
+  if (!isNonEmptyString(params.entry.production_activation_gate)) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_PROD_GATE_MISSING",
+      message: `providers.${params.providerId}.production_activation_gate must be a non-empty string`,
+    });
+  }
+
+  const idempotency = isObject(params.entry.idempotency_strategy)
+    ? params.entry.idempotency_strategy
+    : null;
+  if (!idempotency) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_IDEMPOTENCY_STRATEGY_MISSING",
+      message: `providers.${params.providerId}.idempotency_strategy must be present`,
+    });
+  } else {
+    if (!isNonEmptyString(idempotency.key_source)) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_IDEMPOTENCY_KEY_SOURCE_INVALID",
+        message: `providers.${params.providerId}.idempotency_strategy.key_source must be a non-empty string`,
+      });
+    }
+    const replayWindowHours = parseInteger(idempotency.replay_window_hours);
+    if (replayWindowHours === null || replayWindowHours < 1 || replayWindowHours > 168) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_IDEMPOTENCY_WINDOW_INVALID",
+        message: `providers.${params.providerId}.idempotency_strategy.replay_window_hours must be an integer between 1 and 168`,
+      });
+    }
+    const validDedupeScopes = new Set([
+      "connector_resource",
+      "connector_operation",
+      "payload_hash",
+    ]);
+    if (!validDedupeScopes.has(String(idempotency.dedupe_scope || ""))) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_IDEMPOTENCY_SCOPE_INVALID",
+        message: `providers.${params.providerId}.idempotency_strategy.dedupe_scope must be one of connector_resource, connector_operation, payload_hash`,
+      });
+    }
+  }
+
+  const callbackAuth = isObject(params.entry.callback_authenticity)
+    ? params.entry.callback_authenticity
+    : null;
+  if (!callbackAuth) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_CALLBACK_AUTH_MISSING",
+      message: `providers.${params.providerId}.callback_authenticity must be present`,
+    });
+  } else {
+    const validVerificationModes = new Set(["hmac_sha256", "signed_secret_token"]);
+    if (!validVerificationModes.has(String(callbackAuth.verification_mode || ""))) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_CALLBACK_AUTH_MODE_INVALID",
+        message: `providers.${params.providerId}.callback_authenticity.verification_mode must be one of hmac_sha256, signed_secret_token`,
+      });
+    }
+    for (const field of ["signature_header", "timestamp_header", "secret_env_var"]) {
+      if (!isNonEmptyString(callbackAuth[field])) {
+        errors.push({
+          code: "CONNECTOR_ADMISSION_CALLBACK_AUTH_FIELD_INVALID",
+          message: `providers.${params.providerId}.callback_authenticity.${field} must be a non-empty string`,
+        });
+      }
+    }
+    const maxClockSkewSeconds = parseInteger(callbackAuth.max_clock_skew_seconds);
+    if (maxClockSkewSeconds === null || maxClockSkewSeconds < 30 || maxClockSkewSeconds > 900) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_CALLBACK_AUTH_CLOCK_SKEW_INVALID",
+        message: `providers.${params.providerId}.callback_authenticity.max_clock_skew_seconds must be an integer between 30 and 900`,
+      });
+    }
+  }
+
+  const retryBackoff = isObject(params.entry.retry_backoff_policy)
+    ? params.entry.retry_backoff_policy
+    : null;
+  if (!retryBackoff) {
+    errors.push({
+      code: "CONNECTOR_ADMISSION_RETRY_BACKOFF_MISSING",
+      message: `providers.${params.providerId}.retry_backoff_policy must be present`,
+    });
+  } else {
+    const validBackoffStrategies = new Set(["exponential_jitter", "fixed_jitter"]);
+    if (!validBackoffStrategies.has(String(retryBackoff.strategy || ""))) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_RETRY_STRATEGY_INVALID",
+        message: `providers.${params.providerId}.retry_backoff_policy.strategy must be one of exponential_jitter, fixed_jitter`,
+      });
+    }
+    const maxRetries = parseInteger(retryBackoff.max_retries);
+    if (maxRetries === null || maxRetries < 1 || maxRetries > 12) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_RETRY_MAX_RETRIES_INVALID",
+        message: `providers.${params.providerId}.retry_backoff_policy.max_retries must be an integer between 1 and 12`,
+      });
+    }
+    const baseDelayMs = parseInteger(retryBackoff.base_delay_ms);
+    const maxDelayMs = parseInteger(retryBackoff.max_delay_ms);
+    if (baseDelayMs === null || baseDelayMs < 100 || baseDelayMs > 60_000) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_RETRY_BASE_DELAY_INVALID",
+        message: `providers.${params.providerId}.retry_backoff_policy.base_delay_ms must be an integer between 100 and 60000`,
+      });
+    }
+    if (maxDelayMs === null || maxDelayMs < 100 || maxDelayMs > 300_000) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_RETRY_MAX_DELAY_INVALID",
+        message: `providers.${params.providerId}.retry_backoff_policy.max_delay_ms must be an integer between 100 and 300000`,
+      });
+    }
+    if (baseDelayMs !== null && maxDelayMs !== null && maxDelayMs < baseDelayMs) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_RETRY_DELAY_ORDER_INVALID",
+        message: `providers.${params.providerId}.retry_backoff_policy.max_delay_ms must be >= base_delay_ms`,
+      });
+    }
+    const retryableStatusCodes = Array.isArray(retryBackoff.retryable_status_codes)
+      ? retryBackoff.retryable_status_codes
+      : [];
+    if (retryableStatusCodes.length === 0) {
+      errors.push({
+        code: "CONNECTOR_ADMISSION_RETRYABLE_STATUS_CODES_MISSING",
+        message: `providers.${params.providerId}.retry_backoff_policy.retryable_status_codes must be non-empty`,
+      });
+    } else {
+      for (const statusCode of retryableStatusCodes) {
+        if (!Number.isInteger(statusCode) || statusCode < 400 || statusCode > 599) {
+          errors.push({
+            code: "CONNECTOR_ADMISSION_RETRYABLE_STATUS_CODE_INVALID",
+            message: `providers.${params.providerId}.retry_backoff_policy.retryable_status_codes must contain HTTP status codes`,
+          });
+          break;
+        }
+      }
+    }
   }
 
   return errors;

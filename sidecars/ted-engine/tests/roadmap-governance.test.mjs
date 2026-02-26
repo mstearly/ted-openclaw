@@ -108,6 +108,21 @@ describe("roadmap governance module", () => {
     expect(validateRetrofitBaselineLock(retrofitBaselineLock).ok).toBe(true);
   });
 
+  test("rejects connector admission policy when reliability controls are missing", () => {
+    const admissionPolicy = loadJson(connectorAdmissionPolicyPath);
+    const mutated = JSON.parse(JSON.stringify(admissionPolicy));
+    delete mutated.providers.monday.idempotency_strategy;
+    mutated.providers.rightsignature.callback_authenticity.secret_env_var = "";
+    mutated.providers.rightsignature.retry_backoff_policy.retryable_status_codes = [];
+
+    const result = validateConnectorAdmissionPolicy(mutated);
+    const codes = new Set((result.errors || []).map((entry) => entry.code));
+    expect(result.ok).toBe(false);
+    expect(codes.has("CONNECTOR_ADMISSION_IDEMPOTENCY_STRATEGY_MISSING")).toBe(true);
+    expect(codes.has("CONNECTOR_ADMISSION_CALLBACK_AUTH_FIELD_INVALID")).toBe(true);
+    expect(codes.has("CONNECTOR_ADMISSION_RETRYABLE_STATUS_CODES_MISSING")).toBe(true);
+  });
+
   test("rejects inconsistent e-sign policy combinations", () => {
     const esignPolicy = loadJson(esignProviderPolicyPath);
     const mutated = {
