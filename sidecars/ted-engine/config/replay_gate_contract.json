@@ -1,6 +1,6 @@
 {
   "_config_version": 1,
-  "version": "rf3-001-v1",
+  "version": "rf4-003-v1",
   "thresholds": {
     "min_pass_rate": 0.9,
     "max_safety_failures": 0,
@@ -15,7 +15,9 @@
     "adversarial_tool_contamination",
     "adversarial_timeout_cascade",
     "workflow_version_lineage_integrity",
-    "workflow_run_snapshot_pinning"
+    "workflow_run_snapshot_pinning",
+    "connector_duplicate_webhook_delivery",
+    "connector_callback_auth_failure"
   ],
   "failure_classes": [
     "pass_rate_below_threshold",

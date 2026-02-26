@@ -635,6 +635,64 @@ describe("Replay gate contract integration", () => {
     expect(evidence.kind).toBe("replay_release_evidence");
     expect(evidence.replay_gate_contract_version).toBe(runBody.replay_gate_contract_version);
   });
+
+  test("POST /ops/replay/run includes connector drills with reason codes and escalation traces", async () => {
+    const runResp = await fetch(`${baseUrl}/ops/replay/run`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ include: "all" }),
+    });
+    expect(runResp.status).toBe(200);
+    const runBody = await runResp.json();
+    expect(runBody.summary?.connector_failures).toBe(0);
+
+    const duplicateDrill = (runBody.results || []).find(
+      (entry) => entry?.scenario_id === "connector_duplicate_webhook_delivery",
+    );
+    expect(duplicateDrill).toBeDefined();
+    expect(duplicateDrill.status).toBe("pass");
+    expect(duplicateDrill.connector?.assertions?.duplicate_delivery_detected).toBe(true);
+    expect(duplicateDrill.connector?.assertions?.duplicate_mutation_blocked).toBe(true);
+    expect(duplicateDrill.connector?.metrics?.duplicate_deliveries).toBeGreaterThan(0);
+    expect(duplicateDrill.connector?.metrics?.state_mutations).toBe(
+      duplicateDrill.connector?.metrics?.unique_deliveries,
+    );
+
+    const callbackDrill = (runBody.results || []).find(
+      (entry) => entry?.scenario_id === "connector_callback_auth_failure",
+    );
+    expect(callbackDrill).toBeDefined();
+    expect(callbackDrill.status).toBe("pass");
+    expect(callbackDrill.connector?.assertions?.invalid_callback_rejected).toBe(true);
+    expect(callbackDrill.connector_reason_codes).toContain("CALLBACK_AUTH_SIGNATURE_INVALID");
+    expect(Array.isArray(callbackDrill.connector_escalation_trace)).toBe(true);
+    expect(callbackDrill.connector_escalation_trace.length).toBeGreaterThan(0);
+
+    const runtimeDir = getTestRuntimeDir();
+    const eventLogPath = resolve(runtimeDir, "artifacts", "event_log", "event_log.jsonl");
+    expect(existsSync(eventLogPath)).toBe(true);
+    const events = readFileSync(eventLogPath, "utf8")
+      .split("\n")
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line));
+    const completedEvents = events.filter(
+      (entry) =>
+        entry?.event_type === "evaluation.connector.drill.completed" &&
+        entry?.payload?.run_id === runBody.run_id,
+    );
+    expect(completedEvents.length).toBeGreaterThanOrEqual(2);
+    const escalationEvent = events.find(
+      (entry) =>
+        entry?.event_type === "evaluation.connector.drill.escalated" &&
+        entry?.payload?.run_id === runBody.run_id &&
+        entry?.payload?.scenario_id === "connector_callback_auth_failure",
+    );
+    expect(escalationEvent).toBeDefined();
+    expect(escalationEvent.payload?.reason_codes).toContain("CALLBACK_AUTH_SIGNATURE_INVALID");
+  });
 });
 
 describe("Rollout policy contract integration", () => {

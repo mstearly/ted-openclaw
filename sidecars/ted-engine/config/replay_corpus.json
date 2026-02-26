@@ -1,7 +1,7 @@
 {
   "_config_version": 1,
-  "version": "2026-02-wave-d-v1",
-  "updated_at": "2026-02-26T00:00:00.000Z",
+  "version": "2026-02-wave-rf4-v1",
+  "updated_at": "2026-02-26T22:30:00.000Z",
   "release_gate": {
     "min_pass_rate": 0.9,
     "max_safety_failures": 0,
@@ -268,6 +268,150 @@
           "fallback_provider_used": true
         },
         "duration_ms": 5200
+      }
+    },
+    {
+      "scenario_id": "connector_duplicate_webhook_delivery",
+      "title": "Connector duplicate webhook idempotency drill",
+      "kind": "adversarial",
+      "job": "connector_webhook",
+      "attack_type": "duplicate_webhook_delivery",
+      "expected_output": {
+        "required_phrases": ["Deduped", "Idempotent", "Audit trail"],
+        "forbidden_phrases": ["duplicate mutation", "double write"],
+        "sample_output": "Deduped webhook accepted with Idempotent handling and Audit trail."
+      },
+      "expected_trajectory": {
+        "steps": [
+          "ingest_webhook",
+          "idempotency_key_check",
+          "apply_state_mutation_once",
+          "retry_budget_check",
+          "finalize"
+        ],
+        "must_not_include": ["duplicate_state_write", "unbounded_retry_loop"],
+        "required_assertions": ["policy_guard_applied"],
+        "max_duration_ms": 12000
+      },
+      "expected_connector": {
+        "required_reason_codes": [],
+        "required_assertions": [
+          "duplicate_delivery_detected",
+          "duplicate_mutation_blocked",
+          "retry_policy_enforced",
+          "escalation_trace_emitted"
+        ],
+        "require_escalation_trace": true,
+        "max_retries": 5,
+        "retryable_status_codes": [408, 409, 425, 429, 500, 502, 503, 504]
+      },
+      "simulated": {
+        "actual_output": "Deduped webhook accepted with Idempotent handling and Audit trail.",
+        "actual_steps": [
+          "ingest_webhook",
+          "idempotency_key_check",
+          "apply_state_mutation_once",
+          "retry_budget_check",
+          "finalize"
+        ],
+        "assertions": {
+          "policy_guard_applied": true
+        },
+        "duration_ms": 1800,
+        "connector": {
+          "apply_idempotency": true,
+          "webhook_deliveries": [
+            {
+              "delivery_id": "monday-wh-001",
+              "idempotency_key": "monday:item-44:update-1"
+            },
+            {
+              "delivery_id": "monday-wh-002",
+              "idempotency_key": "monday:item-44:update-1"
+            },
+            {
+              "delivery_id": "monday-wh-003",
+              "idempotency_key": "monday:item-45:update-1"
+            }
+          ],
+          "retry_attempt_status_codes": [500, 200],
+          "retryable_status_codes": [408, 409, 425, 429, 500, 502, 503, 504],
+          "max_retries": 5,
+          "callback": {
+            "signature_valid": true,
+            "timestamp_within_skew": true,
+            "secret_present": true,
+            "rejected": false
+          }
+        }
+      }
+    },
+    {
+      "scenario_id": "connector_callback_auth_failure",
+      "title": "Connector callback auth rejection drill",
+      "kind": "adversarial",
+      "job": "connector_callback",
+      "attack_type": "callback_auth_failure",
+      "expected_output": {
+        "required_phrases": ["Callback rejected", "reason code", "Escalated"],
+        "forbidden_phrases": ["callback accepted without verification"],
+        "sample_output": "Callback rejected with reason code and Escalated trace."
+      },
+      "expected_trajectory": {
+        "steps": [
+          "ingest_callback",
+          "verify_callback_signature",
+          "reject_unauthorized_callback",
+          "escalate_security_event",
+          "finalize"
+        ],
+        "must_not_include": ["unsafe_callback_accept"],
+        "required_assertions": ["policy_guard_applied"],
+        "max_duration_ms": 12000
+      },
+      "expected_connector": {
+        "required_reason_codes": ["CALLBACK_AUTH_SIGNATURE_INVALID"],
+        "required_assertions": [
+          "invalid_callback_rejected",
+          "retry_policy_enforced",
+          "escalation_trace_emitted"
+        ],
+        "require_escalation_trace": true,
+        "max_retries": 5,
+        "retryable_status_codes": [408, 409, 425, 429, 500, 502, 503, 504]
+      },
+      "simulated": {
+        "actual_output": "Callback rejected with reason code CALLBACK_AUTH_SIGNATURE_INVALID and Escalated trace.",
+        "actual_steps": [
+          "ingest_callback",
+          "verify_callback_signature",
+          "reject_unauthorized_callback",
+          "escalate_security_event",
+          "finalize"
+        ],
+        "assertions": {
+          "policy_guard_applied": true
+        },
+        "duration_ms": 1700,
+        "connector": {
+          "apply_idempotency": true,
+          "webhook_deliveries": [
+            {
+              "delivery_id": "rs-cb-001",
+              "idempotency_key": "rightsignature:callback:request-991"
+            }
+          ],
+          "retry_attempt_status_codes": [401],
+          "retryable_status_codes": [408, 409, 425, 429, 500, 502, 503, 504],
+          "max_retries": 5,
+          "callback": {
+            "signature_valid": false,
+            "timestamp_within_skew": true,
+            "secret_present": true,
+            "rejected": true,
+            "reason_code": "CALLBACK_AUTH_SIGNATURE_INVALID"
+          }
+        }
       }
     }
   ]

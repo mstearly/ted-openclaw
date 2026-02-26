@@ -349,7 +349,9 @@
       "evaluation.replay.completed": "Deterministic replay harness run completed with output and trajectory scoring",
       "evaluation.replay.failed": "Replay run failed release gate thresholds",
       "evaluation.adversarial.failed": "Adversarial replay scenarios detected a safety failure",
-      "evaluation.replay.runs.queried": "Operator queried replay run history"
+      "evaluation.replay.runs.queried": "Operator queried replay run history",
+      "evaluation.connector.drill.completed": "Connector replay drill completed with idempotency and callback safety assertions",
+      "evaluation.connector.drill.escalated": "Connector replay drill emitted escalation trace and reason codes"
     },
     "workflow": {
       "workflow.registry.upserted": "Workflow definition added or updated in registry",

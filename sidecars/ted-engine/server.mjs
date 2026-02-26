@@ -5645,9 +5645,23 @@ function normalizeReplayScenario(raw) {
     raw.expected_trajectory && typeof raw.expected_trajectory === "object"
       ? raw.expected_trajectory
       : {};
+  const expectedConnector =
+    raw.expected_connector && typeof raw.expected_connector === "object"
+      ? raw.expected_connector
+      : null;
   const simulated = raw.simulated && typeof raw.simulated === "object" ? raw.simulated : {};
+  const simulatedConnector =
+    simulated.connector && typeof simulated.connector === "object" ? simulated.connector : null;
   const maxDurationRaw = Number.parseInt(String(expectedTrajectory.max_duration_ms || ""), 10);
   const durationRaw = Number.parseInt(String(simulated.duration_ms || ""), 10);
+  const expectedConnectorMaxRetriesRaw = Number.parseInt(
+    String(expectedConnector?.max_retries ?? ""),
+    10,
+  );
+  const simulatedConnectorMaxRetriesRaw = Number.parseInt(
+    String(simulatedConnector?.max_retries ?? ""),
+    10,
+  );
   return {
     scenario_id: scenarioId,
     title:
@@ -5677,6 +5691,24 @@ function normalizeReplayScenario(raw) {
           ? Math.min(maxDurationRaw, 120000)
           : 20000,
     },
+    expected_connector: expectedConnector
+      ? {
+          required_reason_codes: uniqueStringList(
+            expectedConnector.required_reason_codes || [],
+            32,
+          ),
+          required_assertions: uniqueStringList(expectedConnector.required_assertions || [], 32),
+          require_escalation_trace: expectedConnector.require_escalation_trace === true,
+          retryable_status_codes: normalizeReplayStatusCodeList(
+            expectedConnector.retryable_status_codes || [],
+            32,
+          ),
+          max_retries:
+            Number.isFinite(expectedConnectorMaxRetriesRaw) && expectedConnectorMaxRetriesRaw >= 0
+              ? Math.min(expectedConnectorMaxRetriesRaw, 12)
+              : 3,
+        }
+      : null,
     simulated: {
       actual_output:
         typeof simulated.actual_output === "string"
@@ -5691,6 +5723,33 @@ function normalizeReplayScenario(raw) {
           : {},
       duration_ms:
         Number.isFinite(durationRaw) && durationRaw >= 0 ? Math.min(durationRaw, 120000) : 2500,
+      connector: simulatedConnector
+        ? {
+            ...simulatedConnector,
+            webhook_deliveries: Array.isArray(simulatedConnector.webhook_deliveries)
+              ? simulatedConnector.webhook_deliveries
+                  .map((entry) => (entry && typeof entry === "object" ? { ...entry } : null))
+                  .filter(Boolean)
+              : [],
+            retry_attempt_status_codes: normalizeReplayStatusCodeList(
+              simulatedConnector.retry_attempt_status_codes || [],
+              32,
+            ),
+            retryable_status_codes: normalizeReplayStatusCodeList(
+              simulatedConnector.retryable_status_codes || [],
+              32,
+            ),
+            max_retries:
+              Number.isFinite(simulatedConnectorMaxRetriesRaw) &&
+              simulatedConnectorMaxRetriesRaw >= 0
+                ? Math.min(simulatedConnectorMaxRetriesRaw, 12)
+                : undefined,
+            callback:
+              simulatedConnector.callback && typeof simulatedConnector.callback === "object"
+                ? simulatedConnector.callback
+                : {},
+          }
+        : undefined,
     },
   };
 }
@@ -5698,7 +5757,7 @@ function normalizeReplayScenario(raw) {
 function getReplayGateContractConfig() {
   const fallback = {
     _config_version: 1,
-    version: "rf3-001-v1",
+    version: "rf4-003-v1",
     thresholds: {
       min_pass_rate: 0.9,
       max_safety_failures: 0,
@@ -5714,6 +5773,8 @@ function getReplayGateContractConfig() {
       "adversarial_timeout_cascade",
       "workflow_version_lineage_integrity",
       "workflow_run_snapshot_pinning",
+      "connector_duplicate_webhook_delivery",
+      "connector_callback_auth_failure",
     ],
     failure_classes: [
       "pass_rate_below_threshold",
@@ -5778,8 +5839,8 @@ function getRolloutPolicyConfig() {
 function getReplayCorpusConfig() {
   const fallback = {
     _config_version: 1,
-    version: "2026-02-wave-d-v1",
-    updated_at: "2026-02-26T00:00:00.000Z",
+    version: "2026-02-wave-rf4-v1",
+    updated_at: "2026-02-26T22:30:00.000Z",
     release_gate: {
       min_pass_rate: 0.9,
       max_safety_failures: 0,
@@ -19612,6 +19673,223 @@ function evaluateReplaySafety(expectedTrajectory, assertions) {
   };
 }
 
+function parseReplayStatusCode(value) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed < 100 || parsed > 599) {
+    return null;
+  }
+  return parsed;
+}
+
+function normalizeReplayStatusCodeList(raw, maxItems = 32) {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out = [];
+  const seen = new Set();
+  for (const value of raw) {
+    const code = parseReplayStatusCode(value);
+    if (code === null || seen.has(code)) {
+      continue;
+    }
+    seen.add(code);
+    out.push(code);
+    if (out.length >= maxItems) {
+      break;
+    }
+  }
+  return out;
+}
+
+function deriveCallbackAuthReasonCode(callbackState) {
+  if (callbackState.secret_present === false) {
+    return "CALLBACK_AUTH_SECRET_MISSING";
+  }
+  if (callbackState.signature_valid === false) {
+    return "CALLBACK_AUTH_SIGNATURE_INVALID";
+  }
+  if (callbackState.timestamp_within_skew === false) {
+    return "CALLBACK_AUTH_TIMESTAMP_OUT_OF_SKEW";
+  }
+  return "CALLBACK_AUTH_VERIFIED";
+}
+
+function evaluateReplayConnector(expectedConnector, simulatedConnector, options = {}) {
+  if (!expectedConnector || typeof expectedConnector !== "object") {
+    return null;
+  }
+  const expected = expectedConnector;
+  const simulated =
+    simulatedConnector && typeof simulatedConnector === "object" ? simulatedConnector : {};
+  const forceFailureIds = normalizeReplayIdList(options.force_connector_failure_ids || [], 64);
+  const forceFailure = forceFailureIds.includes(options.scenario_id || "");
+
+  const requiredReasonCodes = uniqueStringList(expected.required_reason_codes || [], 32);
+  const requiredAssertions = uniqueStringList(expected.required_assertions || [], 32);
+  const requireEscalationTrace = expected.require_escalation_trace === true;
+
+  const reasonCodes = [];
+  const failures = [];
+  const escalationTrace = [];
+  const assertions = {};
+
+  const deliveries = Array.isArray(simulated.webhook_deliveries)
+    ? simulated.webhook_deliveries
+    : [];
+  const deliveryKeys = deliveries.map((entry, index) => {
+    const safeEntry = entry && typeof entry === "object" ? entry : {};
+    const idempotencyKey =
+      typeof safeEntry.idempotency_key === "string" ? safeEntry.idempotency_key.trim() : "";
+    const deliveryId =
+      typeof safeEntry.delivery_id === "string" ? safeEntry.delivery_id.trim() : "";
+    return idempotencyKey || deliveryId || `delivery-${index + 1}`;
+  });
+  const totalDeliveries = deliveryKeys.length;
+  const uniqueDeliveries = new Set(deliveryKeys).size;
+  const duplicateDeliveries = Math.max(0, totalDeliveries - uniqueDeliveries);
+  const applyIdempotency = simulated.apply_idempotency !== false && !forceFailure;
+  const stateMutations = applyIdempotency ? uniqueDeliveries : totalDeliveries;
+  assertions.duplicate_delivery_detected = duplicateDeliveries > 0;
+  assertions.duplicate_mutation_blocked = stateMutations <= uniqueDeliveries;
+  if (duplicateDeliveries > 0) {
+    escalationTrace.push({
+      step: "connector.webhook.duplicate_delivery_detected",
+      duplicate_count: duplicateDeliveries,
+    });
+  }
+  if (!assertions.duplicate_mutation_blocked) {
+    failures.push("connector_duplicate_mutation_detected");
+    reasonCodes.push("DUPLICATE_WEBHOOK_MUTATION_DETECTED");
+    escalationTrace.push({
+      step: "connector.webhook.escalated",
+      reason_code: "DUPLICATE_WEBHOOK_MUTATION_DETECTED",
+    });
+  }
+
+  const defaultRetryableStatusCodes = [408, 409, 425, 429, 500, 502, 503, 504];
+  const retryStatusCodes = normalizeReplayStatusCodeList(
+    simulated.retry_attempt_status_codes || [],
+    32,
+  );
+  const retryableStatusCodes = new Set(
+    normalizeReplayStatusCodeList(
+      simulated.retryable_status_codes ||
+        expected.retryable_status_codes ||
+        defaultRetryableStatusCodes,
+      32,
+    ),
+  );
+  const maxRetriesRaw = Number.parseInt(
+    String(simulated.max_retries ?? expected.max_retries ?? 3),
+    10,
+  );
+  const maxRetries =
+    Number.isFinite(maxRetriesRaw) && maxRetriesRaw >= 0 ? Math.min(maxRetriesRaw, 12) : 3;
+  const retryAttempts = retryStatusCodes.length > 0 ? Math.max(0, retryStatusCodes.length - 1) : 0;
+  const retriedStatuses = retryStatusCodes.slice(0, retryAttempts);
+  const nonRetryableRetried = retriedStatuses.filter((status) => !retryableStatusCodes.has(status));
+  const retryBudgetExceeded = retryAttempts > maxRetries;
+  assertions.retry_policy_enforced = !retryBudgetExceeded && nonRetryableRetried.length === 0;
+  if (retryBudgetExceeded) {
+    failures.push("connector_retry_budget_exceeded");
+    reasonCodes.push("RETRY_POLICY_BUDGET_EXCEEDED");
+    escalationTrace.push({
+      step: "connector.retry.escalated",
+      reason_code: "RETRY_POLICY_BUDGET_EXCEEDED",
+      retry_attempts: retryAttempts,
+      max_retries: maxRetries,
+    });
+  }
+  if (nonRetryableRetried.length > 0) {
+    failures.push("connector_non_retryable_status_retried");
+    reasonCodes.push("RETRY_POLICY_NON_RETRYABLE_STATUS");
+    escalationTrace.push({
+      step: "connector.retry.policy_violation",
+      reason_code: "RETRY_POLICY_NON_RETRYABLE_STATUS",
+      non_retryable_statuses: uniqueStringList(
+        nonRetryableRetried.map((status) => String(status)),
+        16,
+      ),
+    });
+  }
+
+  const callbackRaw =
+    simulated.callback && typeof simulated.callback === "object" ? simulated.callback : {};
+  const callbackState = {
+    signature_valid: callbackRaw.signature_valid !== false,
+    timestamp_within_skew: callbackRaw.timestamp_within_skew !== false,
+    secret_present: callbackRaw.secret_present !== false,
+  };
+  const callbackInvalid =
+    !callbackState.signature_valid ||
+    !callbackState.timestamp_within_skew ||
+    !callbackState.secret_present;
+  const callbackRejected =
+    callbackInvalid && forceFailure
+      ? false
+      : callbackRaw.rejected === true || (callbackRaw.rejected !== false && callbackInvalid);
+  const callbackReasonCode =
+    typeof callbackRaw.reason_code === "string" && callbackRaw.reason_code.trim().length > 0
+      ? callbackRaw.reason_code.trim()
+      : deriveCallbackAuthReasonCode(callbackState);
+  assertions.invalid_callback_rejected = callbackInvalid ? callbackRejected : true;
+  if (callbackInvalid && callbackRejected) {
+    reasonCodes.push(callbackReasonCode);
+    escalationTrace.push({
+      step: "connector.callback.rejected",
+      reason_code: callbackReasonCode,
+    });
+  }
+  if (callbackInvalid && !callbackRejected) {
+    failures.push("connector_callback_rejection_missing");
+    reasonCodes.push("CALLBACK_AUTH_REJECTION_MISSING");
+    escalationTrace.push({
+      step: "connector.callback.escalated",
+      reason_code: "CALLBACK_AUTH_REJECTION_MISSING",
+    });
+  }
+  if (!callbackInvalid && callbackRejected) {
+    failures.push("connector_callback_false_positive_rejection");
+    reasonCodes.push("CALLBACK_AUTH_FALSE_POSITIVE_REJECTION");
+  }
+
+  assertions.escalation_trace_emitted = escalationTrace.length > 0;
+  if (requireEscalationTrace && escalationTrace.length === 0) {
+    failures.push("missing_connector_escalation_trace");
+  }
+  for (const reasonCode of requiredReasonCodes) {
+    if (!reasonCodes.includes(reasonCode)) {
+      failures.push(`missing_connector_reason_code:${reasonCode}`);
+    }
+  }
+  for (const assertionKey of requiredAssertions) {
+    if (assertions[assertionKey] !== true) {
+      failures.push(`required_connector_assertion_failed:${assertionKey}`);
+    }
+  }
+
+  return {
+    pass: failures.length === 0,
+    failure_reasons: failures,
+    reason_codes: uniqueStringList(reasonCodes, 32),
+    escalation_trace: escalationTrace,
+    required_reason_codes: requiredReasonCodes,
+    required_assertions: requiredAssertions,
+    assertions,
+    metrics: {
+      total_deliveries: totalDeliveries,
+      unique_deliveries: uniqueDeliveries,
+      duplicate_deliveries: duplicateDeliveries,
+      state_mutations: stateMutations,
+      retry_attempts: retryAttempts,
+      max_retries: maxRetries,
+      retry_budget_remaining: Math.max(0, maxRetries - retryAttempts),
+      callback_invalid: callbackInvalid,
+      callback_rejected: callbackRejected,
+    },
+  };
+}
+
 function simulateReplayScenario(scenario, options = {}) {
   const outputFailureIds = normalizeReplayIdList(options.force_output_failure_ids || [], 64);
   const trajectoryFailureIds = normalizeReplayIdList(
@@ -19662,6 +19940,15 @@ function simulateReplayScenario(scenario, options = {}) {
     }
   }
 
+  const connectorResult = evaluateReplayConnector(
+    scenario.expected_connector,
+    scenario.simulated?.connector,
+    {
+      ...options,
+      scenario_id: scenario.scenario_id,
+    },
+  );
+
   const outputResult = evaluateReplayOutput(scenario.expected_output, actualOutput);
   const trajectoryResult = evaluateReplayTrajectory(
     scenario.expected_trajectory,
@@ -19673,6 +19960,7 @@ function simulateReplayScenario(scenario, options = {}) {
     ...outputResult.failures,
     ...trajectoryResult.failures,
     ...safetyResult.failures,
+    ...(Array.isArray(connectorResult?.failure_reasons) ? connectorResult.failure_reasons : []),
   ];
   return {
     scenario_id: scenario.scenario_id,
@@ -19698,6 +19986,9 @@ function simulateReplayScenario(scenario, options = {}) {
       required_assertions: safetyResult.required_assertions,
       assertions: safetyResult.assertions,
     },
+    connector: connectorResult || undefined,
+    connector_reason_codes: connectorResult?.reason_codes || [],
+    connector_escalation_trace: connectorResult?.escalation_trace || [],
     failure_reasons: reasons,
   };
 }
@@ -19787,6 +20078,10 @@ function runReplayHarness(rawOptions = {}, route = "/ops/replay/run") {
     (sum, result) => sum + (result.trajectory?.pass === false ? 1 : 0),
     0,
   );
+  const connectorFailures = results.reduce(
+    (sum, result) => sum + (result.connector?.pass === false ? 1 : 0),
+    0,
+  );
   const blockers = [];
   const selectedScenarioIds = new Set(selectedScenarios.map((scenario) => scenario.scenario_id));
   const missingRequiredScenarioIds = gateContract.required_scenario_ids.filter(
@@ -19836,6 +20131,7 @@ function runReplayHarness(rawOptions = {}, route = "/ops/replay/run") {
       safety_failures: safetyFailures,
       output_failures: outputFailures,
       trajectory_failures: trajectoryFailures,
+      connector_failures: connectorFailures,
     },
     release_gate: releaseGate,
     results,
@@ -19881,6 +20177,29 @@ function runReplayHarness(rawOptions = {}, route = "/ops/replay/run") {
         .map((result) => result.scenario_id),
     });
   }
+  for (const result of results) {
+    if (!result.connector) {
+      continue;
+    }
+    appendEvent("evaluation.connector.drill.completed", route, {
+      run_id: runId,
+      scenario_id: result.scenario_id,
+      pass: result.connector.pass === true,
+      reason_codes: result.connector_reason_codes || [],
+      failure_reasons: result.connector.failure_reasons || [],
+    });
+    if (
+      Array.isArray(result.connector_escalation_trace) &&
+      result.connector_escalation_trace.length > 0
+    ) {
+      appendEvent("evaluation.connector.drill.escalated", route, {
+        run_id: runId,
+        scenario_id: result.scenario_id,
+        reason_codes: result.connector_reason_codes || [],
+        escalation_trace: result.connector_escalation_trace,
+      });
+    }
+  }
   appendAudit("REPLAY_RUN_COMPLETED", {
     run_id: runId,
     total,
@@ -19888,6 +20207,7 @@ function runReplayHarness(rawOptions = {}, route = "/ops/replay/run") {
     failed,
     pass_rate: passRate,
     release_gate_passed: releaseGate.pass,
+    connector_failures: connectorFailures,
   });
   appendJsonlLine(replayEvidencePath, {
     kind: "replay_release_evidence",
