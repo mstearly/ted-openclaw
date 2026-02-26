@@ -3,14 +3,23 @@ import type {
   LlmProviderName,
   TedDealFull,
   TedDealSummary,
+  TedEvalMatrixConfigResponse,
+  TedEvalMatrixRunResponse,
   TedEodDigestResponse,
+  TedGraphDeltaRunResponse,
+  TedGraphDeltaStatusResponse,
   TedJobCardImpactPreview,
   TedIntakeRecommendation,
   TedJobCardDetail,
   TedKpiSuggestion,
+  TedLlmProviderTestResponse,
   TedLlmProviderConfig,
+  TedLlmRoutingPolicy,
   TedMailMessage,
+  TedMemoryExportResponse,
+  TedMemoryPreferencesResponse,
   TedMeetingUpcomingResponse,
+  TedMcpTrustPolicy,
   TedCommitmentsListResponse,
   TedActionsListResponse,
   TedWaitingForListResponse,
@@ -37,6 +46,8 @@ import type {
   TedExternalMcpServersResponse,
   TedExternalMcpToolsResponse,
   TedExternalMcpServerTestResponse,
+  TedWorkflowRegistryResponse,
+  TedWorkflowRunsResponse,
 } from "../types.ts";
 
 function formatFileSize(bytes: number): string {
@@ -193,6 +204,88 @@ export type TedViewProps = {
   llmProviderError: string | null;
   onLoadLlmProvider: () => void;
   onUpdateLlmProvider: (provider: LlmProviderName) => void;
+  llmRoutingPolicy: TedLlmRoutingPolicy | null;
+  llmRoutingPolicyLoading: boolean;
+  llmRoutingPolicyError: string | null;
+  llmRoutingPolicySaveBusy: boolean;
+  llmRoutingPolicySaveError: string | null;
+  llmRoutingPolicySaveResult: string | null;
+  llmProviderTestBusy: boolean;
+  llmProviderTestError: string | null;
+  llmProviderTestResult: TedLlmProviderTestResponse | null;
+  workflows: TedWorkflowRegistryResponse | null;
+  workflowsLoading: boolean;
+  workflowsError: string | null;
+  workflowMutationBusy: boolean;
+  workflowMutationError: string | null;
+  workflowMutationResult: string | null;
+  workflowRuns: TedWorkflowRunsResponse | null;
+  workflowRunsLoading: boolean;
+  workflowRunsError: string | null;
+  workflowRunBusy: boolean;
+  workflowRunError: string | null;
+  workflowRunResult: Record<string, unknown> | null;
+  memoryPreferences: TedMemoryPreferencesResponse | null;
+  memoryPreferencesLoading: boolean;
+  memoryPreferencesError: string | null;
+  memoryMutationBusy: boolean;
+  memoryMutationError: string | null;
+  memoryMutationResult: string | null;
+  memoryExport: TedMemoryExportResponse | null;
+  memoryExportLoading: boolean;
+  memoryExportError: string | null;
+  mcpTrustPolicy: TedMcpTrustPolicy | null;
+  mcpTrustPolicyLoading: boolean;
+  mcpTrustPolicyError: string | null;
+  mcpTrustPolicySaveBusy: boolean;
+  mcpTrustPolicySaveError: string | null;
+  mcpTrustPolicySaveResult: string | null;
+  mcpToolPolicyBusy: boolean;
+  mcpToolPolicyError: string | null;
+  mcpToolPolicyResult: string | null;
+  graphDeltaStatus: TedGraphDeltaStatusResponse | null;
+  graphDeltaStatusLoading: boolean;
+  graphDeltaStatusError: string | null;
+  graphDeltaRunBusy: boolean;
+  graphDeltaRunError: string | null;
+  graphDeltaRunResult: TedGraphDeltaRunResponse | null;
+  evalMatrix: TedEvalMatrixConfigResponse | null;
+  evalMatrixLoading: boolean;
+  evalMatrixError: string | null;
+  evalMatrixSaveBusy: boolean;
+  evalMatrixSaveError: string | null;
+  evalMatrixSaveResult: string | null;
+  evalMatrixRunBusy: boolean;
+  evalMatrixRunError: string | null;
+  evalMatrixRunResult: TedEvalMatrixRunResponse | null;
+  onLoadLlmRoutingPolicy: () => void;
+  onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) => void;
+  onTestLlmProvider: (payload: {
+    provider: string;
+    model?: string;
+    prompt?: string;
+    entity?: string;
+  }) => void;
+  onLoadWorkflows: () => void;
+  onUpsertWorkflow: (workflow: Record<string, unknown>) => void;
+  onRemoveWorkflow: (workflowId: string) => void;
+  onRunWorkflow: (workflowId: string, dryRun?: boolean) => void;
+  onLoadWorkflowRuns: (workflowId?: string, limit?: number) => void;
+  onLoadMemoryPreferences: (params?: { scope?: string; entity?: string }) => void;
+  onUpsertMemoryPreference: (payload: Record<string, unknown>) => void;
+  onForgetMemoryPreference: (payload: Record<string, unknown>) => void;
+  onExportMemoryPreferences: (entity?: string) => void;
+  onLoadMcpTrustPolicy: () => void;
+  onSaveMcpTrustPolicy: (payload: Record<string, unknown>) => void;
+  onSetMcpToolPolicy: (
+    toolAlias: string,
+    action: "read_only" | "approval_required" | "deny",
+  ) => void;
+  onLoadGraphDeltaStatus: (params?: { profile_id?: string; workload?: string }) => void;
+  onRunGraphDelta: (payload: { profile_id?: string; workload?: string }) => void;
+  onLoadEvalMatrix: () => void;
+  onSaveEvalMatrix: (payload: Record<string, unknown>) => void;
+  onRunEvalMatrix: (payload?: Record<string, unknown>) => void;
   // Phase 6: Meetings + Commitments + GTD
   meetingsUpcoming: TedMeetingUpcomingResponse | null;
   meetingsLoading: boolean;
@@ -369,6 +462,7 @@ export type TedViewProps = {
     auth_token_env?: string;
     auth_header_name?: string;
     description?: string;
+    trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
   }) => void;
@@ -2125,7 +2219,11 @@ function renderExternalMcpConnectionsCard(
 
   const readInput = (id: string): string => {
     const el = document.getElementById(id);
-    if (!(el instanceof HTMLInputElement) && !(el instanceof HTMLTextAreaElement)) {
+    if (
+      !(el instanceof HTMLInputElement) &&
+      !(el instanceof HTMLTextAreaElement) &&
+      !(el instanceof HTMLSelectElement)
+    ) {
       return "";
     }
     return el.value.trim();
@@ -2150,6 +2248,13 @@ function renderExternalMcpConnectionsCard(
     const el = document.getElementById(id);
     if (el instanceof HTMLInputElement) {
       el.checked = checked;
+    }
+  };
+
+  const setSelectValue = (id: string, value: string) => {
+    const el = document.getElementById(id);
+    if (el instanceof HTMLSelectElement) {
+      el.value = value;
     }
   };
 
@@ -2181,6 +2286,7 @@ function renderExternalMcpConnectionsCard(
     setInputValue("ted-mcp-auth-token-env", "");
     setInputValue("ted-mcp-auth-header-name", "");
     setInputValue("ted-mcp-description", "");
+    setSelectValue("ted-mcp-trust-tier", "sandboxed");
     setInputValue("ted-mcp-allow-tools", "");
     setInputValue("ted-mcp-deny-tools", "");
     setFormError(null);
@@ -2194,6 +2300,7 @@ function renderExternalMcpConnectionsCard(
     setInputValue("ted-mcp-auth-token-env", server.auth_token_env || "");
     setInputValue("ted-mcp-auth-header-name", server.auth_header_name || "");
     setInputValue("ted-mcp-description", server.description || "");
+    setSelectValue("ted-mcp-trust-tier", server.trust_tier || "sandboxed");
     setInputValue("ted-mcp-allow-tools", (server.allow_tools || []).join("\n"));
     setInputValue("ted-mcp-deny-tools", (server.deny_tools || []).join("\n"));
     setFormError(null);
@@ -2215,6 +2322,11 @@ function renderExternalMcpConnectionsCard(
     const timeoutValue = timeoutRaw ? Number.parseInt(timeoutRaw, 10) : undefined;
     const timeoutMs =
       typeof timeoutValue === "number" && Number.isFinite(timeoutValue) ? timeoutValue : undefined;
+    const trustTierRaw = readInput("ted-mcp-trust-tier");
+    const trustTier =
+      trustTierRaw === "trusted_read" || trustTierRaw === "trusted_write"
+        ? trustTierRaw
+        : "sandboxed";
 
     props.onUpsertExternalMcpServer({
       server_id: serverId,
@@ -2224,6 +2336,7 @@ function renderExternalMcpConnectionsCard(
       auth_token_env: readInput("ted-mcp-auth-token-env") || undefined,
       auth_header_name: readInput("ted-mcp-auth-header-name") || undefined,
       description: readInput("ted-mcp-description") || undefined,
+      trust_tier: trustTier,
       allow_tools: parseToolList(readInput("ted-mcp-allow-tools")),
       deny_tools: parseToolList(readInput("ted-mcp-deny-tools")),
     });
@@ -2295,6 +2408,14 @@ function renderExternalMcpConnectionsCard(
       <div style="margin-top: 10px;">
         <div class="card-sub">Description</div>
         <input id="ted-mcp-description" class="input" placeholder="Optional label for operators" />
+      </div>
+      <div style="margin-top: 10px; max-width: 260px;">
+        <div class="card-sub">Trust Tier</div>
+        <select id="ted-mcp-trust-tier" class="input">
+          <option value="sandboxed">sandboxed</option>
+          <option value="trusted_read">trusted_read</option>
+          <option value="trusted_write">trusted_write</option>
+        </select>
       </div>
       <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <label>
@@ -2393,6 +2514,7 @@ function renderExternalMcpConnectionsCard(
                           </td>
                           <td style="padding:4px 8px;">
                             <span class="pill ${server.enabled ? "" : "warn"}">${server.enabled ? "enabled" : "disabled"}</span>
+                            <div class="muted" style="font-size: 11px; margin-top: 4px">${server.trust_tier || "sandboxed"}</div>
                           </td>
                           <td style="padding:4px 8px;" class="mono">${server.url}</td>
                           <td style="padding:4px 8px;" class="mono">${server.auth_token_env || "none"}</td>
@@ -2485,6 +2607,492 @@ function renderExternalMcpConnectionsCard(
             `
           : nothing
       }
+    </div>
+  `;
+}
+
+function renderExecutionWavesControlCard(
+  props: TedViewProps,
+): typeof nothing | ReturnType<typeof html> {
+  const readValue = (id: string): string => {
+    const el = document.getElementById(id);
+    if (
+      !(el instanceof HTMLInputElement) &&
+      !(el instanceof HTMLTextAreaElement) &&
+      !(el instanceof HTMLSelectElement)
+    ) {
+      return "";
+    }
+    return el.value.trim();
+  };
+
+  const parseJson = (id: string): Record<string, unknown> | null => {
+    const raw = readValue(id);
+    if (!raw) {
+      return null;
+    }
+    try {
+      const parsed = JSON.parse(raw) as unknown;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return null;
+      }
+      return parsed as Record<string, unknown>;
+    } catch {
+      return null;
+    }
+  };
+
+  const llmRoutingDefault = JSON.stringify(
+    props.llmRoutingPolicy || {
+      fallback_order: ["openai_direct", "anthropic_direct", "openai_compatible", "azure_openai"],
+      per_intent: {},
+      per_job: {},
+      provider_models: {},
+      constraints: {
+        enforce_entity_hipaa: true,
+        deny_unlisted_provider: true,
+        max_timeout_ms: 20000,
+      },
+    },
+    null,
+    2,
+  );
+
+  const workflowTemplate = JSON.stringify(
+    {
+      workflow_id: "morning-brief-live",
+      name: "Morning Brief Live",
+      enabled: true,
+      entity: "Olumie",
+      trigger: { kind: "manual" },
+      steps: [
+        { step_id: "step-1", kind: "route_call", method: "GET", route: "/reporting/morning-brief" },
+      ],
+    },
+    null,
+    2,
+  );
+
+  const trustPolicyDefault = JSON.stringify(
+    props.mcpTrustPolicy || {
+      default_server_trust_tier: "sandboxed",
+      default_tool_action: "read_only",
+      trust_tiers: ["sandboxed", "trusted_read", "trusted_write"],
+      tool_actions: ["read_only", "approval_required", "deny"],
+      servers: {},
+      tool_policies: {},
+    },
+    null,
+    2,
+  );
+
+  const evalMatrixDefault = JSON.stringify(
+    props.evalMatrix || {
+      enabled: true,
+      thresholds: { min_pass_rate: 0.85, max_p95_latency_ms: 12000, max_cost_usd_per_run: 2.5 },
+      slices: [],
+    },
+    null,
+    2,
+  );
+
+  return html`
+    <div class="card" style="margin-top: 16px; margin-bottom: 0;">
+      <div class="row" style="justify-content: space-between; align-items: center;">
+        <div class="card-title">Execution Waves Control Plane</div>
+        <div class="row" style="gap: 6px; flex-wrap: wrap;">
+          <button class="btn btn--sm ghost" ?disabled=${props.llmRoutingPolicyLoading} @click=${() => props.onLoadLlmRoutingPolicy()}>
+            ${props.llmRoutingPolicyLoading ? "Loading..." : "LLM Routing"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.workflowsLoading} @click=${() => props.onLoadWorkflows()}>
+            ${props.workflowsLoading ? "Loading..." : "Workflows"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.memoryPreferencesLoading} @click=${() => props.onLoadMemoryPreferences()}>
+            ${props.memoryPreferencesLoading ? "Loading..." : "Memory"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.mcpTrustPolicyLoading} @click=${() => props.onLoadMcpTrustPolicy()}>
+            ${props.mcpTrustPolicyLoading ? "Loading..." : "MCP Trust"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.graphDeltaStatusLoading} @click=${() => props.onLoadGraphDeltaStatus({})}>
+            ${props.graphDeltaStatusLoading ? "Loading..." : "Graph Delta"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.evalMatrixLoading} @click=${() => props.onLoadEvalMatrix()}>
+            ${props.evalMatrixLoading ? "Loading..." : "Eval Matrix"}
+          </button>
+        </div>
+      </div>
+      <div class="card-sub">
+        Operator UI for Wave 2-6 controls: provider routing, workflow orchestration, memory policy, MCP trust policy, Graph delta sync, and evaluation matrix.
+      </div>
+
+      ${props.llmRoutingPolicyError ? html`<div class="callout danger" style="margin-top: 8px;">${props.llmRoutingPolicyError}</div>` : nothing}
+      ${props.llmRoutingPolicySaveError ? html`<div class="callout danger" style="margin-top: 8px;">${props.llmRoutingPolicySaveError}</div>` : nothing}
+      ${props.llmProviderTestError ? html`<div class="callout danger" style="margin-top: 8px;">${props.llmProviderTestError}</div>` : nothing}
+      ${props.workflowsError ? html`<div class="callout danger" style="margin-top: 8px;">${props.workflowsError}</div>` : nothing}
+      ${props.workflowMutationError ? html`<div class="callout danger" style="margin-top: 8px;">${props.workflowMutationError}</div>` : nothing}
+      ${props.workflowRunError ? html`<div class="callout danger" style="margin-top: 8px;">${props.workflowRunError}</div>` : nothing}
+      ${props.workflowRunsError ? html`<div class="callout danger" style="margin-top: 8px;">${props.workflowRunsError}</div>` : nothing}
+      ${props.memoryPreferencesError ? html`<div class="callout danger" style="margin-top: 8px;">${props.memoryPreferencesError}</div>` : nothing}
+      ${props.memoryMutationError ? html`<div class="callout danger" style="margin-top: 8px;">${props.memoryMutationError}</div>` : nothing}
+      ${props.memoryExportError ? html`<div class="callout danger" style="margin-top: 8px;">${props.memoryExportError}</div>` : nothing}
+      ${props.mcpTrustPolicyError ? html`<div class="callout danger" style="margin-top: 8px;">${props.mcpTrustPolicyError}</div>` : nothing}
+      ${props.mcpTrustPolicySaveError ? html`<div class="callout danger" style="margin-top: 8px;">${props.mcpTrustPolicySaveError}</div>` : nothing}
+      ${props.mcpToolPolicyError ? html`<div class="callout danger" style="margin-top: 8px;">${props.mcpToolPolicyError}</div>` : nothing}
+      ${props.graphDeltaStatusError ? html`<div class="callout danger" style="margin-top: 8px;">${props.graphDeltaStatusError}</div>` : nothing}
+      ${props.graphDeltaRunError ? html`<div class="callout danger" style="margin-top: 8px;">${props.graphDeltaRunError}</div>` : nothing}
+      ${props.evalMatrixError ? html`<div class="callout danger" style="margin-top: 8px;">${props.evalMatrixError}</div>` : nothing}
+      ${props.evalMatrixSaveError ? html`<div class="callout danger" style="margin-top: 8px;">${props.evalMatrixSaveError}</div>` : nothing}
+      ${props.evalMatrixRunError ? html`<div class="callout danger" style="margin-top: 8px;">${props.evalMatrixRunError}</div>` : nothing}
+
+      ${props.llmRoutingPolicySaveResult ? html`<div class="callout" style="margin-top: 8px;">${props.llmRoutingPolicySaveResult}</div>` : nothing}
+      ${props.workflowMutationResult ? html`<div class="callout" style="margin-top: 8px;">${props.workflowMutationResult}</div>` : nothing}
+      ${props.memoryMutationResult ? html`<div class="callout" style="margin-top: 8px;">${props.memoryMutationResult}</div>` : nothing}
+      ${props.mcpTrustPolicySaveResult ? html`<div class="callout" style="margin-top: 8px;">${props.mcpTrustPolicySaveResult}</div>` : nothing}
+      ${props.mcpToolPolicyResult ? html`<div class="callout" style="margin-top: 8px;">${props.mcpToolPolicyResult}</div>` : nothing}
+      ${props.evalMatrixSaveResult ? html`<div class="callout" style="margin-top: 8px;">${props.evalMatrixSaveResult}</div>` : nothing}
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">LLM Routing Policy + Provider Test</div>
+        <textarea id="ted-wave-llm-routing-json" class="input mono" style="min-height: 120px;">${llmRoutingDefault}</textarea>
+        <div class="row" style="margin-top: 8px; gap: 8px; flex-wrap: wrap;">
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.llmRoutingPolicySaveBusy}
+            @click=${() => {
+              const payload = parseJson("ted-wave-llm-routing-json");
+              if (!payload) {
+                alert("Invalid LLM routing JSON.");
+                return;
+              }
+              props.onSaveLlmRoutingPolicy(payload);
+            }}
+          >
+            ${props.llmRoutingPolicySaveBusy ? "Saving..." : "Save Routing Policy"}
+          </button>
+          <select id="ted-wave-provider-test-provider" class="input mono" style="max-width: 220px;">
+            <option value="openai_direct">openai_direct</option>
+            <option value="anthropic_direct">anthropic_direct</option>
+            <option value="openai_compatible">openai_compatible</option>
+            <option value="azure_openai">azure_openai</option>
+            <option value="copilot_extension">copilot_extension</option>
+          </select>
+          <input id="ted-wave-provider-test-model" class="input mono" placeholder="model override (optional)" />
+          <input id="ted-wave-provider-test-entity" class="input" placeholder="entity (optional)" />
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.llmProviderTestBusy}
+            @click=${() =>
+              props.onTestLlmProvider({
+                provider: readValue("ted-wave-provider-test-provider"),
+                model: readValue("ted-wave-provider-test-model") || undefined,
+                entity: readValue("ted-wave-provider-test-entity") || undefined,
+                prompt: readValue("ted-wave-provider-test-prompt") || undefined,
+              })}
+          >
+            ${props.llmProviderTestBusy ? "Testing..." : "Test Provider"}
+          </button>
+        </div>
+        <textarea id="ted-wave-provider-test-prompt" class="input" style="margin-top:8px; min-height:64px;" placeholder="Prompt for provider smoke test (optional)."></textarea>
+        ${
+          props.llmProviderTestResult
+            ? html`
+                <div class="callout ${props.llmProviderTestResult.ok ? "" : "danger"}" style="margin-top: 8px;">
+                  ${props.llmProviderTestResult.provider} · ${props.llmProviderTestResult.model || "n/a"} · ${props.llmProviderTestResult.latency_ms}ms
+                  ${props.llmProviderTestResult.error ? ` · ${props.llmProviderTestResult.error}` : ""}
+                </div>
+              `
+            : nothing
+        }
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Workflows</div>
+        <div class="row" style="gap: 8px; flex-wrap: wrap;">
+          <input id="ted-wave-workflow-id" class="input mono" placeholder="workflow_id" />
+          <button class="btn btn--sm ghost" ?disabled=${props.workflowRunsLoading} @click=${() => props.onLoadWorkflowRuns(readValue("ted-wave-workflow-id") || undefined, 25)}>
+            ${props.workflowRunsLoading ? "Loading..." : "Refresh Runs"}
+          </button>
+        </div>
+        <textarea id="ted-wave-workflow-json" class="input mono" style="margin-top:8px; min-height:120px;">${workflowTemplate}</textarea>
+        <div class="row" style="margin-top: 8px; gap: 8px; flex-wrap: wrap;">
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.workflowMutationBusy}
+            @click=${() => {
+              const workflow = parseJson("ted-wave-workflow-json");
+              if (!workflow) {
+                alert("Invalid workflow JSON.");
+                return;
+              }
+              props.onUpsertWorkflow(workflow);
+            }}
+          >
+            ${props.workflowMutationBusy ? "Saving..." : "Save Workflow"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.workflowMutationBusy}
+            @click=${() => {
+              const workflowId = readValue("ted-wave-workflow-id");
+              if (!workflowId) {
+                alert("workflow_id required for remove.");
+                return;
+              }
+              props.onRemoveWorkflow(workflowId);
+            }}
+          >
+            Remove Workflow
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.workflowRunBusy}
+            @click=${() => {
+              const workflowId = readValue("ted-wave-workflow-id");
+              if (!workflowId) {
+                alert("workflow_id required for run.");
+                return;
+              }
+              props.onRunWorkflow(workflowId, true);
+            }}
+          >
+            ${props.workflowRunBusy ? "Running..." : "Run Dry"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.workflowRunBusy}
+            @click=${() => {
+              const workflowId = readValue("ted-wave-workflow-id");
+              if (!workflowId) {
+                alert("workflow_id required for run.");
+                return;
+              }
+              props.onRunWorkflow(workflowId, false);
+            }}
+          >
+            Run Live
+          </button>
+        </div>
+        <div style="margin-top: 8px;" class="muted">
+          ${props.workflows?.total_count ?? 0} workflow(s) configured, ${props.workflowRuns?.total_count ?? 0} recent run(s).
+        </div>
+        ${
+          props.workflowRunResult
+            ? html`
+                <pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(
+                  props.workflowRunResult,
+                  null,
+                  2,
+                )}</pre>
+              `
+            : nothing
+        }
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Memory Preferences</div>
+        <div style="display:grid; grid-template-columns: 1.5fr 1fr 1fr 0.8fr; gap:8px;">
+          <input id="ted-wave-memory-key" class="input mono" placeholder="memory_key" />
+          <select id="ted-wave-memory-scope" class="input">
+            <option value="operator_preference">operator_preference</option>
+            <option value="workflow_preference">workflow_preference</option>
+            <option value="style_preference">style_preference</option>
+          </select>
+          <input id="ted-wave-memory-entity" class="input" placeholder="entity (optional)" />
+          <input id="ted-wave-memory-ttl" class="input mono" type="number" placeholder="ttl days" />
+        </div>
+        <textarea id="ted-wave-memory-value" class="input" style="margin-top:8px; min-height:60px;" placeholder="value (JSON or plain text)"></textarea>
+        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.memoryMutationBusy}
+            @click=${() => {
+              const key = readValue("ted-wave-memory-key");
+              if (!key) {
+                alert("memory_key is required.");
+                return;
+              }
+              const rawValue = readValue("ted-wave-memory-value");
+              let value: unknown = rawValue;
+              if (rawValue.startsWith("{") || rawValue.startsWith("[")) {
+                try {
+                  value = JSON.parse(rawValue);
+                } catch {
+                  value = rawValue;
+                }
+              }
+              const ttlRaw = readValue("ted-wave-memory-ttl");
+              const ttl = ttlRaw ? Number.parseInt(ttlRaw, 10) : undefined;
+              props.onUpsertMemoryPreference({
+                memory_key: key,
+                scope: readValue("ted-wave-memory-scope") || "operator_preference",
+                entity: readValue("ted-wave-memory-entity") || undefined,
+                ttl_days: Number.isFinite(ttl) ? ttl : undefined,
+                value,
+              });
+            }}
+          >
+            ${props.memoryMutationBusy ? "Saving..." : "Upsert"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.memoryMutationBusy}
+            @click=${() => {
+              const key = readValue("ted-wave-memory-key");
+              if (!key) {
+                alert("memory_key is required.");
+                return;
+              }
+              props.onForgetMemoryPreference({
+                memory_key: key,
+                scope: readValue("ted-wave-memory-scope") || "operator_preference",
+                entity: readValue("ted-wave-memory-entity") || undefined,
+              });
+            }}
+          >
+            Forget
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.memoryPreferencesLoading} @click=${() => props.onLoadMemoryPreferences()}>
+            ${props.memoryPreferencesLoading ? "Loading..." : "Refresh"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.memoryExportLoading} @click=${() => props.onExportMemoryPreferences(readValue("ted-wave-memory-entity") || undefined)}>
+            ${props.memoryExportLoading ? "Exporting..." : "Export"}
+          </button>
+        </div>
+        <div class="muted" style="margin-top:8px;">
+          ${props.memoryPreferences?.total_count ?? 0} active preference(s).
+        </div>
+        ${
+          props.memoryExport
+            ? html`<pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(props.memoryExport, null, 2)}</pre>`
+            : nothing
+        }
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">MCP Trust Policy</div>
+        <textarea id="ted-wave-mcp-trust-json" class="input mono" style="min-height:120px;">${trustPolicyDefault}</textarea>
+        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.mcpTrustPolicySaveBusy}
+            @click=${() => {
+              const payload = parseJson("ted-wave-mcp-trust-json");
+              if (!payload) {
+                alert("Invalid MCP trust policy JSON.");
+                return;
+              }
+              props.onSaveMcpTrustPolicy(payload);
+            }}
+          >
+            ${props.mcpTrustPolicySaveBusy ? "Saving..." : "Save Trust Policy"}
+          </button>
+          <input id="ted-wave-mcp-tool-alias" class="input mono" placeholder="ext_server__tool_alias" />
+          <select id="ted-wave-mcp-tool-action" class="input">
+            <option value="read_only">read_only</option>
+            <option value="approval_required">approval_required</option>
+            <option value="deny">deny</option>
+          </select>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.mcpToolPolicyBusy}
+            @click=${() => {
+              const alias = readValue("ted-wave-mcp-tool-alias");
+              const action = readValue("ted-wave-mcp-tool-action") as
+                | "read_only"
+                | "approval_required"
+                | "deny";
+              if (!alias) {
+                alert("tool_alias is required.");
+                return;
+              }
+              props.onSetMcpToolPolicy(alias, action);
+            }}
+          >
+            ${props.mcpToolPolicyBusy ? "Applying..." : "Set Tool Policy"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.mcpTrustPolicyLoading} @click=${() => props.onLoadMcpTrustPolicy()}>
+            ${props.mcpTrustPolicyLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Graph Delta Sync</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <select id="ted-wave-graph-profile" class="input">
+            <option value="olumie">olumie</option>
+            <option value="everest">everest</option>
+          </select>
+          <select id="ted-wave-graph-workload" class="input">
+            <option value="mail">mail</option>
+            <option value="calendar">calendar</option>
+          </select>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.graphDeltaStatusLoading}
+            @click=${() =>
+              props.onLoadGraphDeltaStatus({
+                profile_id: readValue("ted-wave-graph-profile"),
+                workload: readValue("ted-wave-graph-workload"),
+              })}
+          >
+            ${props.graphDeltaStatusLoading ? "Loading..." : "Status"}
+          </button>
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.graphDeltaRunBusy}
+            @click=${() =>
+              props.onRunGraphDelta({
+                profile_id: readValue("ted-wave-graph-profile"),
+                workload: readValue("ted-wave-graph-workload"),
+              })}
+          >
+            ${props.graphDeltaRunBusy ? "Running..." : "Run Delta"}
+          </button>
+        </div>
+        <div class="muted" style="margin-top:8px;">${props.graphDeltaStatus?.total_count ?? 0} cursor entr${(props.graphDeltaStatus?.total_count ?? 0) === 1 ? "y" : "ies"} tracked.</div>
+        ${
+          props.graphDeltaRunResult
+            ? html`<pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(props.graphDeltaRunResult, null, 2)}</pre>`
+            : nothing
+        }
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Evaluation Matrix</div>
+        <textarea id="ted-wave-eval-matrix-json" class="input mono" style="min-height:120px;">${evalMatrixDefault}</textarea>
+        <div class="row" style="margin-top: 8px; gap: 8px; flex-wrap: wrap;">
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.evalMatrixSaveBusy}
+            @click=${() => {
+              const payload = parseJson("ted-wave-eval-matrix-json");
+              if (!payload) {
+                alert("Invalid evaluation matrix JSON.");
+                return;
+              }
+              props.onSaveEvalMatrix(payload);
+            }}
+          >
+            ${props.evalMatrixSaveBusy ? "Saving..." : "Save Matrix"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.evalMatrixRunBusy} @click=${() => props.onRunEvalMatrix({})}>
+            ${props.evalMatrixRunBusy ? "Running..." : "Run Matrix"}
+          </button>
+          <button class="btn btn--sm ghost" ?disabled=${props.evalMatrixLoading} @click=${() => props.onLoadEvalMatrix()}>
+            ${props.evalMatrixLoading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
+        ${
+          props.evalMatrixRunResult
+            ? html`
+                <div class="callout ${props.evalMatrixRunResult.threshold_pass ? "" : "warn"}" style="margin-top: 8px;">
+                  pass_rate=${props.evalMatrixRunResult.pass_rate} · passed=${props.evalMatrixRunResult.passed_slices}/${props.evalMatrixRunResult.total_slices} · p95=${props.evalMatrixRunResult.p95_latency_ms}ms
+                </div>
+              `
+            : nothing
+        }
+      </div>
     </div>
   `;
 }
@@ -4204,6 +4812,8 @@ export function renderTed(props: TedViewProps) {
                               [
                                 "openai_direct",
                                 "azure_openai",
+                                "anthropic_direct",
+                                "openai_compatible",
                                 "copilot_extension",
                                 "disabled",
                               ] as const
@@ -4957,6 +5567,7 @@ export function renderTed(props: TedViewProps) {
               ${showOperate ? renderIngestionStatusCard(props) : nothing}
               ${showOperate ? renderDiscoveryStatusCard(props) : nothing}
               ${showOperate ? renderExternalMcpConnectionsCard(props) : nothing}
+              ${showOperate ? renderExecutionWavesControlCard(props) : nothing}
 
               <!-- SharePoint Documents -->
               ${

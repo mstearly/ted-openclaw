@@ -324,6 +324,60 @@ export type AppViewState = {
   tedLlmProviderConfig: TedLlmProviderConfig | null;
   tedLlmProviderLoading: boolean;
   tedLlmProviderError: string | null;
+  tedLlmRoutingPolicy: import("./types.ts").TedLlmRoutingPolicy | null;
+  tedLlmRoutingPolicyLoading: boolean;
+  tedLlmRoutingPolicyError: string | null;
+  tedLlmRoutingPolicySaveBusy: boolean;
+  tedLlmRoutingPolicySaveError: string | null;
+  tedLlmRoutingPolicySaveResult: string | null;
+  tedLlmProviderTestBusy: boolean;
+  tedLlmProviderTestError: string | null;
+  tedLlmProviderTestResult: import("./types.ts").TedLlmProviderTestResponse | null;
+  tedWorkflows: import("./types.ts").TedWorkflowRegistryResponse | null;
+  tedWorkflowsLoading: boolean;
+  tedWorkflowsError: string | null;
+  tedWorkflowMutationBusy: boolean;
+  tedWorkflowMutationError: string | null;
+  tedWorkflowMutationResult: string | null;
+  tedWorkflowRuns: import("./types.ts").TedWorkflowRunsResponse | null;
+  tedWorkflowRunsLoading: boolean;
+  tedWorkflowRunsError: string | null;
+  tedWorkflowRunBusy: boolean;
+  tedWorkflowRunError: string | null;
+  tedWorkflowRunResult: Record<string, unknown> | null;
+  tedMemoryPreferences: import("./types.ts").TedMemoryPreferencesResponse | null;
+  tedMemoryPreferencesLoading: boolean;
+  tedMemoryPreferencesError: string | null;
+  tedMemoryMutationBusy: boolean;
+  tedMemoryMutationError: string | null;
+  tedMemoryMutationResult: string | null;
+  tedMemoryExport: import("./types.ts").TedMemoryExportResponse | null;
+  tedMemoryExportLoading: boolean;
+  tedMemoryExportError: string | null;
+  tedMcpTrustPolicy: import("./types.ts").TedMcpTrustPolicy | null;
+  tedMcpTrustPolicyLoading: boolean;
+  tedMcpTrustPolicyError: string | null;
+  tedMcpTrustPolicySaveBusy: boolean;
+  tedMcpTrustPolicySaveError: string | null;
+  tedMcpTrustPolicySaveResult: string | null;
+  tedMcpToolPolicyBusy: boolean;
+  tedMcpToolPolicyError: string | null;
+  tedMcpToolPolicyResult: string | null;
+  tedGraphDeltaStatus: import("./types.ts").TedGraphDeltaStatusResponse | null;
+  tedGraphDeltaStatusLoading: boolean;
+  tedGraphDeltaStatusError: string | null;
+  tedGraphDeltaRunBusy: boolean;
+  tedGraphDeltaRunError: string | null;
+  tedGraphDeltaRunResult: import("./types.ts").TedGraphDeltaRunResponse | null;
+  tedEvalMatrix: import("./types.ts").TedEvalMatrixConfigResponse | null;
+  tedEvalMatrixLoading: boolean;
+  tedEvalMatrixError: string | null;
+  tedEvalMatrixSaveBusy: boolean;
+  tedEvalMatrixSaveError: string | null;
+  tedEvalMatrixSaveResult: string | null;
+  tedEvalMatrixRunBusy: boolean;
+  tedEvalMatrixRunError: string | null;
+  tedEvalMatrixRunResult: import("./types.ts").TedEvalMatrixRunResponse | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -503,6 +557,7 @@ export type AppViewState = {
     auth_token_env?: string;
     auth_header_name?: string;
     description?: string;
+    trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
   }) => Promise<void>;
@@ -676,6 +731,36 @@ export type AppViewState = {
     newDefault: import("./types.js").LlmProviderName,
     perJobOverrides?: Record<string, { provider: import("./types.js").LlmProviderName }>,
   ) => Promise<void>;
+  loadTedLlmRoutingPolicy: () => Promise<void>;
+  saveTedLlmRoutingPolicy: (payload: Record<string, unknown>) => Promise<void>;
+  testTedLlmProvider: (payload: {
+    provider: string;
+    model?: string;
+    prompt?: string;
+    entity?: string;
+  }) => Promise<void>;
+  loadTedWorkflowRegistry: () => Promise<void>;
+  upsertTedWorkflow: (
+    workflow: import("./types.ts").TedWorkflowDefinition | Record<string, unknown>,
+  ) => Promise<void>;
+  removeTedWorkflow: (workflowId: string) => Promise<void>;
+  runTedWorkflow: (workflowId: string, dryRun?: boolean) => Promise<void>;
+  loadTedWorkflowRuns: (workflowId?: string, limit?: number) => Promise<void>;
+  loadTedMemoryPreferences: (params?: { scope?: string; entity?: string }) => Promise<void>;
+  upsertTedMemoryPreference: (payload: Record<string, unknown>) => Promise<void>;
+  forgetTedMemoryPreference: (payload: Record<string, unknown>) => Promise<void>;
+  exportTedMemoryPreferences: (entity?: string) => Promise<void>;
+  loadTedMcpTrustPolicy: () => Promise<void>;
+  saveTedMcpTrustPolicy: (payload: Record<string, unknown>) => Promise<void>;
+  setTedMcpToolPolicy: (
+    toolAlias: string,
+    action: "read_only" | "approval_required" | "deny",
+  ) => Promise<void>;
+  loadTedGraphDeltaStatus: (params?: { profile_id?: string; workload?: string }) => Promise<void>;
+  runTedGraphDelta: (payload: { profile_id?: string; workload?: string }) => Promise<void>;
+  loadTedEvalMatrix: () => Promise<void>;
+  saveTedEvalMatrix: (payload: Record<string, unknown>) => Promise<void>;
+  runTedEvalMatrix: (payload?: Record<string, unknown>) => Promise<void>;
   loadTedMeetingsUpcoming: () => Promise<void>;
   loadTedCommitments: () => Promise<void>;
   loadTedActions: () => Promise<void>;

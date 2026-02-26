@@ -10,6 +10,18 @@ import type {
   TedKpiSuggestion,
   LlmProviderName,
   TedLlmProviderConfig,
+  TedLlmRoutingPolicy,
+  TedLlmProviderTestResponse,
+  TedWorkflowRegistryResponse,
+  TedWorkflowRunsResponse,
+  TedWorkflowDefinition,
+  TedMemoryPreferencesResponse,
+  TedMemoryExportResponse,
+  TedMcpTrustPolicy,
+  TedGraphDeltaStatusResponse,
+  TedGraphDeltaRunResponse,
+  TedEvalMatrixConfigResponse,
+  TedEvalMatrixRunResponse,
   TedMailListResponse,
   TedMailMessage,
   TedMorningBriefResponse,
@@ -153,6 +165,60 @@ export type TedWorkbenchState = {
   tedLlmProviderConfig: TedLlmProviderConfig | null;
   tedLlmProviderLoading: boolean;
   tedLlmProviderError: string | null;
+  tedLlmRoutingPolicy: TedLlmRoutingPolicy | null;
+  tedLlmRoutingPolicyLoading: boolean;
+  tedLlmRoutingPolicyError: string | null;
+  tedLlmRoutingPolicySaveBusy: boolean;
+  tedLlmRoutingPolicySaveError: string | null;
+  tedLlmRoutingPolicySaveResult: string | null;
+  tedLlmProviderTestBusy: boolean;
+  tedLlmProviderTestError: string | null;
+  tedLlmProviderTestResult: TedLlmProviderTestResponse | null;
+  tedWorkflows: TedWorkflowRegistryResponse | null;
+  tedWorkflowsLoading: boolean;
+  tedWorkflowsError: string | null;
+  tedWorkflowMutationBusy: boolean;
+  tedWorkflowMutationError: string | null;
+  tedWorkflowMutationResult: string | null;
+  tedWorkflowRuns: TedWorkflowRunsResponse | null;
+  tedWorkflowRunsLoading: boolean;
+  tedWorkflowRunsError: string | null;
+  tedWorkflowRunBusy: boolean;
+  tedWorkflowRunError: string | null;
+  tedWorkflowRunResult: Record<string, unknown> | null;
+  tedMemoryPreferences: TedMemoryPreferencesResponse | null;
+  tedMemoryPreferencesLoading: boolean;
+  tedMemoryPreferencesError: string | null;
+  tedMemoryMutationBusy: boolean;
+  tedMemoryMutationError: string | null;
+  tedMemoryMutationResult: string | null;
+  tedMemoryExport: TedMemoryExportResponse | null;
+  tedMemoryExportLoading: boolean;
+  tedMemoryExportError: string | null;
+  tedMcpTrustPolicy: TedMcpTrustPolicy | null;
+  tedMcpTrustPolicyLoading: boolean;
+  tedMcpTrustPolicyError: string | null;
+  tedMcpTrustPolicySaveBusy: boolean;
+  tedMcpTrustPolicySaveError: string | null;
+  tedMcpTrustPolicySaveResult: string | null;
+  tedMcpToolPolicyBusy: boolean;
+  tedMcpToolPolicyError: string | null;
+  tedMcpToolPolicyResult: string | null;
+  tedGraphDeltaStatus: TedGraphDeltaStatusResponse | null;
+  tedGraphDeltaStatusLoading: boolean;
+  tedGraphDeltaStatusError: string | null;
+  tedGraphDeltaRunBusy: boolean;
+  tedGraphDeltaRunError: string | null;
+  tedGraphDeltaRunResult: TedGraphDeltaRunResponse | null;
+  tedEvalMatrix: TedEvalMatrixConfigResponse | null;
+  tedEvalMatrixLoading: boolean;
+  tedEvalMatrixError: string | null;
+  tedEvalMatrixSaveBusy: boolean;
+  tedEvalMatrixSaveError: string | null;
+  tedEvalMatrixSaveResult: string | null;
+  tedEvalMatrixRunBusy: boolean;
+  tedEvalMatrixRunError: string | null;
+  tedEvalMatrixRunResult: TedEvalMatrixRunResponse | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -1127,6 +1193,482 @@ export async function updateTedLlmProvider(
   }
 }
 
+export async function loadTedLlmRoutingPolicy(state: TedWorkbenchState) {
+  if (!state.client || !state.connected || state.tedLlmRoutingPolicyLoading) {
+    return;
+  }
+  state.tedLlmRoutingPolicyLoading = true;
+  state.tedLlmRoutingPolicyError = null;
+  try {
+    const response = await requestTedWithTimeout<TedLlmRoutingPolicy>(
+      state.client,
+      "ted.llm.routing.get",
+      {},
+    );
+    state.tedLlmRoutingPolicy = response;
+  } catch (error) {
+    state.tedLlmRoutingPolicyError = String(error);
+  } finally {
+    state.tedLlmRoutingPolicyLoading = false;
+  }
+}
+
+export async function saveTedLlmRoutingPolicy(
+  state: TedWorkbenchState,
+  payload: Record<string, unknown>,
+) {
+  if (!state.client || !state.connected || state.tedLlmRoutingPolicySaveBusy) {
+    return;
+  }
+  state.tedLlmRoutingPolicySaveBusy = true;
+  state.tedLlmRoutingPolicySaveError = null;
+  state.tedLlmRoutingPolicySaveResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.llm.routing.set",
+      payload,
+    );
+    state.tedLlmRoutingPolicySaveResult = "Routing policy updated";
+    await loadTedLlmRoutingPolicy(state);
+  } catch (error) {
+    state.tedLlmRoutingPolicySaveError = String(error);
+  } finally {
+    state.tedLlmRoutingPolicySaveBusy = false;
+  }
+}
+
+export async function testTedLlmProvider(
+  state: TedWorkbenchState,
+  payload: { provider: string; model?: string; prompt?: string; entity?: string },
+) {
+  if (!state.client || !state.connected || state.tedLlmProviderTestBusy) {
+    return;
+  }
+  state.tedLlmProviderTestBusy = true;
+  state.tedLlmProviderTestError = null;
+  state.tedLlmProviderTestResult = null;
+  try {
+    const result = await requestTedWithTimeout<TedLlmProviderTestResponse>(
+      state.client,
+      "ted.llm.provider.test",
+      payload,
+    );
+    state.tedLlmProviderTestResult = result;
+  } catch (error) {
+    state.tedLlmProviderTestError = String(error);
+  } finally {
+    state.tedLlmProviderTestBusy = false;
+  }
+}
+
+export async function loadTedWorkflowRegistry(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedWorkflowsLoading) {
+    return;
+  }
+  state.tedWorkflowsLoading = true;
+  state.tedWorkflowsError = null;
+  try {
+    const result = await requestTedWithTimeout<TedWorkflowRegistryResponse>(
+      state.client,
+      "ted.ops.workflows.list",
+      {},
+    );
+    state.tedWorkflows = result;
+  } catch (err) {
+    state.tedWorkflowsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedWorkflowsLoading = false;
+  }
+}
+
+export async function upsertTedWorkflow(
+  state: TedWorkbenchState,
+  workflow: TedWorkflowDefinition | Record<string, unknown>,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedWorkflowMutationBusy) {
+    return;
+  }
+  state.tedWorkflowMutationBusy = true;
+  state.tedWorkflowMutationError = null;
+  state.tedWorkflowMutationResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(state.client, "ted.ops.workflows.mutate", {
+      action: "upsert",
+      workflow,
+    });
+    state.tedWorkflowMutationResult = "Workflow saved";
+    await loadTedWorkflowRegistry(state);
+  } catch (err) {
+    state.tedWorkflowMutationError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedWorkflowMutationBusy = false;
+  }
+}
+
+export async function removeTedWorkflow(
+  state: TedWorkbenchState,
+  workflowId: string,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedWorkflowMutationBusy) {
+    return;
+  }
+  state.tedWorkflowMutationBusy = true;
+  state.tedWorkflowMutationError = null;
+  state.tedWorkflowMutationResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(state.client, "ted.ops.workflows.mutate", {
+      action: "remove",
+      workflow_id: workflowId,
+    });
+    state.tedWorkflowMutationResult = `Workflow removed: ${workflowId}`;
+    await loadTedWorkflowRegistry(state);
+    await loadTedWorkflowRuns(state);
+  } catch (err) {
+    state.tedWorkflowMutationError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedWorkflowMutationBusy = false;
+  }
+}
+
+export async function runTedWorkflow(
+  state: TedWorkbenchState,
+  workflowId: string,
+  dryRun = true,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedWorkflowRunBusy) {
+    return;
+  }
+  state.tedWorkflowRunBusy = true;
+  state.tedWorkflowRunError = null;
+  state.tedWorkflowRunResult = null;
+  try {
+    const result = await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.workflows.run",
+      { workflow_id: workflowId, dry_run: dryRun },
+    );
+    state.tedWorkflowRunResult = result;
+    await loadTedWorkflowRuns(state, workflowId);
+  } catch (err) {
+    state.tedWorkflowRunError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedWorkflowRunBusy = false;
+  }
+}
+
+export async function loadTedWorkflowRuns(
+  state: TedWorkbenchState,
+  workflowId?: string,
+  limit = 25,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedWorkflowRunsLoading) {
+    return;
+  }
+  state.tedWorkflowRunsLoading = true;
+  state.tedWorkflowRunsError = null;
+  try {
+    const result = await requestTedWithTimeout<TedWorkflowRunsResponse>(
+      state.client,
+      "ted.ops.workflows.runs",
+      { workflow_id: workflowId, limit },
+    );
+    state.tedWorkflowRuns = result;
+  } catch (err) {
+    state.tedWorkflowRunsError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedWorkflowRunsLoading = false;
+  }
+}
+
+export async function loadTedMemoryPreferences(
+  state: TedWorkbenchState,
+  params?: { scope?: string; entity?: string },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMemoryPreferencesLoading) {
+    return;
+  }
+  state.tedMemoryPreferencesLoading = true;
+  state.tedMemoryPreferencesError = null;
+  try {
+    const result = await requestTedWithTimeout<TedMemoryPreferencesResponse>(
+      state.client,
+      "ted.ops.memory.preferences.list",
+      params || {},
+    );
+    state.tedMemoryPreferences = result;
+  } catch (err) {
+    state.tedMemoryPreferencesError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMemoryPreferencesLoading = false;
+  }
+}
+
+export async function upsertTedMemoryPreference(
+  state: TedWorkbenchState,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMemoryMutationBusy) {
+    return;
+  }
+  state.tedMemoryMutationBusy = true;
+  state.tedMemoryMutationError = null;
+  state.tedMemoryMutationResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.memory.preferences.upsert",
+      payload,
+    );
+    state.tedMemoryMutationResult = "Memory preference saved";
+    await loadTedMemoryPreferences(state);
+  } catch (err) {
+    state.tedMemoryMutationError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMemoryMutationBusy = false;
+  }
+}
+
+export async function forgetTedMemoryPreference(
+  state: TedWorkbenchState,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMemoryMutationBusy) {
+    return;
+  }
+  state.tedMemoryMutationBusy = true;
+  state.tedMemoryMutationError = null;
+  state.tedMemoryMutationResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.memory.preferences.forget",
+      payload,
+    );
+    state.tedMemoryMutationResult = "Memory preference forgotten";
+    await loadTedMemoryPreferences(state);
+  } catch (err) {
+    state.tedMemoryMutationError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMemoryMutationBusy = false;
+  }
+}
+
+export async function exportTedMemoryPreferences(
+  state: TedWorkbenchState,
+  entity?: string,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMemoryExportLoading) {
+    return;
+  }
+  state.tedMemoryExportLoading = true;
+  state.tedMemoryExportError = null;
+  try {
+    const result = await requestTedWithTimeout<TedMemoryExportResponse>(
+      state.client,
+      "ted.ops.memory.preferences.export",
+      entity ? { entity } : {},
+    );
+    state.tedMemoryExport = result;
+  } catch (err) {
+    state.tedMemoryExportError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMemoryExportLoading = false;
+  }
+}
+
+export async function loadTedMcpTrustPolicy(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedMcpTrustPolicyLoading) {
+    return;
+  }
+  state.tedMcpTrustPolicyLoading = true;
+  state.tedMcpTrustPolicyError = null;
+  try {
+    const result = await requestTedWithTimeout<TedMcpTrustPolicy>(
+      state.client,
+      "ted.ops.mcp.trust_policy.get",
+      {},
+    );
+    state.tedMcpTrustPolicy = result;
+  } catch (err) {
+    state.tedMcpTrustPolicyError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMcpTrustPolicyLoading = false;
+  }
+}
+
+export async function saveTedMcpTrustPolicy(
+  state: TedWorkbenchState,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMcpTrustPolicySaveBusy) {
+    return;
+  }
+  state.tedMcpTrustPolicySaveBusy = true;
+  state.tedMcpTrustPolicySaveError = null;
+  state.tedMcpTrustPolicySaveResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.mcp.trust_policy.set",
+      payload,
+    );
+    state.tedMcpTrustPolicySaveResult = "MCP trust policy updated";
+    await loadTedMcpTrustPolicy(state);
+  } catch (err) {
+    state.tedMcpTrustPolicySaveError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMcpTrustPolicySaveBusy = false;
+  }
+}
+
+export async function setTedMcpToolPolicy(
+  state: TedWorkbenchState,
+  toolAlias: string,
+  action: "read_only" | "approval_required" | "deny",
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMcpToolPolicyBusy) {
+    return;
+  }
+  state.tedMcpToolPolicyBusy = true;
+  state.tedMcpToolPolicyError = null;
+  state.tedMcpToolPolicyResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.mcp.tool_policy.set",
+      {
+        tool_alias: toolAlias,
+        action,
+      },
+    );
+    state.tedMcpToolPolicyResult = `Tool policy updated: ${toolAlias} -> ${action}`;
+    await loadTedMcpTrustPolicy(state);
+  } catch (err) {
+    state.tedMcpToolPolicyError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMcpToolPolicyBusy = false;
+  }
+}
+
+export async function loadTedGraphDeltaStatus(
+  state: TedWorkbenchState,
+  params?: { profile_id?: string; workload?: string },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedGraphDeltaStatusLoading) {
+    return;
+  }
+  state.tedGraphDeltaStatusLoading = true;
+  state.tedGraphDeltaStatusError = null;
+  try {
+    const result = await requestTedWithTimeout<TedGraphDeltaStatusResponse>(
+      state.client,
+      "ted.ops.graph.delta.status",
+      params || {},
+    );
+    state.tedGraphDeltaStatus = result;
+  } catch (err) {
+    state.tedGraphDeltaStatusError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedGraphDeltaStatusLoading = false;
+  }
+}
+
+export async function runTedGraphDelta(
+  state: TedWorkbenchState,
+  payload: { profile_id?: string; workload?: string },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedGraphDeltaRunBusy) {
+    return;
+  }
+  state.tedGraphDeltaRunBusy = true;
+  state.tedGraphDeltaRunError = null;
+  state.tedGraphDeltaRunResult = null;
+  try {
+    const result = await requestTedWithTimeout<TedGraphDeltaRunResponse>(
+      state.client,
+      "ted.ops.graph.delta.run",
+      payload,
+    );
+    state.tedGraphDeltaRunResult = result;
+    await loadTedGraphDeltaStatus(state, payload);
+  } catch (err) {
+    state.tedGraphDeltaRunError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedGraphDeltaRunBusy = false;
+  }
+}
+
+export async function loadTedEvalMatrix(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedEvalMatrixLoading) {
+    return;
+  }
+  state.tedEvalMatrixLoading = true;
+  state.tedEvalMatrixError = null;
+  try {
+    const result = await requestTedWithTimeout<TedEvalMatrixConfigResponse>(
+      state.client,
+      "ted.ops.eval.matrix.get",
+      {},
+    );
+    state.tedEvalMatrix = result;
+  } catch (err) {
+    state.tedEvalMatrixError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedEvalMatrixLoading = false;
+  }
+}
+
+export async function saveTedEvalMatrix(
+  state: TedWorkbenchState,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedEvalMatrixSaveBusy) {
+    return;
+  }
+  state.tedEvalMatrixSaveBusy = true;
+  state.tedEvalMatrixSaveError = null;
+  state.tedEvalMatrixSaveResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.eval.matrix.set",
+      payload,
+    );
+    state.tedEvalMatrixSaveResult = "Evaluation matrix saved";
+    await loadTedEvalMatrix(state);
+  } catch (err) {
+    state.tedEvalMatrixSaveError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedEvalMatrixSaveBusy = false;
+  }
+}
+
+export async function runTedEvalMatrix(
+  state: TedWorkbenchState,
+  payload?: Record<string, unknown>,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedEvalMatrixRunBusy) {
+    return;
+  }
+  state.tedEvalMatrixRunBusy = true;
+  state.tedEvalMatrixRunError = null;
+  state.tedEvalMatrixRunResult = null;
+  try {
+    const result = await requestTedWithTimeout<TedEvalMatrixRunResponse>(
+      state.client,
+      "ted.ops.eval.matrix.run",
+      payload || {},
+    );
+    state.tedEvalMatrixRunResult = result;
+    await loadTedEvalMatrix(state);
+  } catch (err) {
+    state.tedEvalMatrixRunError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedEvalMatrixRunBusy = false;
+  }
+}
+
 export async function loadTedMeetingsUpcoming(state: TedWorkbenchState): Promise<void> {
   if (!state.client || !state.connected || state.tedMeetingsLoading) {
     return;
@@ -2091,6 +2633,7 @@ export async function upsertTedExternalMcpServer(
     auth_token_env?: string;
     auth_header_name?: string;
     description?: string;
+    trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
   },

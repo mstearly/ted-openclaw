@@ -878,7 +878,13 @@ export interface TedEventLogStatsResponse {
 
 // ── LLM Provider Types (JC-072a) ────────────────────────────────────
 
-export type LlmProviderName = "openai_direct" | "azure_openai" | "copilot_extension" | "disabled";
+export type LlmProviderName =
+  | "openai_direct"
+  | "azure_openai"
+  | "anthropic_direct"
+  | "openai_compatible"
+  | "copilot_extension"
+  | "disabled";
 
 export type TedLlmProviderConfig = {
   default_provider: LlmProviderName;
@@ -921,6 +927,177 @@ export type TedNotificationBudgetResponse = {
   today_count: number;
   today_date: string;
 };
+
+export interface TedLlmRoutingPolicy {
+  fallback_order: string[];
+  per_intent: Record<string, string>;
+  per_job: Record<string, string>;
+  provider_models: Record<string, string>;
+  constraints: {
+    enforce_entity_hipaa: boolean;
+    deny_unlisted_provider: boolean;
+    max_timeout_ms: number;
+  };
+}
+
+export interface TedLlmProviderTestResponse {
+  ok: boolean;
+  provider: string;
+  model: string | null;
+  latency_ms: number;
+  usage: Record<string, unknown> | null;
+  error: string | null;
+  detail: string | null;
+  output_preview: string | null;
+}
+
+export interface TedWorkflowStep {
+  step_id: string;
+  kind: "route_call" | "approval_gate" | "condition";
+  method?: "GET" | "POST";
+  route?: string;
+  body?: Record<string, unknown>;
+  retry?: { max_attempts?: number; backoff_ms?: number };
+  reason?: string;
+  expression?: string;
+  on_true?: string;
+  on_false?: string;
+}
+
+export interface TedWorkflowDefinition {
+  workflow_id: string;
+  name: string;
+  enabled: boolean;
+  entity: string | null;
+  trigger: {
+    kind: string;
+    schedule?: string;
+    timezone?: string;
+  };
+  steps: TedWorkflowStep[];
+  updated_at: string;
+}
+
+export interface TedWorkflowRegistryResponse {
+  workflows: TedWorkflowDefinition[];
+  total_count: number;
+  run_count: number;
+}
+
+export interface TedWorkflowRunsResponse {
+  runs: Array<{
+    run_id: string;
+    workflow_id: string;
+    workflow_name: string;
+    dry_run: boolean;
+    status: string;
+    failed_step_id: string | null;
+    started_at: string;
+    completed_at: string;
+    step_count: number;
+    steps: Array<{
+      step_id: string;
+      kind: string;
+      status: string;
+      reason?: string;
+      error?: string;
+      method?: string;
+      route?: string;
+      duration_ms: number;
+      response_keys?: string[];
+    }>;
+  }>;
+  total_count: number;
+}
+
+export interface TedMemoryPreferencesResponse {
+  preferences: Array<{
+    memory_key: string;
+    scope: string;
+    entity: string | null;
+    value: unknown;
+    confidence: number | null;
+    source: string | null;
+    pinned: boolean;
+    expires_at: string | null;
+    updated_at: string | null;
+  }>;
+  total_count: number;
+}
+
+export interface TedMemoryExportResponse extends TedMemoryPreferencesResponse {
+  export_generated_at: string;
+  entity: string | null;
+}
+
+export interface TedMcpTrustPolicy {
+  default_server_trust_tier: "sandboxed" | "trusted_read" | "trusted_write";
+  default_tool_action: "read_only" | "approval_required" | "deny";
+  trust_tiers: Array<"sandboxed" | "trusted_read" | "trusted_write">;
+  tool_actions: Array<"read_only" | "approval_required" | "deny">;
+  servers: Record<string, { trust_tier?: "sandboxed" | "trusted_read" | "trusted_write" }>;
+  tool_policies: Record<string, "read_only" | "approval_required" | "deny">;
+}
+
+export interface TedGraphDeltaStatusResponse {
+  strategy: Record<string, unknown>;
+  entries: Array<{
+    kind: string;
+    profile_id: string;
+    workload: string;
+    timestamp: string;
+    next_link: string | null;
+    delta_link: string | null;
+    value_count: number;
+  }>;
+  total_count: number;
+}
+
+export interface TedGraphDeltaRunResponse {
+  ok: boolean;
+  profile_id: string;
+  workload: string;
+  value_count: number;
+  timestamp: string;
+  next_link: string | null;
+  delta_link: string | null;
+}
+
+export interface TedEvalMatrixConfigResponse {
+  enabled: boolean;
+  thresholds: {
+    min_pass_rate: number;
+    max_p95_latency_ms: number;
+    max_cost_usd_per_run: number;
+  };
+  slices: Array<{
+    slice_id: string;
+    enabled?: boolean;
+    provider?: string;
+    model?: string;
+    intent?: string;
+  }>;
+  recent_runs: Array<Record<string, unknown>>;
+}
+
+export interface TedEvalMatrixRunResponse {
+  generated_at: string;
+  total_slices: number;
+  passed_slices: number;
+  pass_rate: number;
+  p95_latency_ms: number;
+  threshold_pass: boolean;
+  results: Array<{
+    slice_id: string;
+    provider: string;
+    model: string | null;
+    intent: string;
+    ok: boolean;
+    error: string | null;
+    latency_ms: number;
+    output_chars: number;
+  }>;
+}
 
 // ── Deal Workflow Types ──────────────────────────────────────────────
 
@@ -1447,7 +1624,9 @@ export interface TedExternalMcpServer {
   transport: "http";
   url: string;
   timeout_ms: number;
+  trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
   auth_token_env?: string;
+  auth_token_configured?: boolean;
   auth_header_name?: string;
   description?: string;
   allow_tools: string[];

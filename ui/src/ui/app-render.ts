@@ -493,6 +493,101 @@ export function renderApp(state: AppViewState) {
                 llmProviderError: state.tedLlmProviderError,
                 onLoadLlmProvider: () => void state.loadTedLlmProvider(),
                 onUpdateLlmProvider: (provider) => void state.updateTedLlmProvider(provider),
+                llmRoutingPolicy: state.tedLlmRoutingPolicy,
+                llmRoutingPolicyLoading: state.tedLlmRoutingPolicyLoading,
+                llmRoutingPolicyError: state.tedLlmRoutingPolicyError,
+                llmRoutingPolicySaveBusy: state.tedLlmRoutingPolicySaveBusy,
+                llmRoutingPolicySaveError: state.tedLlmRoutingPolicySaveError,
+                llmRoutingPolicySaveResult: state.tedLlmRoutingPolicySaveResult,
+                llmProviderTestBusy: state.tedLlmProviderTestBusy,
+                llmProviderTestError: state.tedLlmProviderTestError,
+                llmProviderTestResult: state.tedLlmProviderTestResult,
+                workflows: state.tedWorkflows,
+                workflowsLoading: state.tedWorkflowsLoading,
+                workflowsError: state.tedWorkflowsError,
+                workflowMutationBusy: state.tedWorkflowMutationBusy,
+                workflowMutationError: state.tedWorkflowMutationError,
+                workflowMutationResult: state.tedWorkflowMutationResult,
+                workflowRuns: state.tedWorkflowRuns,
+                workflowRunsLoading: state.tedWorkflowRunsLoading,
+                workflowRunsError: state.tedWorkflowRunsError,
+                workflowRunBusy: state.tedWorkflowRunBusy,
+                workflowRunError: state.tedWorkflowRunError,
+                workflowRunResult: state.tedWorkflowRunResult,
+                memoryPreferences: state.tedMemoryPreferences,
+                memoryPreferencesLoading: state.tedMemoryPreferencesLoading,
+                memoryPreferencesError: state.tedMemoryPreferencesError,
+                memoryMutationBusy: state.tedMemoryMutationBusy,
+                memoryMutationError: state.tedMemoryMutationError,
+                memoryMutationResult: state.tedMemoryMutationResult,
+                memoryExport: state.tedMemoryExport,
+                memoryExportLoading: state.tedMemoryExportLoading,
+                memoryExportError: state.tedMemoryExportError,
+                mcpTrustPolicy: state.tedMcpTrustPolicy,
+                mcpTrustPolicyLoading: state.tedMcpTrustPolicyLoading,
+                mcpTrustPolicyError: state.tedMcpTrustPolicyError,
+                mcpTrustPolicySaveBusy: state.tedMcpTrustPolicySaveBusy,
+                mcpTrustPolicySaveError: state.tedMcpTrustPolicySaveError,
+                mcpTrustPolicySaveResult: state.tedMcpTrustPolicySaveResult,
+                mcpToolPolicyBusy: state.tedMcpToolPolicyBusy,
+                mcpToolPolicyError: state.tedMcpToolPolicyError,
+                mcpToolPolicyResult: state.tedMcpToolPolicyResult,
+                graphDeltaStatus: state.tedGraphDeltaStatus,
+                graphDeltaStatusLoading: state.tedGraphDeltaStatusLoading,
+                graphDeltaStatusError: state.tedGraphDeltaStatusError,
+                graphDeltaRunBusy: state.tedGraphDeltaRunBusy,
+                graphDeltaRunError: state.tedGraphDeltaRunError,
+                graphDeltaRunResult: state.tedGraphDeltaRunResult,
+                evalMatrix: state.tedEvalMatrix,
+                evalMatrixLoading: state.tedEvalMatrixLoading,
+                evalMatrixError: state.tedEvalMatrixError,
+                evalMatrixSaveBusy: state.tedEvalMatrixSaveBusy,
+                evalMatrixSaveError: state.tedEvalMatrixSaveError,
+                evalMatrixSaveResult: state.tedEvalMatrixSaveResult,
+                evalMatrixRunBusy: state.tedEvalMatrixRunBusy,
+                evalMatrixRunError: state.tedEvalMatrixRunError,
+                evalMatrixRunResult: state.tedEvalMatrixRunResult,
+                onLoadLlmRoutingPolicy: () => void state.loadTedLlmRoutingPolicy(),
+                onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) =>
+                  void state.saveTedLlmRoutingPolicy(payload),
+                onTestLlmProvider: (payload: {
+                  provider: string;
+                  model?: string;
+                  prompt?: string;
+                  entity?: string;
+                }) => void state.testTedLlmProvider(payload),
+                onLoadWorkflows: () => void state.loadTedWorkflowRegistry(),
+                onUpsertWorkflow: (workflow: Record<string, unknown>) =>
+                  void state.upsertTedWorkflow(workflow),
+                onRemoveWorkflow: (workflowId: string) => void state.removeTedWorkflow(workflowId),
+                onRunWorkflow: (workflowId: string, dryRun?: boolean) =>
+                  void state.runTedWorkflow(workflowId, dryRun),
+                onLoadWorkflowRuns: (workflowId?: string, limit?: number) =>
+                  void state.loadTedWorkflowRuns(workflowId, limit),
+                onLoadMemoryPreferences: (params?: { scope?: string; entity?: string }) =>
+                  void state.loadTedMemoryPreferences(params),
+                onUpsertMemoryPreference: (payload: Record<string, unknown>) =>
+                  void state.upsertTedMemoryPreference(payload),
+                onForgetMemoryPreference: (payload: Record<string, unknown>) =>
+                  void state.forgetTedMemoryPreference(payload),
+                onExportMemoryPreferences: (entity?: string) =>
+                  void state.exportTedMemoryPreferences(entity),
+                onLoadMcpTrustPolicy: () => void state.loadTedMcpTrustPolicy(),
+                onSaveMcpTrustPolicy: (payload: Record<string, unknown>) =>
+                  void state.saveTedMcpTrustPolicy(payload),
+                onSetMcpToolPolicy: (
+                  toolAlias: string,
+                  action: "read_only" | "approval_required" | "deny",
+                ) => void state.setTedMcpToolPolicy(toolAlias, action),
+                onLoadGraphDeltaStatus: (params?: { profile_id?: string; workload?: string }) =>
+                  void state.loadTedGraphDeltaStatus(params),
+                onRunGraphDelta: (payload: { profile_id?: string; workload?: string }) =>
+                  void state.runTedGraphDelta(payload),
+                onLoadEvalMatrix: () => void state.loadTedEvalMatrix(),
+                onSaveEvalMatrix: (payload: Record<string, unknown>) =>
+                  void state.saveTedEvalMatrix(payload),
+                onRunEvalMatrix: (payload?: Record<string, unknown>) =>
+                  void state.runTedEvalMatrix(payload),
                 meetingsUpcoming: state.tedMeetingsUpcoming,
                 meetingsLoading: state.tedMeetingsLoading,
                 meetingsError: state.tedMeetingsError,
@@ -716,6 +811,7 @@ export function renderApp(state: AppViewState) {
                   auth_token_env?: string;
                   auth_header_name?: string;
                   description?: string;
+                  trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
                   allow_tools?: string[];
                   deny_tools?: string[];
                 }) => void state.upsertTedExternalMcpServer(payload),

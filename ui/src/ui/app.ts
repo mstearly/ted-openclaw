@@ -63,6 +63,7 @@ import {
   loadTedDealList,
   loadTedEodDigest,
   loadTedLlmProvider,
+  loadTedLlmRoutingPolicy,
   loadTedMail,
   loadTedMorningBrief,
   loadTedMeetingsUpcoming,
@@ -142,6 +143,25 @@ import {
   testTedExternalMcpServer,
   upsertTedExternalMcpServer,
   removeTedExternalMcpServer,
+  saveTedLlmRoutingPolicy,
+  testTedLlmProvider,
+  loadTedWorkflowRegistry,
+  upsertTedWorkflow,
+  removeTedWorkflow,
+  runTedWorkflow,
+  loadTedWorkflowRuns,
+  loadTedMemoryPreferences,
+  upsertTedMemoryPreference,
+  forgetTedMemoryPreference,
+  exportTedMemoryPreferences,
+  loadTedMcpTrustPolicy,
+  saveTedMcpTrustPolicy,
+  setTedMcpToolPolicy,
+  loadTedGraphDeltaStatus,
+  runTedGraphDelta,
+  loadTedEvalMatrix,
+  saveTedEvalMatrix,
+  runTedEvalMatrix,
 } from "./controllers/ted.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
@@ -495,6 +515,60 @@ export class OpenClawApp extends LitElement {
   @state() tedLlmProviderConfig: import("./types.ts").TedLlmProviderConfig | null = null;
   @state() tedLlmProviderLoading = false;
   @state() tedLlmProviderError: string | null = null;
+  @state() tedLlmRoutingPolicy: import("./types.ts").TedLlmRoutingPolicy | null = null;
+  @state() tedLlmRoutingPolicyLoading = false;
+  @state() tedLlmRoutingPolicyError: string | null = null;
+  @state() tedLlmRoutingPolicySaveBusy = false;
+  @state() tedLlmRoutingPolicySaveError: string | null = null;
+  @state() tedLlmRoutingPolicySaveResult: string | null = null;
+  @state() tedLlmProviderTestBusy = false;
+  @state() tedLlmProviderTestError: string | null = null;
+  @state() tedLlmProviderTestResult: import("./types.ts").TedLlmProviderTestResponse | null = null;
+  @state() tedWorkflows: import("./types.ts").TedWorkflowRegistryResponse | null = null;
+  @state() tedWorkflowsLoading = false;
+  @state() tedWorkflowsError: string | null = null;
+  @state() tedWorkflowMutationBusy = false;
+  @state() tedWorkflowMutationError: string | null = null;
+  @state() tedWorkflowMutationResult: string | null = null;
+  @state() tedWorkflowRuns: import("./types.ts").TedWorkflowRunsResponse | null = null;
+  @state() tedWorkflowRunsLoading = false;
+  @state() tedWorkflowRunsError: string | null = null;
+  @state() tedWorkflowRunBusy = false;
+  @state() tedWorkflowRunError: string | null = null;
+  @state() tedWorkflowRunResult: Record<string, unknown> | null = null;
+  @state() tedMemoryPreferences: import("./types.ts").TedMemoryPreferencesResponse | null = null;
+  @state() tedMemoryPreferencesLoading = false;
+  @state() tedMemoryPreferencesError: string | null = null;
+  @state() tedMemoryMutationBusy = false;
+  @state() tedMemoryMutationError: string | null = null;
+  @state() tedMemoryMutationResult: string | null = null;
+  @state() tedMemoryExport: import("./types.ts").TedMemoryExportResponse | null = null;
+  @state() tedMemoryExportLoading = false;
+  @state() tedMemoryExportError: string | null = null;
+  @state() tedMcpTrustPolicy: import("./types.ts").TedMcpTrustPolicy | null = null;
+  @state() tedMcpTrustPolicyLoading = false;
+  @state() tedMcpTrustPolicyError: string | null = null;
+  @state() tedMcpTrustPolicySaveBusy = false;
+  @state() tedMcpTrustPolicySaveError: string | null = null;
+  @state() tedMcpTrustPolicySaveResult: string | null = null;
+  @state() tedMcpToolPolicyBusy = false;
+  @state() tedMcpToolPolicyError: string | null = null;
+  @state() tedMcpToolPolicyResult: string | null = null;
+  @state() tedGraphDeltaStatus: import("./types.ts").TedGraphDeltaStatusResponse | null = null;
+  @state() tedGraphDeltaStatusLoading = false;
+  @state() tedGraphDeltaStatusError: string | null = null;
+  @state() tedGraphDeltaRunBusy = false;
+  @state() tedGraphDeltaRunError: string | null = null;
+  @state() tedGraphDeltaRunResult: import("./types.ts").TedGraphDeltaRunResponse | null = null;
+  @state() tedEvalMatrix: import("./types.ts").TedEvalMatrixConfigResponse | null = null;
+  @state() tedEvalMatrixLoading = false;
+  @state() tedEvalMatrixError: string | null = null;
+  @state() tedEvalMatrixSaveBusy = false;
+  @state() tedEvalMatrixSaveError: string | null = null;
+  @state() tedEvalMatrixSaveResult: string | null = null;
+  @state() tedEvalMatrixRunBusy = false;
+  @state() tedEvalMatrixRunError: string | null = null;
+  @state() tedEvalMatrixRunResult: import("./types.ts").TedEvalMatrixRunResponse | null = null;
   // Phase 6: Meetings + Commitments + GTD
   @state() tedMeetingsUpcoming: import("./types.ts").TedMeetingUpcomingResponse | null = null;
   @state() tedMeetingsLoading = false;
@@ -962,6 +1036,93 @@ export class OpenClawApp extends LitElement {
     await updateTedLlmProvider(this, newDefault, perJobOverrides);
   }
 
+  async loadTedLlmRoutingPolicy() {
+    await loadTedLlmRoutingPolicy(this);
+  }
+
+  async saveTedLlmRoutingPolicy(payload: Record<string, unknown>) {
+    await saveTedLlmRoutingPolicy(this, payload);
+  }
+
+  async testTedLlmProvider(payload: {
+    provider: string;
+    model?: string;
+    prompt?: string;
+    entity?: string;
+  }) {
+    await testTedLlmProvider(this, payload);
+  }
+
+  async loadTedWorkflowRegistry() {
+    await loadTedWorkflowRegistry(this);
+  }
+
+  async upsertTedWorkflow(
+    workflow: import("./types.ts").TedWorkflowDefinition | Record<string, unknown>,
+  ) {
+    await upsertTedWorkflow(this, workflow);
+  }
+
+  async removeTedWorkflow(workflowId: string) {
+    await removeTedWorkflow(this, workflowId);
+  }
+
+  async runTedWorkflow(workflowId: string, dryRun = true) {
+    await runTedWorkflow(this, workflowId, dryRun);
+  }
+
+  async loadTedWorkflowRuns(workflowId?: string, limit?: number) {
+    await loadTedWorkflowRuns(this, workflowId, limit);
+  }
+
+  async loadTedMemoryPreferences(params?: { scope?: string; entity?: string }) {
+    await loadTedMemoryPreferences(this, params);
+  }
+
+  async upsertTedMemoryPreference(payload: Record<string, unknown>) {
+    await upsertTedMemoryPreference(this, payload);
+  }
+
+  async forgetTedMemoryPreference(payload: Record<string, unknown>) {
+    await forgetTedMemoryPreference(this, payload);
+  }
+
+  async exportTedMemoryPreferences(entity?: string) {
+    await exportTedMemoryPreferences(this, entity);
+  }
+
+  async loadTedMcpTrustPolicy() {
+    await loadTedMcpTrustPolicy(this);
+  }
+
+  async saveTedMcpTrustPolicy(payload: Record<string, unknown>) {
+    await saveTedMcpTrustPolicy(this, payload);
+  }
+
+  async setTedMcpToolPolicy(toolAlias: string, action: "read_only" | "approval_required" | "deny") {
+    await setTedMcpToolPolicy(this, toolAlias, action);
+  }
+
+  async loadTedGraphDeltaStatus(params?: { profile_id?: string; workload?: string }) {
+    await loadTedGraphDeltaStatus(this, params);
+  }
+
+  async runTedGraphDelta(payload: { profile_id?: string; workload?: string }) {
+    await runTedGraphDelta(this, payload);
+  }
+
+  async loadTedEvalMatrix() {
+    await loadTedEvalMatrix(this);
+  }
+
+  async saveTedEvalMatrix(payload: Record<string, unknown>) {
+    await saveTedEvalMatrix(this, payload);
+  }
+
+  async runTedEvalMatrix(payload?: Record<string, unknown>) {
+    await runTedEvalMatrix(this, payload);
+  }
+
   async loadTedMeetingsUpcoming() {
     await loadTedMeetingsUpcoming(this);
   }
@@ -1190,6 +1351,7 @@ export class OpenClawApp extends LitElement {
     auth_token_env?: string;
     auth_header_name?: string;
     description?: string;
+    trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
   }) {
