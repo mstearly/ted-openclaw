@@ -122,6 +122,27 @@ For `openclaw` models, the gateway applies explicit continuation behavior:
    - `metadata.context_semantics.continuation_status = "fallback"`
    - `metadata.context_semantics.fallback_reason = "previous_response_not_found"`
 
+## Transport telemetry metadata
+
+Every OpenResponses run now emits transport telemetry primitives:
+
+1. `llm.transport.selected`
+2. `llm.transport.fallback`
+3. `llm.transport.latency.sample`
+
+The response metadata also carries a transport summary snapshot:
+
+- `metadata.transport.run`
+  - `selected_transport`
+  - `latency_ms`
+  - `fallback_count`
+  - `status`
+- `metadata.transport.aggregate`
+  - `run_count`
+  - `fallback_ratio`
+  - `latency_p50_ms`
+  - `latency_p95_ms`
+
 ## Context truthfulness release gate
 
 Run the dedicated gate before release/promotion:

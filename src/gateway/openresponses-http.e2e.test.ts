@@ -542,6 +542,19 @@ describe("OpenResponses HTTP API (e2e)", () => {
       expect(content.length).toBe(1);
       expect(content[0]?.type).toBe("output_text");
       expect(content[0]?.text).toBe("hello");
+
+      const transportMetadata =
+        ((shapeJson.metadata as Record<string, unknown> | undefined)?.transport as
+          | Record<string, unknown>
+          | undefined) ?? {};
+      const transportRun = (transportMetadata.run as Record<string, unknown> | undefined) ?? {};
+      const transportAggregate =
+        (transportMetadata.aggregate as Record<string, unknown> | undefined) ?? {};
+      expect(transportRun.selected_transport).toBe("sse");
+      expect(typeof transportRun.latency_ms).toBe("number");
+      expect((transportRun.provider as string) ?? "").toBe("openresponses");
+      expect((transportRun.model as string) ?? "").toBe("openclaw");
+      expect((transportAggregate.run_count as number) ?? 0).toBeGreaterThanOrEqual(1);
       await ensureResponseConsumed(resShape);
 
       const resNoUser = await postResponses(port, {
@@ -600,6 +613,19 @@ describe("OpenResponses HTTP API (e2e)", () => {
         })
         .join("");
       expect(deltas).toBe("hello");
+
+      const completionEvent = deltaEvents
+        .filter((event) => event.event === "response.completed")
+        .map((event) => JSON.parse(event.data) as { response?: Record<string, unknown> })
+        .at(-1);
+      const streamTransportMetadata =
+        ((completionEvent?.response?.metadata as Record<string, unknown> | undefined)?.transport as
+          | Record<string, unknown>
+          | undefined) ?? {};
+      const streamTransportRun =
+        (streamTransportMetadata.run as Record<string, unknown> | undefined) ?? {};
+      expect(streamTransportRun.selected_transport).toBe("sse");
+      expect(typeof streamTransportRun.latency_ms).toBe("number");
 
       agentCommand.mockReset();
       agentCommand.mockResolvedValueOnce({

@@ -49,6 +49,11 @@ import {
   type StreamingEvent,
   type Usage,
 } from "./open-responses.schema.js";
+import {
+  completeTransportRun,
+  getTransportRunSummary,
+  startTransportRun,
+} from "./openresponses-transport.js";
 
 type OpenResponsesHttpOptions = {
   auth: ResolvedGatewayAuth;
@@ -679,6 +684,23 @@ export async function handleOpenResponsesHttpRequest(
 
   const responseId = `resp_${randomUUID()}`;
   const outputItemId = `msg_${randomUUID()}`;
+  startTransportRun({
+    runId: responseId,
+    requestId: contextSemanticsRequestId,
+    provider: "openresponses",
+    model,
+    transport: "sse",
+  });
+  const buildResponseMetadata = () => {
+    const transportSummary = getTransportRunSummary(responseId);
+    if (!transportSummary) {
+      return responseMetadata;
+    }
+    return {
+      ...responseMetadata,
+      transport: transportSummary,
+    };
+  };
   rememberPreviousResponse({ responseId, sessionKey, model });
   const deps = createDefaultDeps();
   const streamParams =
@@ -710,6 +732,14 @@ export async function handleOpenResponsesHttpRequest(
               .pendingToolCalls
           : undefined;
 
+      completeTransportRun({
+        runId: responseId,
+        requestId: contextSemanticsRequestId,
+        provider: "openresponses",
+        model,
+        status: "completed",
+      });
+
       // If agent called a client tool, return function_call instead of text
       if (stopReason === "tool_calls" && pendingToolCalls && pendingToolCalls.length > 0) {
         const functionCall = pendingToolCalls[0];
@@ -728,7 +758,7 @@ export async function handleOpenResponsesHttpRequest(
             },
           ],
           usage,
-          metadata: responseMetadata,
+          metadata: buildResponseMetadata(),
         });
         sendJson(res, 200, response);
         return true;
@@ -750,19 +780,26 @@ export async function handleOpenResponsesHttpRequest(
           createAssistantOutputItem({ id: outputItemId, text: content, status: "completed" }),
         ],
         usage,
-        metadata: responseMetadata,
+        metadata: buildResponseMetadata(),
       });
 
       sendJson(res, 200, response);
     } catch (err) {
       logWarn(`openresponses: non-stream response failed: ${String(err)}`);
+      completeTransportRun({
+        runId: responseId,
+        requestId: contextSemanticsRequestId,
+        provider: "openresponses",
+        model,
+        status: "failed",
+      });
       const response = createResponseResource({
         id: responseId,
         model,
         status: "failed",
         output: [],
         error: { code: "api_error", message: "internal error" },
-        metadata: responseMetadata,
+        metadata: buildResponseMetadata(),
       });
       sendJson(res, 500, response);
     }
@@ -825,13 +862,21 @@ export async function handleOpenResponsesHttpRequest(
       item: completedItem,
     });
 
+    completeTransportRun({
+      runId: responseId,
+      requestId: contextSemanticsRequestId,
+      provider: "openresponses",
+      model,
+      status: finalizeRequested.status === "failed" ? "failed" : "completed",
+    });
+
     const finalResponse = createResponseResource({
       id: responseId,
       model,
       status: finalizeRequested.status,
       output: [completedItem],
       usage,
-      metadata: responseMetadata,
+      metadata: buildResponseMetadata(),
     });
 
     writeSseEvent(res, { type: "response.completed", response: finalResponse });
@@ -853,7 +898,7 @@ export async function handleOpenResponsesHttpRequest(
     model,
     status: "in_progress",
     output: [],
-    metadata: responseMetadata,
+    metadata: buildResponseMetadata(),
   });
 
   writeSseEvent(res, { type: "response.created", response: initialResponse });
@@ -1011,13 +1056,21 @@ export async function handleOpenResponsesHttpRequest(
             item: { ...functionCallItem, status: "completed" as const },
           });
 
+          completeTransportRun({
+            runId: responseId,
+            requestId: contextSemanticsRequestId,
+            provider: "openresponses",
+            model,
+            status: "completed",
+          });
+
           const incompleteResponse = createResponseResource({
             id: responseId,
             model,
             status: "incomplete",
             output: [completedItem, functionCallItem],
             usage,
-            metadata: responseMetadata,
+            metadata: buildResponseMetadata(),
           });
           closed = true;
           unsubscribe();
@@ -1052,6 +1105,14 @@ export async function handleOpenResponsesHttpRequest(
         return;
       }
 
+      completeTransportRun({
+        runId: responseId,
+        requestId: contextSemanticsRequestId,
+        provider: "openresponses",
+        model,
+        status: "failed",
+      });
+
       finalUsage = finalUsage ?? createEmptyUsage();
       const errorResponse = createResponseResource({
         id: responseId,
@@ -1060,7 +1121,7 @@ export async function handleOpenResponsesHttpRequest(
         output: [],
         error: { code: "api_error", message: "internal error" },
         usage: finalUsage,
-        metadata: responseMetadata,
+        metadata: buildResponseMetadata(),
       });
 
       writeSseEvent(res, { type: "response.failed", response: errorResponse });

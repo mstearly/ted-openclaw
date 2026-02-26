@@ -70,10 +70,11 @@ Planned tasks from SDD 112:
 14. SDD 122 - C3-001 context truthfulness release gate
 15. SDD 123 - C3-002 context semantics replay validation report
 16. SDD 124 - C3-003 handoff package to Plan 2 owner
+17. SDD 125 - I4 T0 transport baseline and telemetry execution
 
 ---
 
-## 7. Early Wave I1/I2 Progress
+## 7. Early Wave I1-I4 Progress
 
 The council began Plan 1 execution in parallel with I0 paperwork to maintain momentum:
 
@@ -110,3 +111,7 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
 10. Published `C3-003` handoff declaration; Plan 2 transport wave is unblocked.
 
 - Evidence doc: `SDD 124`
+
+11. Executed Plan 2 Wave T0 baseline + telemetry + run summary projection.
+
+- Evidence doc: `SDD 125`
