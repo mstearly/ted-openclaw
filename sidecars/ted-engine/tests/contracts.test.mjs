@@ -226,6 +226,7 @@ const SAFE_GET_ROUTES = [
   "GET /ops/pending-deliveries",
   "GET /ops/notification-budget",
   "GET /ops/tool-usage",
+  "GET /ops/workflows",
   "GET /ops/llm-provider",
   "GET /ops/ingestion/status",
   "GET /ops/onboarding/discovery-status",
@@ -300,6 +301,61 @@ describe("Live Contract Tests — safe GET routes", () => {
       }
     },
   );
+});
+
+describe("Workflow registry metadata contract", () => {
+  test("POST /ops/workflows backfills metadata for legacy-shaped payloads", async () => {
+    const legacyWorkflowId = `rf1-legacy-${Date.now().toString(36)}`;
+    const payload = {
+      workflow_id: legacyWorkflowId,
+      name: "RF1 Legacy Compatibility Workflow",
+      steps: [
+        {
+          step_id: "inspect-llm",
+          kind: "route_call",
+          method: "GET",
+          route: "/ops/llm-provider",
+        },
+      ],
+    };
+    const resp = await fetch(`${baseUrl}/ops/workflows`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(body.workflow.workflow_id).toBe(legacyWorkflowId);
+    expect(Number.isInteger(body.workflow.workflow_version)).toBe(true);
+    expect(body.workflow.workflow_version).toBeGreaterThanOrEqual(1);
+    expect(typeof body.workflow.definition_hash).toBe("string");
+    expect(body.workflow.definition_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(typeof body.workflow.published_at).toBe("string");
+    expect(body.workflow.published_at.length).toBeGreaterThan(0);
+    expect(body.workflow).toHaveProperty("supersedes_version");
+  });
+
+  test("GET /ops/workflows returns versioned workflow metadata", async () => {
+    const resp = await fetch(`${baseUrl}/ops/workflows`, { headers: authHeaders });
+    expect(resp.status).toBe(200);
+    const body = await resp.json();
+    expect(Array.isArray(body.workflows)).toBe(true);
+    for (const workflow of body.workflows) {
+      expect(Number.isInteger(workflow.workflow_version)).toBe(true);
+      expect(workflow.workflow_version).toBeGreaterThanOrEqual(1);
+      expect(typeof workflow.definition_hash).toBe("string");
+      expect(workflow.definition_hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(typeof workflow.published_at).toBe("string");
+      expect(workflow.published_at.length).toBeGreaterThan(0);
+      if (workflow.supersedes_version !== null && workflow.supersedes_version !== undefined) {
+        expect(Number.isInteger(workflow.supersedes_version)).toBe(true);
+        expect(workflow.supersedes_version).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
 });
 
 // ─────────────────────────────────────────────────────────

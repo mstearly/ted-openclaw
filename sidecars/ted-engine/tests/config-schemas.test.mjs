@@ -322,7 +322,31 @@ describe("route_contracts.json — structure", () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// Section 8: roadmap and lifecycle policy validation
+// Section 8: workflow_registry.json schema validation
+// ─────────────────────────────────────────────────────────
+
+describe("workflow_registry.json — version metadata", () => {
+  const registry = configs.get("workflow_registry.json");
+  const workflows = Array.isArray(registry?.workflows) ? registry.workflows : [];
+
+  test("workflows include version metadata fields", () => {
+    for (const workflow of workflows) {
+      expect(Number.isInteger(workflow.workflow_version)).toBe(true);
+      expect(workflow.workflow_version).toBeGreaterThanOrEqual(1);
+      expect(typeof workflow.definition_hash).toBe("string");
+      expect(workflow.definition_hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(typeof workflow.published_at).toBe("string");
+      expect(workflow.published_at.length).toBeGreaterThan(0);
+      if (workflow.supersedes_version !== null && workflow.supersedes_version !== undefined) {
+        expect(Number.isInteger(workflow.supersedes_version)).toBe(true);
+        expect(workflow.supersedes_version).toBeGreaterThanOrEqual(1);
+      }
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// Section 9: roadmap and lifecycle policy validation
 // ─────────────────────────────────────────────────────────
 
 describe("roadmap and lifecycle governance configs", () => {
@@ -391,7 +415,7 @@ describe("roadmap and lifecycle governance configs", () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// Section 9: Key config files exist
+// Section 10: Key config files exist
 // ─────────────────────────────────────────────────────────
 
 describe("Required config files exist", () => {
@@ -430,7 +454,7 @@ describe("Required config files exist", () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// Section 10: Cross-config consistency
+// Section 11: Cross-config consistency
 // ─────────────────────────────────────────────────────────
 
 describe("Cross-config consistency", () => {
@@ -476,7 +500,7 @@ describe("Cross-config consistency", () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// Section 10: No config file exceeds size limits
+// Section 12: No config file exceeds size limits
 // ─────────────────────────────────────────────────────────
 
 describe("Config files — size sanity", () => {

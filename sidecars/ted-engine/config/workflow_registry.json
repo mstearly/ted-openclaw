@@ -4,6 +4,10 @@
     {
       "workflow_id": "daily-ops-brief",
       "name": "Daily Ops Brief",
+      "workflow_version": 1,
+      "definition_hash": "332ae95188644cb2d238ed4db800e1c238928d3fe6389d73d454d5e261c22697",
+      "published_at": "2026-02-26T00:00:00.000Z",
+      "supersedes_version": null,
       "enabled": false,
       "entity": "olumie",
       "trigger": {

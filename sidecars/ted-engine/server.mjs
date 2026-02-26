@@ -5265,10 +5265,34 @@ function getWorkflowRegistryConfig() {
   if (!cfg || typeof cfg !== "object") {
     return fallback;
   }
+  const rawWorkflows = Array.isArray(cfg.workflows) ? cfg.workflows : [];
+  const normalizedWorkflows = rawWorkflows
+    .map((workflow) =>
+      normalizeWorkflowDefinition(workflow, {
+        existingWorkflow: workflow,
+        defaultPublishedAt:
+          (workflow && typeof workflow === "object" && typeof workflow.published_at === "string"
+            ? workflow.published_at
+            : null) ||
+          (workflow && typeof workflow === "object" && typeof workflow.updated_at === "string"
+            ? workflow.updated_at
+            : null) ||
+          "1970-01-01T00:00:00.000Z",
+        defaultUpdatedAt:
+          (workflow && typeof workflow === "object" && typeof workflow.updated_at === "string"
+            ? workflow.updated_at
+            : null) ||
+          (workflow && typeof workflow === "object" && typeof workflow.published_at === "string"
+            ? workflow.published_at
+            : null) ||
+          "1970-01-01T00:00:00.000Z",
+      }),
+    )
+    .filter(Boolean);
   return {
     ...fallback,
     ...cfg,
-    workflows: Array.isArray(cfg.workflows) ? cfg.workflows : [],
+    workflows: normalizedWorkflows,
   };
 }
 
@@ -18111,8 +18135,91 @@ function normalizeWorkflowStep(rawStep, index) {
   return null;
 }
 
-function normalizeWorkflowDefinition(rawWorkflow) {
+function canonicalizeWorkflowHashInput(value) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => canonicalizeWorkflowHashInput(entry));
+  }
+  if (value && typeof value === "object") {
+    const normalized = {};
+    for (const key of Object.keys(value).toSorted()) {
+      const entry = canonicalizeWorkflowHashInput(value[key]);
+      if (entry !== undefined) {
+        normalized[key] = entry;
+      }
+    }
+    return normalized;
+  }
+  return value;
+}
+
+function normalizeTimestampString(value, fallback = null) {
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  if (typeof fallback === "string" && fallback.trim().length > 0) {
+    return fallback.trim();
+  }
+  return null;
+}
+
+function normalizePositiveInteger(value, fallback = 1) {
+  if (Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  return Number.isInteger(fallback) && fallback > 0 ? fallback : 1;
+}
+
+function normalizeNullablePositiveInteger(value, fallback = null) {
+  if (Number.isInteger(value) && value > 0) {
+    return value;
+  }
+  if (Number.isInteger(fallback) && fallback > 0) {
+    return fallback;
+  }
+  return null;
+}
+
+function workflowDefinitionHashInput(workflow) {
+  const safeWorkflow = workflow && typeof workflow === "object" ? workflow : {};
+  const safeTrigger =
+    safeWorkflow.trigger && typeof safeWorkflow.trigger === "object" ? safeWorkflow.trigger : {};
+  const safeSteps = Array.isArray(safeWorkflow.steps) ? safeWorkflow.steps : [];
+  return {
+    workflow_id: safeWorkflow.workflow_id || null,
+    name: safeWorkflow.name || null,
+    enabled: safeWorkflow.enabled !== false,
+    entity: safeWorkflow.entity || null,
+    trigger: {
+      kind: safeTrigger.kind || "manual",
+      schedule: safeTrigger.schedule || null,
+      timezone: safeTrigger.timezone || null,
+    },
+    steps: safeSteps.map((step) => ({
+      step_id: step.step_id || null,
+      kind: step.kind || null,
+      method: step.method || null,
+      route: step.route || null,
+      body: step.body && typeof step.body === "object" ? step.body : null,
+      retry: step.retry && typeof step.retry === "object" ? step.retry : null,
+      reason: step.reason || null,
+      expression: step.expression || null,
+      on_true: step.on_true || null,
+      on_false: step.on_false || null,
+    })),
+  };
+}
+
+function computeWorkflowDefinitionHash(workflow) {
+  const normalized = canonicalizeWorkflowHashInput(workflowDefinitionHashInput(workflow));
+  return crypto.createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+}
+
+function normalizeWorkflowDefinition(rawWorkflow, options = {}) {
   const wf = rawWorkflow && typeof rawWorkflow === "object" ? rawWorkflow : {};
+  const existingWorkflow =
+    options.existingWorkflow && typeof options.existingWorkflow === "object"
+      ? options.existingWorkflow
+      : null;
   const workflowId = typeof wf.workflow_id === "string" ? wf.workflow_id.trim() : "";
   if (!workflowId || !isSlugSafe(workflowId)) {
     return null;
@@ -18124,9 +18231,28 @@ function normalizeWorkflowDefinition(rawWorkflow) {
   }
   const trigger = wf.trigger && typeof wf.trigger === "object" ? wf.trigger : {};
   const triggerKind = typeof trigger.kind === "string" ? trigger.kind.trim() : "manual";
-  return {
+  const existingVersion = normalizePositiveInteger(existingWorkflow?.workflow_version, 1);
+  const workflowVersion = normalizePositiveInteger(wf.workflow_version, existingVersion);
+  const supersedesVersion = normalizeNullablePositiveInteger(
+    wf.supersedes_version,
+    existingWorkflow?.supersedes_version,
+  );
+  const updatedAt =
+    normalizeTimestampString(wf.updated_at, options.defaultUpdatedAt) ||
+    normalizeTimestampString(existingWorkflow?.updated_at, null) ||
+    normalizeTimestampString(existingWorkflow?.published_at, null) ||
+    normalizeTimestampString(options.defaultPublishedAt, "1970-01-01T00:00:00.000Z");
+  const publishedAt =
+    normalizeTimestampString(wf.published_at, options.defaultPublishedAt) ||
+    normalizeTimestampString(existingWorkflow?.published_at, null) ||
+    updatedAt ||
+    "1970-01-01T00:00:00.000Z";
+  const normalized = {
     workflow_id: workflowId,
     name: typeof wf.name === "string" && wf.name.trim().length > 0 ? wf.name.trim() : workflowId,
+    workflow_version: workflowVersion,
+    published_at: publishedAt,
+    supersedes_version: supersedesVersion,
     enabled: wf.enabled !== false,
     entity: typeof wf.entity === "string" && wf.entity.trim().length > 0 ? wf.entity.trim() : null,
     trigger: {
@@ -18135,7 +18261,12 @@ function normalizeWorkflowDefinition(rawWorkflow) {
       timezone: typeof trigger.timezone === "string" ? trigger.timezone.trim() : undefined,
     },
     steps,
-    updated_at: new Date().toISOString(),
+    updated_at: updatedAt,
+  };
+  const definitionHash = computeWorkflowDefinitionHash(normalized);
+  return {
+    ...normalized,
+    definition_hash: definitionHash,
   };
 }
 
@@ -18154,6 +18285,15 @@ function classifyWorkflowRiskLevel(score) {
     return "medium";
   }
   return "low";
+}
+
+function routeToRouteKey(routePath) {
+  const raw = typeof routePath === "string" ? routePath.trim() : "";
+  if (!raw) {
+    return "";
+  }
+  const withoutQuery = raw.split("?")[0];
+  return withoutQuery.replace(/\/:([A-Za-z0-9_]+)/g, "/{$1}");
 }
 
 function routeCallNeedsApprovalCheckpoint(method, routeKey) {
@@ -19429,7 +19569,23 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
     return;
   }
 
-  const normalized = normalizeWorkflowDefinition(body.workflow || body);
+  const candidateWorkflow = body.workflow || body;
+  const candidateWorkflowId =
+    candidateWorkflow &&
+    typeof candidateWorkflow === "object" &&
+    typeof candidateWorkflow.workflow_id === "string"
+      ? candidateWorkflow.workflow_id.trim()
+      : "";
+  const existingWorkflow =
+    candidateWorkflowId && isSlugSafe(candidateWorkflowId)
+      ? cfg.workflows.find((wf) => wf.workflow_id === candidateWorkflowId) || null
+      : null;
+  const nowIso = new Date().toISOString();
+  const normalized = normalizeWorkflowDefinition(candidateWorkflow, {
+    existingWorkflow,
+    defaultUpdatedAt: nowIso,
+    defaultPublishedAt: existingWorkflow?.published_at || nowIso,
+  });
   if (!normalized) {
     sendJson(res, 400, { error: "invalid_workflow_definition" });
     return;
@@ -19480,10 +19636,16 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
   writeWorkflowRegistryConfig({ workflows: nextWorkflows });
   appendEvent("workflow.registry.upserted", route, {
     workflow_id: normalized.workflow_id,
+    workflow_version: normalized.workflow_version,
+    definition_hash: normalized.definition_hash,
+    supersedes_version: normalized.supersedes_version,
     step_count: normalized.steps.length,
   });
   appendAudit("WORKFLOW_REGISTRY_UPSERT", {
     workflow_id: normalized.workflow_id,
+    workflow_version: normalized.workflow_version,
+    definition_hash: normalized.definition_hash,
+    supersedes_version: normalized.supersedes_version,
     step_count: normalized.steps.length,
     warning_count: lintReport.lint.warning_count,
   });
