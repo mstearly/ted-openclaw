@@ -10,6 +10,14 @@ import {
   validateMigrationManifest,
 } from "./modules/migration_registry.mjs";
 import {
+  hasActivePartialFailure,
+  hasInProgressCheckpoint,
+  normalizeMigrationState,
+  withMigrationApplied,
+  withMigrationCheckpoint,
+  withMigrationFailure,
+} from "./modules/migration_state.mjs";
+import {
   validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
   validateConnectorAuthModePolicy,
@@ -1438,12 +1446,27 @@ function validateStartupIntegrity() {
   const migrationStatePath = path.join(__dirname, "config", "migration_state.json");
   if (fs.existsSync(migrationStatePath)) {
     try {
-      JSON.parse(fs.readFileSync(migrationStatePath, "utf8"));
+      const migrationState = normalizeMigrationState(
+        JSON.parse(fs.readFileSync(migrationStatePath, "utf8")),
+      );
+      if (hasActivePartialFailure(migrationState) || hasInProgressCheckpoint(migrationState)) {
+        results.errors.push({
+          type: "migration_state",
+          path: migrationStatePath,
+          error: "partial migration risk detected (active failure or in-progress checkpoint)",
+          details: {
+            partial_failure: migrationState.partial_failure || null,
+            last_checkpoint: migrationState.last_checkpoint || null,
+          },
+          critical: true,
+        });
+      }
     } catch (err) {
       results.errors.push({
         type: "migration_state",
         path: migrationStatePath,
         error: err.message,
+        critical: true,
       });
     }
   }
@@ -23889,13 +23912,41 @@ function runConfigMigrations() {
   const migrationStatePath = path.join(configDir, "migration_state.json");
   const backupsDir = path.join(__dirname, "config_backups");
 
+  const persistMigrationState = (nextState) => {
+    const tmpPath = migrationStatePath + ".tmp";
+    fs.writeFileSync(tmpPath, JSON.stringify(nextState, null, 2) + "\n", "utf8");
+    fs.renameSync(tmpPath, migrationStatePath);
+  };
+
   // Read current migration state
   let migrationState;
   try {
-    migrationState = JSON.parse(fs.readFileSync(migrationStatePath, "utf8"));
+    migrationState = normalizeMigrationState(
+      JSON.parse(fs.readFileSync(migrationStatePath, "utf8")),
+    );
   } catch {
-    migrationState = { _config_version: 1, applied: [], last_run: null };
+    migrationState = normalizeMigrationState({ _config_version: 1, applied: [], last_run: null });
   }
+
+  if (hasActivePartialFailure(migrationState) || hasInProgressCheckpoint(migrationState)) {
+    const partialFailure = migrationState.partial_failure || migrationState.last_checkpoint || null;
+    logLine(
+      `MIGRATION_RUNNER_ERROR: blocked due to unresolved partial migration state ${JSON.stringify(partialFailure)}`,
+    );
+    try {
+      appendEvent("config.migration.blocked_by_partial_failure", "migration_runner", {
+        partial_failure: partialFailure,
+      });
+    } catch {
+      /* non-fatal */
+    }
+    return {
+      migrations_run: 0,
+      error: "migration_partial_failure_active",
+      details: partialFailure,
+    };
+  }
+
   const appliedSet = new Set(
     migrationState.applied.map((entry) => (typeof entry === "string" ? entry : entry.id)),
   );
@@ -23952,6 +24003,17 @@ function runConfigMigrations() {
     }
 
     try {
+      migrationState = withMigrationCheckpoint(migrationState, migration, backupPath);
+      persistMigrationState(migrationState);
+    } catch (checkpointErr) {
+      logLine(
+        `MIGRATION_RUNNER_ERROR: Cannot persist checkpoint for ${migrationId}: ${checkpointErr.message}`,
+      );
+      results.push({ id: migrationId, order: migration.order, error: checkpointErr.message });
+      break;
+    }
+
+    try {
       const registryEntry = CONFIG_MIGRATION_REGISTRY.get(migrationId);
       if (!registryEntry || typeof registryEntry.run !== "function") {
         throw new Error(`registry handler missing for ${migrationId}`);
@@ -23972,7 +24034,8 @@ function runConfigMigrations() {
         affected_configs: registryEntry.affected_configs || [],
         result: normalizedResult,
       };
-      migrationState.applied.push(record);
+      migrationState = withMigrationApplied(migrationState, migration, record);
+      persistMigrationState(migrationState);
       appliedSet.add(migrationId);
       results.push(record);
       migrationsRun += 1;
@@ -23990,22 +24053,51 @@ function runConfigMigrations() {
       }
     } catch (err) {
       logLine(`MIGRATION_RUNNER_ERROR: Migration ${migrationId} failed: ${err.message}`);
-      results.push({ id: migrationId, order: migration.order, error: err.message });
+      migrationState = withMigrationFailure(migrationState, migration, err.message, backupPath);
+      try {
+        persistMigrationState(migrationState);
+      } catch (persistErr) {
+        logLine(
+          `MIGRATION_RUNNER_ERROR: Cannot persist failure state for ${migrationId}: ${persistErr.message}`,
+        );
+      }
+      results.push({
+        id: migrationId,
+        order: migration.order,
+        error: err.message,
+        rollback_checkpoint_path: backupPath,
+      });
+      try {
+        appendEvent("config.migration.failed", "migration_runner", {
+          migration_id: migrationId,
+          order: migration.order,
+          error: err.message,
+          rollback_checkpoint_path: backupPath,
+        });
+      } catch {
+        /* non-fatal */
+      }
       break;
     }
   }
 
   // Update migration state
-  migrationState.last_run = new Date().toISOString();
+  migrationState = {
+    ...migrationState,
+    last_run: new Date().toISOString(),
+  };
   try {
-    const tmpPath = migrationStatePath + ".tmp";
-    fs.writeFileSync(tmpPath, JSON.stringify(migrationState, null, 2) + "\n", "utf8");
-    fs.renameSync(tmpPath, migrationStatePath);
+    persistMigrationState(migrationState);
   } catch (err) {
     logLine(`MIGRATION_RUNNER_ERROR: Cannot update migration_state.json: ${err.message}`);
   }
 
-  return { migrations_run: migrationsRun, already_applied: appliedSet.size, results };
+  return {
+    migrations_run: migrationsRun,
+    already_applied: appliedSet.size,
+    partial_failure_active: hasActivePartialFailure(migrationState),
+    results,
+  };
 }
 
 // ─── Sprint 2 (SDD 72): Run config migrations before validation ───

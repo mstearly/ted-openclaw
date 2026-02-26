@@ -154,6 +154,10 @@
       "policy.config.changed": "Policy config changed (hard_bans, autonomy, urgency, etc.)",
       "policy.config.snapshot": "Policy config snapshot on startup"
     },
+    "migration": {
+      "config.migration.failed": "A config migration failed and partial-failure metadata was persisted",
+      "config.migration.blocked_by_partial_failure": "Migration execution was blocked due to unresolved partial migration state"
+    },
     "facility": {
       "facility.alert.created": "Facility alert created",
       "facility.alert.escalated": "Facility alert escalated",
