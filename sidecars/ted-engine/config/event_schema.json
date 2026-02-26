@@ -153,7 +153,9 @@
     "policy": {
       "policy.config.changed": "Policy config changed (hard_bans, autonomy, urgency, etc.)",
       "policy.config.snapshot": "Policy config snapshot on startup",
-      "policy.rollout.queried": "Rollout policy queried with deterministic canary decision and rollback trigger context"
+      "policy.rollout.queried": "Rollout policy queried with deterministic canary decision and rollback trigger context",
+      "policy.compatibility.queried": "Compatibility policy queried with deprecation and sunset schedule surfaces",
+      "policy.deprecation.notice_served": "Route response included a deprecation notice and sunset metadata"
     },
     "migration": {
       "config.migration.failed": "A config migration failed and partial-failure metadata was persisted",

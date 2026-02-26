@@ -92,7 +92,7 @@
     }
   },
   "route_contract_freeze": {
-    "route_contracts_source_hash": "19d4f79638bfe93ff069708904cf55942a770a2d6f9f0a2d917068df0ac12c22",
+    "route_contracts_source_hash": "aee1b75a2ab6166677f6aef7c99145d02d158c5fcdf8a31435159c7b77b42c5e",
     "workflow_routes": [
       {
         "route_key": "GET /ops/workflows",
@@ -151,7 +151,7 @@
     "migration_routes": [
       {
         "route_key": "GET /status",
-        "contract_hash": "a2edaea88e382d6bcf9c611263e4d6473cdaffdafd74515825441005c334618e",
+        "contract_hash": "53161b110d69f2b99d25d28d2d8a3b0c068f3557d8c41e6500cdba282677739c",
         "contract": {
           "status_codes": [200],
           "required_fields": [
@@ -165,14 +165,16 @@
             "dependencies",
             "api_version",
             "min_supported_version",
-            "startup_validation"
+            "startup_validation",
+            "deprecated_routes",
+            "sunset_schedule"
           ],
           "content_type": "application/json"
         }
       },
       {
         "route_key": "GET /doctor",
-        "contract_hash": "99bd5464e425cbbdeab1b16056ece32425e3667d66e06d8f88519d4ab5ec8270",
+        "contract_hash": "7e705a9f36628d7088e2045ef299dae3310b633bdb5613c7e01f78dcb73d4164",
         "contract": {
           "status_codes": [200],
           "required_fields": [
@@ -184,7 +186,10 @@
             "catalog",
             "operator",
             "dependencies",
-            "api_version"
+            "api_version",
+            "deprecated_routes",
+            "sunset_schedule",
+            "deprecation_notice"
           ],
           "content_type": "application/json"
         }

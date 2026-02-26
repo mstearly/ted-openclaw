@@ -229,6 +229,7 @@ const SAFE_GET_ROUTES = [
   "GET /ops/tool-usage",
   "GET /ops/workflows",
   "GET /ops/llm-provider",
+  "GET /ops/compatibility-policy",
   "GET /ops/ingestion/status",
   "GET /ops/onboarding/discovery-status",
   "GET /ops/rollout-policy",

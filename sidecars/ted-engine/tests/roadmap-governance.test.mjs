@@ -165,6 +165,21 @@ describe("roadmap governance module", () => {
     expect(codes.has("COMPAT_POLICY_SUPPORT_WINDOW_INVALID")).toBe(true);
   });
 
+  test("rejects compatibility policy with invalid deprecation route schedule", () => {
+    const compatibilityPolicy = loadJson(compatibilityPolicyPath);
+    const mutated = JSON.parse(JSON.stringify(compatibilityPolicy));
+    mutated.deprecation.routes[0].route_key = "doctor";
+    mutated.deprecation.routes[0].sunset_date = "06-30-2026";
+    mutated.deprecation.routes[0].status = "legacy";
+
+    const result = validateCompatibilityPolicy(mutated);
+    const codes = new Set((result.errors || []).map((entry) => entry.code));
+    expect(result.ok).toBe(false);
+    expect(codes.has("COMPAT_POLICY_DEPRECATION_ROUTE_KEY_INVALID")).toBe(true);
+    expect(codes.has("COMPAT_POLICY_DEPRECATION_DATE_INVALID")).toBe(true);
+    expect(codes.has("COMPAT_POLICY_DEPRECATION_STATUS_INVALID")).toBe(true);
+  });
+
   test("rejects retrofit baseline lock when route freeze is empty", () => {
     const baselineLock = loadJson(retrofitBaselineLockPath);
     const mutated = JSON.parse(JSON.stringify(baselineLock));

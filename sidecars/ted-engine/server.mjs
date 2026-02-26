@@ -732,7 +732,138 @@ function logLine(message) {
   logStream.write(line);
 }
 
+function getCompatibilityPolicyConfig() {
+  const fallback = {
+    _config_version: 1,
+    support_window: {
+      min_supported_api_version: TED_MIN_API_VERSION,
+      backward_compatible_releases: 2,
+      sunset_grace_releases: 1,
+    },
+    deprecation: {
+      min_notice_days: 30,
+      default_notice_days: 60,
+      max_notice_days: 180,
+      required_status_fields: ["deprecated_routes", "sunset_schedule"],
+      requires_operator_notice: true,
+      enforcement_mode: "fail_closed_after_sunset",
+      routes: [],
+    },
+    compatibility_classes: {},
+    release_gates: {},
+  };
+
+  const cfg = readConfigFile(compatibilityPolicyConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+
+  const supportWindow =
+    cfg.support_window && typeof cfg.support_window === "object"
+      ? { ...fallback.support_window, ...cfg.support_window }
+      : fallback.support_window;
+  const deprecationRaw =
+    cfg.deprecation && typeof cfg.deprecation === "object" ? cfg.deprecation : {};
+  const deprecationRoutes = Array.isArray(deprecationRaw.routes)
+    ? deprecationRaw.routes
+        .filter((route) => route && typeof route === "object")
+        .map((route) => ({
+          route_key: typeof route.route_key === "string" ? route.route_key.trim() : "",
+          replacement_route:
+            typeof route.replacement_route === "string" ? route.replacement_route.trim() : "",
+          status: typeof route.status === "string" ? route.status.trim() : "announced",
+          sunset_date: typeof route.sunset_date === "string" ? route.sunset_date.trim() : "",
+          enforcement_date:
+            typeof route.enforcement_date === "string" ? route.enforcement_date.trim() : "",
+          notice: typeof route.notice === "string" ? route.notice.trim() : "",
+        }))
+        .filter((route) => route.route_key.length > 0)
+    : [];
+  const deprecation = {
+    ...fallback.deprecation,
+    ...deprecationRaw,
+    routes: deprecationRoutes,
+    required_status_fields: Array.isArray(deprecationRaw.required_status_fields)
+      ? uniqueStringList(deprecationRaw.required_status_fields)
+      : fallback.deprecation.required_status_fields,
+  };
+
+  return {
+    ...fallback,
+    ...cfg,
+    support_window: supportWindow,
+    deprecation,
+    compatibility_classes:
+      cfg.compatibility_classes && typeof cfg.compatibility_classes === "object"
+        ? cfg.compatibility_classes
+        : fallback.compatibility_classes,
+    release_gates:
+      cfg.release_gates && typeof cfg.release_gates === "object"
+        ? cfg.release_gates
+        : fallback.release_gates,
+  };
+}
+
+function getCompatibilityStatusSurface() {
+  const policy = getCompatibilityPolicyConfig();
+  const routes = Array.isArray(policy.deprecation?.routes) ? policy.deprecation.routes : [];
+  return {
+    deprecated_routes: routes.map((route) => ({
+      route_key: route.route_key,
+      replacement_route: route.replacement_route || null,
+      status: route.status || "announced",
+      sunset_date: route.sunset_date || null,
+      enforcement_date: route.enforcement_date || null,
+      notice: route.notice || null,
+    })),
+    sunset_schedule: {
+      enforcement_mode: policy.deprecation?.enforcement_mode || "fail_closed_after_sunset",
+      min_notice_days: policy.deprecation?.min_notice_days ?? 30,
+      default_notice_days: policy.deprecation?.default_notice_days ?? 60,
+      max_notice_days: policy.deprecation?.max_notice_days ?? 180,
+      routes: routes.map((route) => ({
+        route_key: route.route_key,
+        status: route.status || "announced",
+        sunset_date: route.sunset_date || null,
+        enforcement_date: route.enforcement_date || null,
+      })),
+    },
+  };
+}
+
+function findRouteDeprecationNotice(method, routePath) {
+  const routeKey = `${method} ${routePath}`;
+  const surface = getCompatibilityStatusSurface();
+  const routeNotice = surface.deprecated_routes.find((entry) => entry.route_key === routeKey);
+  if (!routeNotice) {
+    return null;
+  }
+  return {
+    route_key: routeNotice.route_key,
+    replacement_route: routeNotice.replacement_route,
+    status: routeNotice.status,
+    sunset_date: routeNotice.sunset_date,
+    enforcement_date: routeNotice.enforcement_date,
+    notice: routeNotice.notice,
+  };
+}
+
+function applyRouteDeprecationNotice(payload, method, routePath) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    return payload;
+  }
+  const notice = findRouteDeprecationNotice(method, routePath);
+  if (!notice) {
+    return payload;
+  }
+  return {
+    ...payload,
+    deprecation_notice: notice,
+  };
+}
+
 function buildPayload() {
+  const compatibility = getCompatibilityStatusSurface();
   const catalog = {
     discoverability_version: DISCOVERABILITY_VERSION,
     commands: ["/ted doctor", "/ted status", "/ted catalog"],
@@ -824,6 +955,8 @@ function buildPayload() {
     api_version: TED_API_VERSION,
     min_supported_version: TED_MIN_API_VERSION,
     startup_validation: _lastStartupValidation || null,
+    deprecated_routes: compatibility.deprecated_routes,
+    sunset_schedule: compatibility.sunset_schedule,
   };
 }
 
@@ -2100,6 +2233,7 @@ executionBoundaryPolicy.set("/ops/replay/corpus", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/run", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/runs", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/rollout-policy", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/compatibility-policy", "WORKFLOW_ONLY");
 // Sprint 2 (SDD 72): Evaluation pipeline
 executionBoundaryPolicy.set("/ops/evaluation/status", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/evaluation/run", "WORKFLOW_ONLY");
@@ -19837,6 +19971,7 @@ function replayRunsEndpoint(parsedUrl, res, route) {
 
 function rolloutPolicyEndpoint(parsedUrl, res, route) {
   const policy = getRolloutPolicyConfig();
+  const compatibility = getCompatibilityStatusSurface();
   const operatorId = parsedUrl?.searchParams?.get("operator_id") || "";
   const workflowId = parsedUrl?.searchParams?.get("workflow_id") || "";
   const routeKey = parsedUrl?.searchParams?.get("route_key") || "";
@@ -19857,16 +19992,31 @@ function rolloutPolicyEndpoint(parsedUrl, res, route) {
   });
   const rollback = evaluateRollbackTriggers(policy, activeReasonCodes);
 
-  sendJson(res, 200, {
-    generated_at: new Date().toISOString(),
-    policy,
-    decision,
-    rollback,
-    transport_canary_semantics: {
-      hash: "djb2_mod_100",
-      fallback_reason_codes: ["auto_canary_disabled", "auto_canary_not_selected"],
+  const payload = applyRouteDeprecationNotice(
+    {
+      generated_at: new Date().toISOString(),
+      policy,
+      decision,
+      rollback,
+      transport_canary_semantics: {
+        hash: "djb2_mod_100",
+        fallback_reason_codes: ["auto_canary_disabled", "auto_canary_not_selected"],
+      },
+      deprecated_routes: compatibility.deprecated_routes,
+      sunset_schedule: compatibility.sunset_schedule,
     },
-  });
+    "GET",
+    route,
+  );
+  sendJson(res, 200, payload);
+  if (payload?.deprecation_notice) {
+    appendEvent("policy.deprecation.notice_served", route, {
+      route_key: payload.deprecation_notice.route_key,
+      replacement_route: payload.deprecation_notice.replacement_route,
+      sunset_date: payload.deprecation_notice.sunset_date,
+      enforcement_date: payload.deprecation_notice.enforcement_date,
+    });
+  }
   appendEvent("policy.rollout.queried", route, {
     operator_id: operatorId || null,
     workflow_id: workflowId || null,
@@ -19876,6 +20026,26 @@ function rolloutPolicyEndpoint(parsedUrl, res, route) {
     reason_code: decision.reason_code,
     rollback_triggered: rollback.triggered,
     rollback_reason_codes: rollback.reason_codes,
+    deprecated_route_count: compatibility.deprecated_routes.length,
+  });
+  logLine(`GET ${route} -> 200`);
+}
+
+function compatibilityPolicyEndpoint(res, route) {
+  const policy = getCompatibilityPolicyConfig();
+  const compatibility = getCompatibilityStatusSurface();
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    policy,
+    ...compatibility,
+  });
+  appendEvent("policy.compatibility.queried", route, {
+    deprecated_route_count: compatibility.deprecated_routes.length,
+    sunset_route_count: compatibility.sunset_schedule.routes.length,
+  });
+  appendAudit("COMPATIBILITY_POLICY_GET", {
+    deprecated_route_count: compatibility.deprecated_routes.length,
+    sunset_route_count: compatibility.sunset_schedule.routes.length,
   });
   logLine(`GET ${route} -> 200`);
 }
@@ -20622,7 +20792,25 @@ function memoryPreferencesExportEndpoint(parsedUrl, res, route) {
 
 function mcpTrustPolicyGetEndpoint(res, route) {
   const cfg = getMcpTrustPolicy();
-  sendJson(res, 200, cfg);
+  const compatibility = getCompatibilityStatusSurface();
+  const payload = applyRouteDeprecationNotice(
+    {
+      ...cfg,
+      deprecated_routes: compatibility.deprecated_routes,
+      sunset_schedule: compatibility.sunset_schedule,
+    },
+    "GET",
+    route,
+  );
+  sendJson(res, 200, payload);
+  if (payload?.deprecation_notice) {
+    appendEvent("policy.deprecation.notice_served", route, {
+      route_key: payload.deprecation_notice.route_key,
+      replacement_route: payload.deprecation_notice.replacement_route,
+      sunset_date: payload.deprecation_notice.sunset_date,
+      enforcement_date: payload.deprecation_notice.enforcement_date,
+    });
+  }
   appendAudit("MCP_TRUST_POLICY_GET", {});
   logLine(`GET ${route} -> 200`);
 }
@@ -22998,8 +23186,16 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (method === "GET" && (route === "/status" || route === "/doctor")) {
-      const payload = buildPayload();
+      const payload = applyRouteDeprecationNotice(buildPayload(), method, route);
       sendJson(res, 200, payload);
+      if (payload?.deprecation_notice) {
+        appendEvent("policy.deprecation.notice_served", route, {
+          route_key: payload.deprecation_notice.route_key,
+          replacement_route: payload.deprecation_notice.replacement_route,
+          sunset_date: payload.deprecation_notice.sunset_date,
+          enforcement_date: payload.deprecation_notice.enforcement_date,
+        });
+      }
       logLine(`${method} ${route} -> 200`);
       return;
     }
@@ -23452,7 +23648,25 @@ const server = http.createServer(async (req, res) => {
 
     if (method === "GET" && route === "/ops/llm-routing-policy") {
       const cfg = getLlmRoutingPolicy();
-      sendJson(res, 200, cfg);
+      const compatibility = getCompatibilityStatusSurface();
+      const payload = applyRouteDeprecationNotice(
+        {
+          ...cfg,
+          deprecated_routes: compatibility.deprecated_routes,
+          sunset_schedule: compatibility.sunset_schedule,
+        },
+        "GET",
+        route,
+      );
+      sendJson(res, 200, payload);
+      if (payload?.deprecation_notice) {
+        appendEvent("policy.deprecation.notice_served", route, {
+          route_key: payload.deprecation_notice.route_key,
+          replacement_route: payload.deprecation_notice.replacement_route,
+          sunset_date: payload.deprecation_notice.sunset_date,
+          enforcement_date: payload.deprecation_notice.enforcement_date,
+        });
+      }
       appendAudit("LLM_ROUTING_POLICY_GET", {
         per_intent_count: Object.keys(cfg.per_intent || {}).length,
         per_job_count: Object.keys(cfg.per_job || {}).length,
@@ -23905,6 +24119,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (method === "GET" && route === "/ops/rollout-policy") {
       rolloutPolicyEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/compatibility-policy") {
+      compatibilityPolicyEndpoint(res, route);
       return;
     }
 

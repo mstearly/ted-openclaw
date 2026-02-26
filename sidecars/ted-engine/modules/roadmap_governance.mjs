@@ -846,6 +846,50 @@ export function validateCompatibilityPolicy(policy) {
         });
       }
     }
+
+    const routes = Array.isArray(deprecation.routes) ? deprecation.routes : [];
+    for (const route of routes) {
+      if (!isObject(route)) {
+        errors.push({
+          code: "COMPAT_POLICY_DEPRECATION_ROUTE_INVALID",
+          message: "deprecation.routes entries must be objects",
+        });
+        continue;
+      }
+      if (typeof route.route_key !== "string" || route.route_key.trim().length === 0) {
+        errors.push({
+          code: "COMPAT_POLICY_DEPRECATION_ROUTE_KEY_MISSING",
+          message: "deprecation.routes[].route_key must be a non-empty string",
+        });
+      } else if (!/^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(route.route_key.trim())) {
+        errors.push({
+          code: "COMPAT_POLICY_DEPRECATION_ROUTE_KEY_INVALID",
+          message: "deprecation.routes[].route_key must use METHOD /path format",
+        });
+      }
+      for (const field of ["sunset_date", "enforcement_date"]) {
+        if (typeof route[field] !== "string" || route[field].trim().length === 0) {
+          errors.push({
+            code: "COMPAT_POLICY_DEPRECATION_DATE_MISSING",
+            message: `deprecation.routes[].${field} must be a non-empty string`,
+          });
+          continue;
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(route[field].trim())) {
+          errors.push({
+            code: "COMPAT_POLICY_DEPRECATION_DATE_INVALID",
+            message: `deprecation.routes[].${field} must use YYYY-MM-DD format`,
+          });
+        }
+      }
+      const validStatuses = new Set(["announced", "sunset_pending", "enforced"]);
+      if (!validStatuses.has(String(route.status || ""))) {
+        errors.push({
+          code: "COMPAT_POLICY_DEPRECATION_STATUS_INVALID",
+          message: "deprecation.routes[].status must be one of announced, sunset_pending, enforced",
+        });
+      }
+    }
   }
 
   const compatibilityClasses = isObject(policy.compatibility_classes)

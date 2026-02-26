@@ -14,7 +14,17 @@
     "max_notice_days": 180,
     "required_status_fields": ["deprecated_routes", "sunset_schedule"],
     "requires_operator_notice": true,
-    "enforcement_mode": "fail_closed_after_sunset"
+    "enforcement_mode": "fail_closed_after_sunset",
+    "routes": [
+      {
+        "route_key": "GET /doctor",
+        "replacement_route": "GET /status",
+        "status": "announced",
+        "sunset_date": "2026-06-30",
+        "enforcement_date": "2026-07-31",
+        "notice": "Use GET /status; GET /doctor remains available during the deprecation window."
+      }
+    ]
   },
   "compatibility_classes": {
     "workflow_definition": {

@@ -15,7 +15,9 @@
         "dependencies",
         "api_version",
         "min_supported_version",
-        "startup_validation"
+        "startup_validation",
+        "deprecated_routes",
+        "sunset_schedule"
       ],
       "content_type": "application/json"
     },
@@ -30,7 +32,10 @@
         "catalog",
         "operator",
         "dependencies",
-        "api_version"
+        "api_version",
+        "deprecated_routes",
+        "sunset_schedule",
+        "deprecation_notice"
       ],
       "content_type": "application/json"
     },
@@ -143,7 +148,9 @@
         "per_intent",
         "per_job",
         "provider_models",
-        "constraints"
+        "constraints",
+        "deprecated_routes",
+        "sunset_schedule"
       ],
       "content_type": "application/json"
     },
@@ -216,7 +223,9 @@
         "default_server_trust_tier",
         "default_tool_action",
         "servers",
-        "tool_policies"
+        "tool_policies",
+        "deprecated_routes",
+        "sunset_schedule"
       ],
       "content_type": "application/json"
     },
@@ -323,8 +332,15 @@
         "policy",
         "decision",
         "rollback",
-        "transport_canary_semantics"
+        "transport_canary_semantics",
+        "deprecated_routes",
+        "sunset_schedule"
       ],
+      "content_type": "application/json"
+    },
+    "GET /ops/compatibility-policy": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "policy", "deprecated_routes", "sunset_schedule"],
       "content_type": "application/json"
     },
     "POST /ops/ingestion/run": {
