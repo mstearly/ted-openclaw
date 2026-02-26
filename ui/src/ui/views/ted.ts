@@ -59,6 +59,7 @@ import type {
   TedMcpExternalRevalidationStatusResponse,
   TedWorkflowRegistryResponse,
   TedWorkflowRunsResponse,
+  TedWorkflowRiskLintResponse,
 } from "../types.ts";
 
 function formatFileSize(bytes: number): string {
@@ -236,6 +237,9 @@ export type TedViewProps = {
   workflowRunBusy: boolean;
   workflowRunError: string | null;
   workflowRunResult: Record<string, unknown> | null;
+  workflowLintLoading: boolean;
+  workflowLintError: string | null;
+  workflowLintResult: TedWorkflowRiskLintResponse | null;
   memoryPreferences: TedMemoryPreferencesResponse | null;
   memoryPreferencesLoading: boolean;
   memoryPreferencesError: string | null;
@@ -309,6 +313,7 @@ export type TedViewProps = {
   }) => void;
   onLoadWorkflows: () => void;
   onUpsertWorkflow: (workflow: Record<string, unknown>) => void;
+  onLintWorkflow: (payload: { workflow?: Record<string, unknown>; workflow_id?: string }) => void;
   onRemoveWorkflow: (workflowId: string) => void;
   onRunWorkflow: (workflowId: string, dryRun?: boolean) => void;
   onLoadWorkflowRuns: (workflowId?: string, limit?: number) => void;
@@ -3045,6 +3050,25 @@ function renderExecutionWavesControlCard(
           </button>
           <button
             class="btn btn--sm ghost"
+            ?disabled=${props.workflowLintLoading}
+            @click=${() => {
+              const workflow = parseJson("ted-wave-workflow-json");
+              if (workflow) {
+                props.onLintWorkflow({ workflow });
+                return;
+              }
+              const workflowId = readValue("ted-wave-workflow-id");
+              if (!workflowId) {
+                alert("Provide workflow JSON or workflow_id for lint.");
+                return;
+              }
+              props.onLintWorkflow({ workflow_id: workflowId });
+            }}
+          >
+            ${props.workflowLintLoading ? "Linting..." : "Risk Lint"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
             ?disabled=${props.workflowMutationBusy}
             @click=${() => {
               const workflowId = readValue("ted-wave-workflow-id");
@@ -3086,9 +3110,38 @@ function renderExecutionWavesControlCard(
             Run Live
           </button>
         </div>
+        ${props.workflowLintError ? html`<div class="callout danger" style="margin-top: 8px;">${props.workflowLintError}</div>` : nothing}
+        ${
+          props.workflowLintResult
+            ? html`
+                <div class="callout ${props.workflowLintResult.publish_allowed ? "" : "warn"}" style="margin-top: 8px;">
+                  lint=${props.workflowLintResult.lint.summary} · blocking=${props.workflowLintResult.lint.blocking_count} · warnings=${props.workflowLintResult.lint.warning_count}
+                  <div style="margin-top: 4px;" class="muted">
+                    friction_score=${props.workflowLintResult.friction_forecast.predicted_job_friction_score} ·
+                    top_hotspot=${props.workflowLintResult.friction_forecast.top_hotspot || "none"}
+                  </div>
+                </div>
+              `
+            : nothing
+        }
         <div style="margin-top: 8px;" class="muted">
           ${props.workflows?.total_count ?? 0} workflow(s) configured, ${props.workflowRuns?.total_count ?? 0} recent run(s).
         </div>
+        ${
+          props.workflowLintResult
+            ? html`
+                <pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(
+                  {
+                    policy_explainability: props.workflowLintResult.policy_explainability,
+                    hotspots: props.workflowLintResult.friction_forecast.hotspots,
+                    node_annotations: props.workflowLintResult.node_annotations.slice(0, 12),
+                  },
+                  null,
+                  2,
+                )}</pre>
+              `
+            : nothing
+        }
         ${
           props.workflowRunResult
             ? html`

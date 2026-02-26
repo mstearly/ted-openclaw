@@ -347,6 +347,9 @@ export type AppViewState = {
   tedWorkflowRunBusy: boolean;
   tedWorkflowRunError: string | null;
   tedWorkflowRunResult: Record<string, unknown> | null;
+  tedWorkflowLintLoading: boolean;
+  tedWorkflowLintError: string | null;
+  tedWorkflowLintResult: import("./types.ts").TedWorkflowRiskLintResponse | null;
   tedMemoryPreferences: import("./types.ts").TedMemoryPreferencesResponse | null;
   tedMemoryPreferencesLoading: boolean;
   tedMemoryPreferencesError: string | null;
@@ -790,6 +793,10 @@ export type AppViewState = {
   upsertTedWorkflow: (
     workflow: import("./types.ts").TedWorkflowDefinition | Record<string, unknown>,
   ) => Promise<void>;
+  lintTedWorkflow: (payload: {
+    workflow?: import("./types.ts").TedWorkflowDefinition | Record<string, unknown>;
+    workflow_id?: string;
+  }) => Promise<void>;
   removeTedWorkflow: (workflowId: string) => Promise<void>;
   runTedWorkflow: (workflowId: string, dryRun?: boolean) => Promise<void>;
   loadTedWorkflowRuns: (workflowId?: string, limit?: number) => Promise<void>;

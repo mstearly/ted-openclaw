@@ -6531,6 +6531,32 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
   );
 
   api.registerGatewayMethod(
+    "ted.ops.workflows.lint",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/workflows/lint",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted workflows lint failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
     "ted.ops.workflows.run",
     async ({ params, respond }: GatewayRequestHandlerOptions) => {
       try {

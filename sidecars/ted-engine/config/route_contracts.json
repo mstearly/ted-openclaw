@@ -163,8 +163,21 @@
       "content_type": "application/json"
     },
     "POST /ops/workflows": {
-      "status_codes": [200, 400],
+      "status_codes": [200, 400, 409],
       "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/workflows/lint": {
+      "status_codes": [200, 400, 404],
+      "required_fields": [
+        "ok",
+        "workflow_id",
+        "workflow_name",
+        "publish_allowed",
+        "lint",
+        "policy_explainability",
+        "friction_forecast"
+      ],
       "content_type": "application/json"
     },
     "POST /ops/workflows/run": {

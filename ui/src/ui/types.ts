@@ -1010,6 +1010,68 @@ export interface TedWorkflowRunsResponse {
   total_count: number;
 }
 
+export interface TedWorkflowRiskLintResponse {
+  ok: boolean;
+  generated_at: string;
+  source: "inline" | "registry";
+  workflow_id: string;
+  workflow_name: string;
+  publish_allowed: boolean;
+  lint: {
+    pass: boolean;
+    blocking_count: number;
+    warning_count: number;
+    summary: string;
+  };
+  node_annotations: Array<{
+    step_id: string;
+    index: number;
+    kind: string;
+    route_key: string | null;
+    policy: string | null;
+    risk_score: number;
+    risk_level: "low" | "medium" | "high";
+    publish_blocking: boolean;
+    requires_approval_checkpoint: boolean;
+    has_approval_checkpoint: boolean;
+    risk_reasons: string[];
+    explainability: Array<{
+      severity: "info" | "warning" | "blocking";
+      reason_code: string;
+      message: string;
+      next_safe_step: string;
+    }>;
+    predicted_friction: {
+      governance_weight: number;
+      tool_weight: number;
+      context_weight: number;
+      total_weight: number;
+    };
+  }>;
+  policy_explainability: Array<{
+    step_id: string;
+    kind: string;
+    severity: "info" | "warning" | "blocking";
+    reason_code: string;
+    policy: string | null;
+    message: string;
+    next_safe_step: string;
+  }>;
+  friction_forecast: {
+    predicted_job_friction_score: number;
+    governance_block_risk: number;
+    tool_failure_risk: number;
+    context_miss_risk: number;
+    hotspots: Array<{
+      driver: string;
+      weight: number;
+      steps: string[];
+      reason_preview: string[];
+    }>;
+    top_hotspot: string | null;
+  };
+}
+
 export interface TedMemoryPreferencesResponse {
   preferences: Array<{
     memory_key: string;

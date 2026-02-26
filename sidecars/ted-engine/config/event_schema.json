@@ -343,6 +343,15 @@
       "evaluation.replay.failed": "Replay run failed release gate thresholds",
       "evaluation.adversarial.failed": "Adversarial replay scenarios detected a safety failure",
       "evaluation.replay.runs.queried": "Operator queried replay run history"
+    },
+    "workflow": {
+      "workflow.registry.upserted": "Workflow definition added or updated in registry",
+      "workflow.registry.removed": "Workflow definition removed from registry",
+      "workflow.run.completed": "Workflow run executed and persisted with friction summary",
+      "workflow.risk_lint.completed": "Workflow risk lint completed with explainability findings",
+      "workflow.risk_hotspots.forecasted": "Workflow lint generated predicted friction hotspots",
+      "workflow.risk_lint.failed": "Workflow publish request failed risk lint checks",
+      "workflow.publish.blocked_by_lint": "Workflow publish was blocked due to risk lint findings"
     }
   }
 }

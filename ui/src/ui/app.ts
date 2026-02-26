@@ -150,6 +150,7 @@ import {
   testTedLlmProvider,
   loadTedWorkflowRegistry,
   upsertTedWorkflow,
+  lintTedWorkflow,
   removeTedWorkflow,
   runTedWorkflow,
   loadTedWorkflowRuns,
@@ -549,6 +550,9 @@ export class OpenClawApp extends LitElement {
   @state() tedWorkflowRunBusy = false;
   @state() tedWorkflowRunError: string | null = null;
   @state() tedWorkflowRunResult: Record<string, unknown> | null = null;
+  @state() tedWorkflowLintLoading = false;
+  @state() tedWorkflowLintError: string | null = null;
+  @state() tedWorkflowLintResult: import("./types.ts").TedWorkflowRiskLintResponse | null = null;
   @state() tedMemoryPreferences: import("./types.ts").TedMemoryPreferencesResponse | null = null;
   @state() tedMemoryPreferencesLoading = false;
   @state() tedMemoryPreferencesError: string | null = null;
@@ -1118,6 +1122,13 @@ export class OpenClawApp extends LitElement {
     workflow: import("./types.ts").TedWorkflowDefinition | Record<string, unknown>,
   ) {
     await upsertTedWorkflow(this, workflow);
+  }
+
+  async lintTedWorkflow(payload: {
+    workflow?: import("./types.ts").TedWorkflowDefinition | Record<string, unknown>;
+    workflow_id?: string;
+  }) {
+    await lintTedWorkflow(this, payload);
   }
 
   async removeTedWorkflow(workflowId: string) {

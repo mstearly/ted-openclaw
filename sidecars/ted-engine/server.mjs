@@ -1758,6 +1758,7 @@ executionBoundaryPolicy.set("/ops/llm-provider/test", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/workflows", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/workflows/run", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/workflows/runs", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/workflows/lint", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/memory/preferences", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/memory/preferences/upsert", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/memory/preferences/forget", "WORKFLOW_ONLY");
@@ -17919,6 +17920,409 @@ function normalizeWorkflowDefinition(rawWorkflow) {
   };
 }
 
+function clampMetric(value, min = 0, max = 100) {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.max(min, Math.min(max, value));
+}
+
+function classifyWorkflowRiskLevel(score) {
+  if (score >= 70) {
+    return "high";
+  }
+  if (score >= 35) {
+    return "medium";
+  }
+  return "low";
+}
+
+function routeCallNeedsApprovalCheckpoint(method, routeKey) {
+  const policy = executionBoundaryPolicy.get(routeKey) || "UNDECLARED";
+  if (policy === "APPROVAL_FIRST") {
+    return true;
+  }
+  if (method !== "POST") {
+    return false;
+  }
+  if (
+    routeKey.includes("/execute") ||
+    routeKey.includes("/remove") ||
+    routeKey.includes("/archive") ||
+    routeKey.includes("/approve")
+  ) {
+    return true;
+  }
+  return routeKey.startsWith("/graph/") || routeKey.startsWith("/deals/");
+}
+
+function evaluateWorkflowRiskLint(workflow) {
+  const steps = Array.isArray(workflow?.steps) ? workflow.steps : [];
+  const annotations = [];
+  const explainability = [];
+  let blockingCount = 0;
+  let warningCount = 0;
+  let governanceWeight = 0;
+  let toolWeight = 0;
+  let contextWeight = 0;
+  const hotspotMap = new Map();
+  let approvalCheckpointSeen = false;
+
+  const addHotspot = (driver, weight, stepId, reason) => {
+    const safeWeight = clampMetric(Number(weight) || 0, 0, 1000);
+    if (safeWeight <= 0) {
+      return;
+    }
+    const current = hotspotMap.get(driver) || {
+      driver,
+      weight: 0,
+      steps: new Set(),
+      reasons: new Set(),
+    };
+    current.weight += safeWeight;
+    if (stepId) {
+      current.steps.add(stepId);
+    }
+    if (reason) {
+      current.reasons.add(reason);
+    }
+    hotspotMap.set(driver, current);
+  };
+
+  const addExplainability = (step, severity, reasonCode, message, nextSafeStep, policy) => {
+    explainability.push({
+      step_id: step.step_id,
+      kind: step.kind,
+      severity,
+      reason_code: reasonCode,
+      policy: policy || null,
+      message,
+      next_safe_step: nextSafeStep,
+    });
+    if (severity === "blocking") {
+      blockingCount += 1;
+    } else if (severity === "warning") {
+      warningCount += 1;
+    }
+  };
+
+  for (let idx = 0; idx < steps.length; idx++) {
+    const step = steps[idx];
+    const annotation = {
+      step_id: step.step_id,
+      index: idx,
+      kind: step.kind,
+      route_key: null,
+      policy: null,
+      risk_score: 0,
+      risk_level: "low",
+      publish_blocking: false,
+      requires_approval_checkpoint: false,
+      has_approval_checkpoint: approvalCheckpointSeen,
+      risk_reasons: [],
+      explainability: [],
+      predicted_friction: {
+        governance_weight: 0,
+        tool_weight: 0,
+        context_weight: 0,
+        total_weight: 0,
+      },
+    };
+
+    if (step.kind === "approval_gate") {
+      approvalCheckpointSeen = true;
+      annotation.has_approval_checkpoint = true;
+      annotation.risk_score += 12;
+      annotation.risk_reasons.push("manual_handoff_checkpoint");
+      annotation.explainability.push({
+        severity: "info",
+        reason_code: "approval_checkpoint_present",
+        message: "Approval checkpoint provides explicit operator control before risky writes.",
+        next_safe_step: "Keep this gate ahead of high-risk route steps.",
+      });
+      governanceWeight += 6;
+      annotation.predicted_friction.governance_weight += 6;
+      addHotspot(
+        "manual_handoff_pressure",
+        6,
+        step.step_id,
+        "Approval gates increase operator load but reduce risk.",
+      );
+    } else if (step.kind === "condition") {
+      annotation.risk_score += 25;
+      annotation.risk_reasons.push("condition_runtime_not_enabled");
+      annotation.explainability.push({
+        severity: "warning",
+        reason_code: "condition_runtime_not_enabled",
+        message:
+          "Condition nodes currently run in placeholder mode and can skip intended branch safety.",
+        next_safe_step:
+          "Use explicit approval_gate or deterministic route_call nodes until condition runtime is enabled.",
+      });
+      contextWeight += 14;
+      annotation.predicted_friction.context_weight += 14;
+      addHotspot(
+        "condition_runtime_gap",
+        14,
+        step.step_id,
+        "Condition runtime not enabled introduces context and flow uncertainty.",
+      );
+      addExplainability(
+        step,
+        "warning",
+        "condition_runtime_not_enabled",
+        "Condition runtime is not enabled and may reduce explainability.",
+        "Replace with deterministic steps or add approval gate before branch effects.",
+        null,
+      );
+    } else if (step.kind === "route_call") {
+      const method = typeof step.method === "string" ? step.method.toUpperCase() : "GET";
+      const route = typeof step.route === "string" ? step.route : "";
+      const routeKey = routeToRouteKey(route);
+      const policy = executionBoundaryPolicy.get(routeKey) || "UNDECLARED";
+      const requiresApproval = routeCallNeedsApprovalCheckpoint(method, routeKey);
+      annotation.route_key = routeKey;
+      annotation.policy = policy;
+      annotation.requires_approval_checkpoint = requiresApproval;
+
+      if (policy === "UNDECLARED") {
+        annotation.risk_score += 28;
+        annotation.risk_reasons.push("route_policy_undeclared");
+        annotation.explainability.push({
+          severity: "warning",
+          reason_code: "route_policy_undeclared",
+          message: `Route ${routeKey} is not mapped in execution boundary policy.`,
+          next_safe_step: "Add route policy mapping before publish.",
+        });
+        contextWeight += 10;
+        annotation.predicted_friction.context_weight += 10;
+        addHotspot(
+          "undeclared_route_policy",
+          10,
+          step.step_id,
+          "Route policy missing for workflow route call.",
+        );
+        addExplainability(
+          step,
+          "warning",
+          "route_policy_undeclared",
+          `Route ${routeKey} is not declared in execution boundary policy.`,
+          "Add a policy mapping and rerun risk lint.",
+          null,
+        );
+      }
+
+      if (method === "POST") {
+        annotation.risk_score += 18;
+        annotation.risk_reasons.push("write_route_call");
+        toolWeight += 8;
+        annotation.predicted_friction.tool_weight += 8;
+        addHotspot(
+          "write_path_risk",
+          8,
+          step.step_id,
+          "POST route call can mutate external state.",
+        );
+      } else {
+        annotation.risk_score += 6;
+      }
+
+      if (requiresApproval) {
+        annotation.risk_score += 16;
+        annotation.risk_reasons.push("approval_checkpoint_required");
+        governanceWeight += 10;
+        annotation.predicted_friction.governance_weight += 10;
+        addHotspot(
+          "approval_sensitive_route",
+          10,
+          step.step_id,
+          "Route requires approval-first governance boundary.",
+        );
+      }
+
+      const retryMaxAttempts = Number(step.retry?.max_attempts || 1);
+      if (retryMaxAttempts > 1) {
+        const retryWeight = clampMetric((retryMaxAttempts - 1) * 4, 4, 20);
+        annotation.risk_score += retryWeight;
+        annotation.risk_reasons.push("retry_rework_risk");
+        toolWeight += retryWeight;
+        annotation.predicted_friction.tool_weight += retryWeight;
+        addHotspot(
+          "retry_rework_risk",
+          retryWeight,
+          step.step_id,
+          "Retry policy indicates elevated tool failure/rework risk.",
+        );
+      }
+
+      if (requiresApproval && !approvalCheckpointSeen) {
+        annotation.publish_blocking = true;
+        annotation.risk_score += 38;
+        annotation.risk_reasons.push("missing_approval_checkpoint");
+        annotation.explainability.push({
+          severity: "blocking",
+          reason_code: "missing_approval_checkpoint",
+          message: `High-risk route ${routeKey} lacks a prior approval_gate checkpoint.`,
+          next_safe_step:
+            "Insert an approval_gate step before this route_call and rerun lint before publish.",
+        });
+        governanceWeight += 22;
+        annotation.predicted_friction.governance_weight += 22;
+        addHotspot(
+          "governance_checkpoint_gap",
+          22,
+          step.step_id,
+          "High-risk write path has no approval checkpoint.",
+        );
+        addExplainability(
+          step,
+          "blocking",
+          "missing_approval_checkpoint",
+          `High-risk route ${routeKey} requires an approval checkpoint before publish.`,
+          "Add approval_gate before this step.",
+          policy,
+        );
+      }
+    } else {
+      annotation.risk_score += 20;
+      annotation.risk_reasons.push("unknown_step_kind");
+      annotation.explainability.push({
+        severity: "warning",
+        reason_code: "unknown_step_kind",
+        message: "Unknown step kind may not execute predictably.",
+        next_safe_step: "Use route_call, approval_gate, or condition step kinds only.",
+      });
+      contextWeight += 8;
+      annotation.predicted_friction.context_weight += 8;
+      addHotspot(
+        "unknown_step_kind",
+        8,
+        step.step_id,
+        "Unknown step kinds increase runtime uncertainty.",
+      );
+      addExplainability(
+        step,
+        "warning",
+        "unknown_step_kind",
+        "Unknown step kind detected during lint.",
+        "Replace with a supported step kind.",
+        null,
+      );
+    }
+
+    annotation.predicted_friction.total_weight =
+      annotation.predicted_friction.governance_weight +
+      annotation.predicted_friction.tool_weight +
+      annotation.predicted_friction.context_weight;
+    annotation.risk_score = clampMetric(Math.round(annotation.risk_score), 0, 100);
+    annotation.risk_level = classifyWorkflowRiskLevel(annotation.risk_score);
+    annotations.push(annotation);
+  }
+
+  const hotspots = [...hotspotMap.values()]
+    .toSorted((a, b) => b.weight - a.weight)
+    .slice(0, 6)
+    .map((item) => ({
+      driver: item.driver,
+      weight: clampMetric(Math.round(item.weight), 0, 1000),
+      steps: [...item.steps].slice(0, 12),
+      reason_preview: [...item.reasons].slice(0, 3),
+    }));
+  const governanceRisk = roundMetric(clampMetric(governanceWeight / 100, 0, 1), 4);
+  const toolRisk = roundMetric(clampMetric(toolWeight / 100, 0, 1), 4);
+  const contextRisk = roundMetric(clampMetric(contextWeight / 100, 0, 1), 4);
+  const predictedScore = clampMetric(
+    Math.round(governanceWeight * 1.25 + toolWeight * 1.1 + contextWeight),
+    0,
+    100,
+  );
+  const lintPass = blockingCount === 0;
+  return {
+    lint: {
+      pass: lintPass,
+      blocking_count: blockingCount,
+      warning_count: warningCount,
+      summary: lintPass
+        ? warningCount > 0
+          ? `publish_allowed_with_${warningCount}_warning(s)`
+          : "publish_ready"
+        : `publish_blocked_${blockingCount}_issue(s)`,
+    },
+    node_annotations: annotations,
+    policy_explainability: explainability,
+    friction_forecast: {
+      predicted_job_friction_score: predictedScore,
+      governance_block_risk: governanceRisk,
+      tool_failure_risk: toolRisk,
+      context_miss_risk: contextRisk,
+      hotspots,
+      top_hotspot: hotspots.length > 0 ? hotspots[0].driver : null,
+    },
+  };
+}
+
+async function workflowLintEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body", ok: false });
+    return;
+  }
+  const source =
+    typeof body.workflow_id === "string" && body.workflow_id.trim().length > 0
+      ? "registry"
+      : "inline";
+  let normalized = null;
+  if (source === "registry") {
+    const workflowId = body.workflow_id.trim();
+    const cfg = getWorkflowRegistryConfig();
+    const existing = cfg.workflows.find((wf) => wf.workflow_id === workflowId);
+    if (!existing) {
+      sendJson(res, 404, { ok: false, error: "workflow_not_found", workflow_id: workflowId });
+      return;
+    }
+    normalized = normalizeWorkflowDefinition(existing);
+  } else {
+    normalized = normalizeWorkflowDefinition(body.workflow || body);
+  }
+  if (!normalized) {
+    sendJson(res, 400, { ok: false, error: "invalid_workflow_definition" });
+    return;
+  }
+  const report = evaluateWorkflowRiskLint(normalized);
+  const payload = {
+    ok: true,
+    generated_at: new Date().toISOString(),
+    source,
+    workflow_id: normalized.workflow_id,
+    workflow_name: normalized.name,
+    publish_allowed: report.lint.pass,
+    lint: report.lint,
+    node_annotations: report.node_annotations,
+    policy_explainability: report.policy_explainability,
+    friction_forecast: report.friction_forecast,
+  };
+  appendEvent("workflow.risk_lint.completed", route, {
+    workflow_id: normalized.workflow_id,
+    pass: report.lint.pass,
+    blocking_count: report.lint.blocking_count,
+    warning_count: report.lint.warning_count,
+    predicted_job_friction_score: report.friction_forecast.predicted_job_friction_score,
+  });
+  appendEvent("workflow.risk_hotspots.forecasted", route, {
+    workflow_id: normalized.workflow_id,
+    top_hotspot: report.friction_forecast.top_hotspot,
+    hotspot_count: report.friction_forecast.hotspots.length,
+  });
+  appendAudit("WORKFLOW_RISK_LINT", {
+    workflow_id: normalized.workflow_id,
+    pass: report.lint.pass,
+    blocking_count: report.lint.blocking_count,
+    warning_count: report.lint.warning_count,
+    predicted_job_friction_score: report.friction_forecast.predicted_job_friction_score,
+  });
+  sendJson(res, 200, payload);
+}
+
 function listWorkflowRuns(options = {}) {
   const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
   const limitRaw = Number.parseInt(String(options.limit || ""), 10);
@@ -18811,6 +19215,42 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
     sendJson(res, 400, { error: "invalid_workflow_definition" });
     return;
   }
+  const lintReport = evaluateWorkflowRiskLint(normalized);
+  if (!lintReport.lint.pass) {
+    const blockingItems = lintReport.policy_explainability.filter(
+      (item) => item.severity === "blocking",
+    );
+    const nextSafeStep =
+      blockingItems.length > 0 && blockingItems[0]?.next_safe_step
+        ? blockingItems[0].next_safe_step
+        : "Add approval_gate checkpoints before high-risk steps and rerun workflow lint.";
+    appendEvent("workflow.risk_lint.failed", route, {
+      workflow_id: normalized.workflow_id,
+      blocking_count: lintReport.lint.blocking_count,
+      warning_count: lintReport.lint.warning_count,
+    });
+    appendEvent("workflow.publish.blocked_by_lint", route, {
+      workflow_id: normalized.workflow_id,
+      blocking_count: lintReport.lint.blocking_count,
+      top_hotspot: lintReport.friction_forecast.top_hotspot,
+    });
+    appendAudit("WORKFLOW_REGISTRY_UPSERT_BLOCKED", {
+      workflow_id: normalized.workflow_id,
+      blocking_count: lintReport.lint.blocking_count,
+      top_hotspot: lintReport.friction_forecast.top_hotspot,
+    });
+    sendJson(res, 409, {
+      ok: false,
+      error: "workflow_risk_lint_failed",
+      message: "Workflow publish blocked by risk lint.",
+      workflow_id: normalized.workflow_id,
+      lint: lintReport.lint,
+      policy_explainability: blockingItems,
+      friction_forecast: lintReport.friction_forecast,
+      next_safe_step: nextSafeStep,
+    });
+    return;
+  }
   const existingIdx = cfg.workflows.findIndex((wf) => wf.workflow_id === normalized.workflow_id);
   const nextWorkflows = [...cfg.workflows];
   if (existingIdx >= 0) {
@@ -18826,8 +19266,15 @@ async function workflowsRegistryMutateEndpoint(req, res, route) {
   appendAudit("WORKFLOW_REGISTRY_UPSERT", {
     workflow_id: normalized.workflow_id,
     step_count: normalized.steps.length,
+    warning_count: lintReport.lint.warning_count,
   });
-  sendJson(res, 200, { ok: true, workflow: normalized, total_count: nextWorkflows.length });
+  sendJson(res, 200, {
+    ok: true,
+    workflow: normalized,
+    total_count: nextWorkflows.length,
+    lint: lintReport.lint,
+    friction_forecast: lintReport.friction_forecast,
+  });
 }
 
 async function workflowRunEndpoint(req, res, route) {
@@ -22532,6 +22979,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (method === "POST" && route === "/ops/workflows") {
       await workflowsRegistryMutateEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/workflows/lint") {
+      await workflowLintEndpoint(req, res, route);
       return;
     }
     if (method === "POST" && route === "/ops/workflows/run") {

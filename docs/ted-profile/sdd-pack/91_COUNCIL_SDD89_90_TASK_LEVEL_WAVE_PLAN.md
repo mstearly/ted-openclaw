@@ -287,4 +287,5 @@ Acceptance:
 
 1. Waves A-C: Completed and merged (`f3a05bf75` includes Wave B-C after Wave A baseline).
 2. Wave D: Completed with replay corpus, deterministic replay runner, and adversarial release gate routes.
-3. Waves E-H: Planned and queued by dependency.
+3. Wave E: In execution (risk-lint + explainability preview baseline delivered; follow-up hardening pending).
+4. Waves F-H: Planned and queued by dependency.

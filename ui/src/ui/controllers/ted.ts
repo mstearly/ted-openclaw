@@ -14,6 +14,7 @@ import type {
   TedLlmProviderTestResponse,
   TedWorkflowRegistryResponse,
   TedWorkflowRunsResponse,
+  TedWorkflowRiskLintResponse,
   TedWorkflowDefinition,
   TedMemoryPreferencesResponse,
   TedMemoryExportResponse,
@@ -197,6 +198,9 @@ export type TedWorkbenchState = {
   tedWorkflowRunBusy: boolean;
   tedWorkflowRunError: string | null;
   tedWorkflowRunResult: Record<string, unknown> | null;
+  tedWorkflowLintLoading: boolean;
+  tedWorkflowLintError: string | null;
+  tedWorkflowLintResult: TedWorkflowRiskLintResponse | null;
   tedMemoryPreferences: TedMemoryPreferencesResponse | null;
   tedMemoryPreferencesLoading: boolean;
   tedMemoryPreferencesError: string | null;
@@ -1348,11 +1352,43 @@ export async function upsertTedWorkflow(
       workflow,
     });
     state.tedWorkflowMutationResult = "Workflow saved";
+    await lintTedWorkflow(state, { workflow });
     await loadTedWorkflowRegistry(state);
   } catch (err) {
     state.tedWorkflowMutationError = err instanceof Error ? err.message : String(err);
   } finally {
     state.tedWorkflowMutationBusy = false;
+  }
+}
+
+export async function lintTedWorkflow(
+  state: TedWorkbenchState,
+  payload: { workflow?: TedWorkflowDefinition | Record<string, unknown>; workflow_id?: string },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedWorkflowLintLoading) {
+    return;
+  }
+  state.tedWorkflowLintLoading = true;
+  state.tedWorkflowLintError = null;
+  try {
+    const params: Record<string, unknown> = {};
+    if (payload.workflow_id && payload.workflow_id.trim().length > 0) {
+      params.workflow_id = payload.workflow_id.trim();
+    } else if (payload.workflow && typeof payload.workflow === "object") {
+      params.workflow = payload.workflow;
+    } else {
+      throw new Error("workflow or workflow_id is required");
+    }
+    const result = await requestTedWithTimeout<TedWorkflowRiskLintResponse>(
+      state.client,
+      "ted.ops.workflows.lint",
+      params,
+    );
+    state.tedWorkflowLintResult = result;
+  } catch (err) {
+    state.tedWorkflowLintError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedWorkflowLintLoading = false;
   }
 }
 

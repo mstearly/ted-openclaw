@@ -514,6 +514,9 @@ export function renderApp(state: AppViewState) {
                 workflowRunBusy: state.tedWorkflowRunBusy,
                 workflowRunError: state.tedWorkflowRunError,
                 workflowRunResult: state.tedWorkflowRunResult,
+                workflowLintLoading: state.tedWorkflowLintLoading,
+                workflowLintError: state.tedWorkflowLintError,
+                workflowLintResult: state.tedWorkflowLintResult,
                 memoryPreferences: state.tedMemoryPreferences,
                 memoryPreferencesLoading: state.tedMemoryPreferencesLoading,
                 memoryPreferencesError: state.tedMemoryPreferencesError,
@@ -589,6 +592,10 @@ export function renderApp(state: AppViewState) {
                 onLoadWorkflows: () => void state.loadTedWorkflowRegistry(),
                 onUpsertWorkflow: (workflow: Record<string, unknown>) =>
                   void state.upsertTedWorkflow(workflow),
+                onLintWorkflow: (payload: {
+                  workflow?: Record<string, unknown>;
+                  workflow_id?: string;
+                }) => void state.lintTedWorkflow(payload),
                 onRemoveWorkflow: (workflowId: string) => void state.removeTedWorkflow(workflowId),
                 onRunWorkflow: (workflowId: string, dryRun?: boolean) =>
                   void state.runTedWorkflow(workflowId, dryRun),
