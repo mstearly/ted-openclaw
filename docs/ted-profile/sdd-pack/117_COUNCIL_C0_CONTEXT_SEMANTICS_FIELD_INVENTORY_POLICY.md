@@ -19,7 +19,7 @@
 | `stream`                        | Implemented                 | Keep implemented          |
 | `max_output_tokens`             | Implemented                 | Keep implemented          |
 | `user`                          | Implemented                 | Keep implemented          |
-| `previous_response_id`          | Previously accepted/ignored | **Reject explicitly**     |
+| `previous_response_id`          | Implemented (guarded)       | Continue or fallback      |
 | `reasoning`                     | Previously accepted/ignored | **Reject explicitly**     |
 | `context_management`            | Implemented parse           | Compaction policy active  |
 | `context_management.compaction` | Previously ambiguous        | **Reject explicitly**     |
@@ -32,21 +32,27 @@
 
 ---
 
-## 2. Implemented C0 Policy Decisions (This Execution Slice)
+## 2. Implemented Policy Decisions (C0 plus C1 Progress)
 
-1. Explicitly reject unsupported context-semantics fields:
-   - `previous_response_id`,
+1. `previous_response_id` handling is now explicit for `openclaw` models:
+   - continue using tracked prior session when found,
+   - deterministic fallback when prior response id is not found.
+2. Model/path compatibility guard rejects `previous_response_id` for non-`openclaw` models.
+3. Explicitly reject unsupported fields:
    - `reasoning`,
    - `context_management.compaction`,
    - `truncation`.
-2. Return deterministic `invalid_request_error` with field-specific details.
-3. Do not silently ignore context-semantics controls.
+4. Unsupported semantics return deterministic `invalid_request_error` with field-specific details.
+5. Context semantics telemetry now emits request-correlated events:
+   - `context.semantics.selected`,
+   - `context.semantics.rejected`,
+   - `context.semantics.fallback`.
 
 ---
 
 ## 3. Error Contract (C0-003)
 
-Current unsupported-context response shape:
+Current unsupported-context response shape (model/path mismatch):
 
 ```json
 {
@@ -56,7 +62,7 @@ Current unsupported-context response shape:
     "details": [
       {
         "field": "previous_response_id",
-        "reason": "continuation by response id is not implemented in gateway mode yet; resend required context in `input`."
+        "reason": "continuation by response id is only supported for openclaw models in gateway mode; received model: gpt-4o."
       }
     ]
   }
@@ -68,12 +74,13 @@ Contract guarantees:
 1. `type` is always `invalid_request_error`.
 2. `message` names unsupported field(s).
 3. `details[]` includes machine-readable field + reason.
+4. Continuation fallback is visible in response `metadata.context_semantics`.
 
 ---
 
 ## 4. Verification Evidence
 
-1. `src/gateway/openresponses-http.e2e.test.ts` - rejection assertions for `previous_response_id`, `reasoning`, `truncation`.
+1. `src/gateway/openresponses-http.e2e.test.ts` - continuation/fallback assertions for `previous_response_id`; rejection assertions for `reasoning`, `context_management.compaction`, `truncation`.
 2. `src/gateway/openresponses-parity.e2e.test.ts` - parity suite remains green.
 
 ---
@@ -82,3 +89,4 @@ Contract guarantees:
 
 1. Finalize policy for non-context optional fields currently accepted with no behavior (`max_tool_calls`, `temperature`, `top_p`, `metadata`, `store`).
 2. Decide per field: implement, reject explicitly, or allow with documented noop behavior.
+3. Define future support contract for `context_management.compaction` (or ratify long-term rejection).

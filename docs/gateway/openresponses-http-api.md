@@ -95,15 +95,32 @@ The request follows the OpenResponses API with item-based input. Current support
 - `stream`: enables SSE streaming.
 - `max_output_tokens`: best-effort output limit (provider dependent).
 - `user`: stable session routing.
+- `previous_response_id`: continuation for `openclaw` model family with deterministic fallback.
 
 Accepted but **currently ignored**:
 
 - `max_tool_calls`
-- `reasoning`
 - `metadata`
 - `store`
-- `previous_response_id`
+- `temperature`
+- `top_p`
+
+Rejected with explicit `invalid_request_error`:
+
+- `reasoning`
+- `context_management.compaction`
 - `truncation`
+- `previous_response_id` when model is not in the `openclaw` family
+
+## `previous_response_id` behavior
+
+For `openclaw` models, the gateway applies explicit continuation behavior:
+
+1. If `previous_response_id` is known, the request reuses the prior session routing key.
+2. If it is unknown, execution falls back deterministically to the current resolved session.
+3. Fallback details are surfaced in response metadata:
+   - `metadata.context_semantics.continuation_status = "fallback"`
+   - `metadata.context_semantics.fallback_reason = "previous_response_not_found"`
 
 ## Items (input)
 

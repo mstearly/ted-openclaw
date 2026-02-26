@@ -281,6 +281,7 @@ export const ResponseResourceSchema = z.object({
       message: z.string(),
     })
     .optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ResponseResource = z.infer<typeof ResponseResourceSchema>;

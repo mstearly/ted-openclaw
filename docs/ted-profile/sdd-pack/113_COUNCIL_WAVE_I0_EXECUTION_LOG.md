@@ -65,6 +65,7 @@ Planned tasks from SDD 112:
 9. SDD 116 - MR0-002 credential checklist
 10. SDD 118 - R0-002 roadmap master artifact
 11. SDD 119 - R0-003 roadmap dependency validation rules
+12. SDD 120 - C1-003/C1-004 context compatibility and fallback execution
 
 ---
 
@@ -73,7 +74,7 @@ Planned tasks from SDD 112:
 The council began Plan 1 execution in parallel with I0 paperwork to maintain momentum:
 
 1. Implemented explicit unsupported-context-semantics handling in gateway OpenResponses path for:
-   - `previous_response_id`,
+   - guarded `previous_response_id` continuation/fallback handling for `openclaw` models,
    - `reasoning`,
    - `context_management.compaction`,
    - `truncation`.
@@ -89,3 +90,8 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
    - standalone validator script (`scripts/ted-profile/validate-roadmap-master.mjs`),
    - validator tests.
    - Evidence doc: `SDD 119`
+6. Advanced Plan 1 through `C1-003`/`C1-004`:
+   - model/path compatibility guard for `previous_response_id`,
+   - deterministic continuation fallback metadata,
+   - request-correlated context semantics telemetry.
+   - Evidence doc: `SDD 120`

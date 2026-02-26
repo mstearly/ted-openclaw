@@ -152,21 +152,81 @@ describe("OpenResponses HTTP API (e2e)", () => {
       await ensureResponseConsumed(resMissingModel);
 
       agentCommand.mockReset();
-      const resPrevResponseId = await postResponses(port, {
-        model: "openclaw",
+      const resPrevResponseIdModelMismatch = await postResponses(port, {
+        model: "gpt-4o",
         input: "hi",
         previous_response_id: "resp_123",
       });
-      expect(resPrevResponseId.status).toBe(400);
-      const prevResponseIdJson = (await resPrevResponseId.json()) as Record<string, unknown>;
+      expect(resPrevResponseIdModelMismatch.status).toBe(400);
+      const prevResponseIdJson = (await resPrevResponseIdModelMismatch.json()) as Record<
+        string,
+        unknown
+      >;
       const prevResponseIdError =
         (prevResponseIdJson.error as Record<string, unknown> | undefined) ?? {};
       const prevResponseIdMessage =
         typeof prevResponseIdError.message === "string" ? prevResponseIdError.message : "";
+      const prevResponseIdDetails = Array.isArray(prevResponseIdError.details)
+        ? (prevResponseIdError.details as Array<Record<string, unknown>>)
+        : [];
       expect(prevResponseIdError.type).toBe("invalid_request_error");
       expect(prevResponseIdMessage).toContain("previous_response_id");
+      expect(prevResponseIdDetails[0]?.reason).toContain("openclaw models");
       expect(agentCommand).not.toHaveBeenCalled();
-      await ensureResponseConsumed(resPrevResponseId);
+      await ensureResponseConsumed(resPrevResponseIdModelMismatch);
+
+      mockAgentOnce([{ text: "hello" }]);
+      const resPrevResponseIdFallback = await postResponses(port, {
+        model: "openclaw",
+        input: "hi",
+        previous_response_id: "resp_missing",
+      });
+      expect(resPrevResponseIdFallback.status).toBe(200);
+      const prevResponseIdFallbackJson = (await resPrevResponseIdFallback.json()) as Record<
+        string,
+        unknown
+      >;
+      const fallbackSemantics =
+        ((prevResponseIdFallbackJson.metadata as Record<string, unknown> | undefined)
+          ?.context_semantics as Record<string, unknown> | undefined) ?? {};
+      expect(fallbackSemantics.continuation_status).toBe("fallback");
+      expect(fallbackSemantics.fallback_reason).toBe("previous_response_not_found");
+      await ensureResponseConsumed(resPrevResponseIdFallback);
+
+      mockAgentOnce([{ text: "seed" }]);
+      const resSeedContinuation = await postResponses(port, {
+        user: "alice",
+        model: "openclaw",
+        input: "seed",
+      });
+      expect(resSeedContinuation.status).toBe(200);
+      const seedContinuationJson = (await resSeedContinuation.json()) as Record<string, unknown>;
+      const seedResponseId =
+        typeof seedContinuationJson.id === "string" ? seedContinuationJson.id : "";
+      expect(seedResponseId.startsWith("resp_")).toBe(true);
+      await ensureResponseConsumed(resSeedContinuation);
+
+      mockAgentOnce([{ text: "follow-up" }]);
+      const resContinueByResponseId = await postResponses(port, {
+        user: "bob",
+        model: "openclaw",
+        input: "continue",
+        previous_response_id: seedResponseId,
+      });
+      expect(resContinueByResponseId.status).toBe(200);
+      const continueByResponseIdJson = (await resContinueByResponseId.json()) as Record<
+        string,
+        unknown
+      >;
+      const continuedSemantics =
+        ((continueByResponseIdJson.metadata as Record<string, unknown> | undefined)
+          ?.context_semantics as Record<string, unknown> | undefined) ?? {};
+      expect(continuedSemantics.continuation_status).toBe("continued");
+      const optsContinueByResponseId = (agentCommand.mock.calls[0] as unknown[] | undefined)?.[0];
+      expect(
+        (optsContinueByResponseId as { sessionKey?: string } | undefined)?.sessionKey ?? "",
+      ).toContain("openresponses-user:alice");
+      await ensureResponseConsumed(resContinueByResponseId);
 
       agentCommand.mockReset();
       const resReasoning = await postResponses(port, {

@@ -60,6 +60,16 @@ type OpenResponsesHttpOptions = {
 
 const DEFAULT_BODY_BYTES = 20 * 1024 * 1024;
 const DEFAULT_MAX_URL_PARTS = 8;
+const PREVIOUS_RESPONSE_TTL_MS = 6 * 60 * 60 * 1000;
+const MAX_TRACKED_PREVIOUS_RESPONSES = 2000;
+
+type TrackedPreviousResponse = {
+  sessionKey: string;
+  model: string;
+  createdAtMs: number;
+};
+
+const trackedPreviousResponses = new Map<string, TrackedPreviousResponse>();
 
 function writeSseEvent(res: ServerResponse, event: StreamingEvent) {
   res.write(`event: ${event.type}\n`);
@@ -135,13 +145,71 @@ type UnsupportedContextSemantic = {
   reason: string;
 };
 
-function getUnsupportedContextSemantics(payload: CreateResponseBody): UnsupportedContextSemantic[] {
+function modelSupportsPreviousResponseId(model: string): boolean {
+  return model === "openclaw" || model.startsWith("openclaw:");
+}
+
+function pruneTrackedPreviousResponses(nowMs = Date.now()) {
+  for (const [responseId, tracked] of trackedPreviousResponses.entries()) {
+    if (nowMs - tracked.createdAtMs > PREVIOUS_RESPONSE_TTL_MS) {
+      trackedPreviousResponses.delete(responseId);
+    }
+  }
+  while (trackedPreviousResponses.size > MAX_TRACKED_PREVIOUS_RESPONSES) {
+    const oldestKey = trackedPreviousResponses.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    trackedPreviousResponses.delete(oldestKey);
+  }
+}
+
+function rememberPreviousResponse(params: {
+  responseId: string;
+  sessionKey: string;
+  model: string;
+}) {
+  pruneTrackedPreviousResponses();
+  trackedPreviousResponses.set(params.responseId, {
+    sessionKey: params.sessionKey,
+    model: params.model,
+    createdAtMs: Date.now(),
+  });
+}
+
+function resolveTrackedPreviousResponse(responseId: string): TrackedPreviousResponse | undefined {
+  pruneTrackedPreviousResponses();
+  return trackedPreviousResponses.get(responseId);
+}
+
+function emitContextSemanticsTelemetry(params: {
+  event: "selected" | "rejected" | "fallback";
+  requestId: string;
+  model: string;
+  details: Record<string, unknown>;
+}) {
+  logWarn(
+    `openresponses: context.semantics.${params.event} ${JSON.stringify({
+      request_id: params.requestId,
+      model: params.model,
+      ...params.details,
+    })}`,
+  );
+}
+
+function getUnsupportedContextSemantics(
+  payload: CreateResponseBody,
+  model: string,
+): UnsupportedContextSemantic[] {
   const unsupported: UnsupportedContextSemantic[] = [];
-  if (typeof payload.previous_response_id === "string" && payload.previous_response_id.length > 0) {
+  if (
+    typeof payload.previous_response_id === "string" &&
+    payload.previous_response_id.length > 0 &&
+    !modelSupportsPreviousResponseId(model)
+  ) {
     unsupported.push({
       field: "previous_response_id",
-      reason:
-        "continuation by response id is not implemented in gateway mode yet; resend required context in `input`.",
+      reason: `continuation by response id is only supported for openclaw models in gateway mode; received model: ${model}.`,
     });
   }
   if (payload.reasoning) {
@@ -311,6 +379,7 @@ function createResponseResource(params: {
   output: OutputItem[];
   usage?: Usage;
   error?: { code: string; message: string };
+  metadata?: Record<string, unknown>;
 }): ResponseResource {
   return {
     id: params.id,
@@ -321,6 +390,7 @@ function createResponseResource(params: {
     output: params.output,
     usage: params.usage ?? createEmptyUsage(),
     error: params.error,
+    metadata: params.metadata,
   };
 }
 
@@ -403,8 +473,20 @@ export async function handleOpenResponsesHttpRequest(
   }
 
   const payload: CreateResponseBody = parseResult.data;
-  const unsupportedContextSemantics = getUnsupportedContextSemantics(payload);
+  const contextSemanticsRequestId = randomUUID();
+  const model = payload.model;
+  const stream = Boolean(payload.stream);
+  const user = payload.user;
+  const unsupportedContextSemantics = getUnsupportedContextSemantics(payload, model);
   if (unsupportedContextSemantics.length > 0) {
+    emitContextSemanticsTelemetry({
+      event: "rejected",
+      requestId: contextSemanticsRequestId,
+      model,
+      details: {
+        fields: unsupportedContextSemantics.map((item) => item.field),
+      },
+    });
     sendJson(res, 400, {
       error: {
         message: `Unsupported context semantics: ${unsupportedContextSemantics.map((item) => item.field).join(", ")}`,
@@ -414,10 +496,6 @@ export async function handleOpenResponsesHttpRequest(
     });
     return true;
   }
-
-  const stream = Boolean(payload.stream);
-  const model = payload.model;
-  const user = payload.user;
 
   // Extract images + files from input (Phase 2)
   let images: ImageContent[] = [];
@@ -529,7 +607,49 @@ export async function handleOpenResponsesHttpRequest(
     return true;
   }
   const agentId = resolveAgentIdForRequest({ req, model });
-  const sessionKey = resolveOpenResponsesSessionKey({ req, agentId, user });
+  const defaultSessionKey = resolveOpenResponsesSessionKey({ req, agentId, user });
+  let sessionKey = defaultSessionKey;
+  let contextSemanticsMetadata: Record<string, unknown> | undefined;
+  if (typeof payload.previous_response_id === "string" && payload.previous_response_id.trim()) {
+    const requestedPreviousResponseId = payload.previous_response_id.trim();
+    const tracked = resolveTrackedPreviousResponse(requestedPreviousResponseId);
+    if (tracked) {
+      sessionKey = tracked.sessionKey;
+      emitContextSemanticsTelemetry({
+        event: "selected",
+        requestId: contextSemanticsRequestId,
+        model,
+        details: {
+          field: "previous_response_id",
+          previous_response_id: requestedPreviousResponseId,
+          continuation_status: "continued",
+        },
+      });
+      contextSemanticsMetadata = {
+        requested_previous_response_id: requestedPreviousResponseId,
+        continuation_status: "continued",
+      };
+    } else {
+      emitContextSemanticsTelemetry({
+        event: "fallback",
+        requestId: contextSemanticsRequestId,
+        model,
+        details: {
+          field: "previous_response_id",
+          previous_response_id: requestedPreviousResponseId,
+          fallback_reason: "previous_response_not_found",
+        },
+      });
+      contextSemanticsMetadata = {
+        requested_previous_response_id: requestedPreviousResponseId,
+        continuation_status: "fallback",
+        fallback_reason: "previous_response_not_found",
+      };
+    }
+  }
+  const responseMetadata = contextSemanticsMetadata
+    ? { context_semantics: contextSemanticsMetadata }
+    : undefined;
 
   // Build prompt from input
   const prompt = buildAgentPrompt(payload.input);
@@ -559,6 +679,7 @@ export async function handleOpenResponsesHttpRequest(
 
   const responseId = `resp_${randomUUID()}`;
   const outputItemId = `msg_${randomUUID()}`;
+  rememberPreviousResponse({ responseId, sessionKey, model });
   const deps = createDefaultDeps();
   const streamParams =
     typeof payload.max_output_tokens === "number"
@@ -607,6 +728,7 @@ export async function handleOpenResponsesHttpRequest(
             },
           ],
           usage,
+          metadata: responseMetadata,
         });
         sendJson(res, 200, response);
         return true;
@@ -628,6 +750,7 @@ export async function handleOpenResponsesHttpRequest(
           createAssistantOutputItem({ id: outputItemId, text: content, status: "completed" }),
         ],
         usage,
+        metadata: responseMetadata,
       });
 
       sendJson(res, 200, response);
@@ -639,6 +762,7 @@ export async function handleOpenResponsesHttpRequest(
         status: "failed",
         output: [],
         error: { code: "api_error", message: "internal error" },
+        metadata: responseMetadata,
       });
       sendJson(res, 500, response);
     }
@@ -707,6 +831,7 @@ export async function handleOpenResponsesHttpRequest(
       status: finalizeRequested.status,
       output: [completedItem],
       usage,
+      metadata: responseMetadata,
     });
 
     writeSseEvent(res, { type: "response.completed", response: finalResponse });
@@ -728,6 +853,7 @@ export async function handleOpenResponsesHttpRequest(
     model,
     status: "in_progress",
     output: [],
+    metadata: responseMetadata,
   });
 
   writeSseEvent(res, { type: "response.created", response: initialResponse });
@@ -891,6 +1017,7 @@ export async function handleOpenResponsesHttpRequest(
             status: "incomplete",
             output: [completedItem, functionCallItem],
             usage,
+            metadata: responseMetadata,
           });
           closed = true;
           unsubscribe();
@@ -933,6 +1060,7 @@ export async function handleOpenResponsesHttpRequest(
         output: [],
         error: { code: "api_error", message: "internal error" },
         usage: finalUsage,
+        metadata: responseMetadata,
       });
 
       writeSseEvent(res, { type: "response.failed", response: errorResponse });
