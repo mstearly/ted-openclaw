@@ -18702,10 +18702,13 @@ async function workflowLintEndpoint(req, res, route) {
 }
 
 function listWorkflowRuns(options = {}) {
+  const workflowLookup = buildWorkflowMetadataLookup();
   const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
   const limitRaw = Number.parseInt(String(options.limit || ""), 10);
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 200)) : 25;
-  const lines = readJsonlLines(workflowRunsPath).filter((entry) => entry.kind === "workflow_run");
+  const lines = readJsonlLines(workflowRunsPath)
+    .filter((entry) => entry.kind === "workflow_run")
+    .map((entry) => applyWorkflowMetadataFallback(entry, workflowLookup));
   let filtered = lines;
   if (workflowId) {
     filtered = filtered.filter((entry) => entry.workflow_id === workflowId);
@@ -18726,6 +18729,55 @@ function listWorkflowVersionRecords(options = {}) {
   }
   records.sort((a, b) => (b.published_at || "").localeCompare(a.published_at || ""));
   return records.slice(0, limit);
+}
+
+function buildWorkflowMetadataLookup() {
+  const registry = getWorkflowRegistryConfig();
+  const lookup = new Map();
+  for (const workflow of Array.isArray(registry.workflows) ? registry.workflows : []) {
+    if (!workflow || typeof workflow !== "object") {
+      continue;
+    }
+    const workflowId = typeof workflow.workflow_id === "string" ? workflow.workflow_id : "";
+    if (!workflowId) {
+      continue;
+    }
+    lookup.set(workflowId, {
+      workflow_version: normalizePositiveInteger(workflow.workflow_version, 1),
+      definition_hash:
+        typeof workflow.definition_hash === "string" && workflow.definition_hash.trim().length > 0
+          ? workflow.definition_hash.trim()
+          : null,
+    });
+  }
+  return lookup;
+}
+
+function applyWorkflowMetadataFallback(entry, workflowLookup) {
+  if (!entry || typeof entry !== "object") {
+    return entry;
+  }
+  const workflowId = typeof entry.workflow_id === "string" ? entry.workflow_id : "";
+  const fallback = workflowId ? workflowLookup.get(workflowId) : null;
+  const workflowVersion = Number.isInteger(entry.workflow_version)
+    ? entry.workflow_version
+    : normalizePositiveInteger(fallback?.workflow_version, 1);
+  const definitionHash =
+    typeof entry.definition_hash === "string" && entry.definition_hash.trim().length > 0
+      ? entry.definition_hash.trim()
+      : fallback?.definition_hash || null;
+  const snapshotRef =
+    typeof entry.workflow_snapshot_ref === "string" && entry.workflow_snapshot_ref.trim().length > 0
+      ? entry.workflow_snapshot_ref.trim()
+      : definitionHash
+        ? `${workflowId}@v${workflowVersion}:${definitionHash}`
+        : `${workflowId}@legacy`;
+  return {
+    ...entry,
+    workflow_version: workflowVersion,
+    definition_hash: definitionHash,
+    workflow_snapshot_ref: snapshotRef,
+  };
 }
 
 function summarizeWorkflowVersionLineage(activeWorkflows) {
@@ -18787,13 +18839,14 @@ function roundMetric(value, digits = 2) {
 }
 
 function listFrictionRollups(options = {}) {
+  const workflowLookup = buildWorkflowMetadataLookup();
   const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
   const runId = typeof options.run_id === "string" ? options.run_id.trim() : "";
   const traceId = typeof options.trace_id === "string" ? options.trace_id.trim() : "";
   const limit = parseLimit(options.limit, 50, 1000);
-  let lines = readJsonlLines(frictionRollupsPath, "friction_rollups").filter(
-    (entry) => entry.kind === "friction_rollup",
-  );
+  let lines = readJsonlLines(frictionRollupsPath, "friction_rollups")
+    .filter((entry) => entry.kind === "friction_rollup")
+    .map((entry) => applyWorkflowMetadataFallback(entry, workflowLookup));
   if (workflowId) {
     lines = lines.filter((entry) => entry.workflow_id === workflowId);
   }
@@ -19840,6 +19893,14 @@ async function workflowRunEndpoint(req, res, route) {
     sendJson(res, 404, { error: "workflow_not_found", workflow_id: workflowId });
     return;
   }
+  const resolvedWorkflow = JSON.parse(JSON.stringify(workflow));
+  const resolvedWorkflowVersion = normalizePositiveInteger(resolvedWorkflow.workflow_version, 1);
+  const resolvedDefinitionHash =
+    typeof resolvedWorkflow.definition_hash === "string" &&
+    resolvedWorkflow.definition_hash.trim().length > 0
+      ? resolvedWorkflow.definition_hash.trim()
+      : computeWorkflowDefinitionHash(resolvedWorkflow);
+  const workflowSnapshotRef = `${resolvedWorkflow.workflow_id}@v${resolvedWorkflowVersion}:${resolvedDefinitionHash}`;
 
   const dryRun = body.dry_run === true;
   const runId = `wfr-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
@@ -19872,8 +19933,11 @@ async function workflowRunEndpoint(req, res, route) {
       severity,
       reason,
       run_id: runId,
-      workflow_id: workflow.workflow_id,
-      workflow_name: workflow.name,
+      workflow_id: resolvedWorkflow.workflow_id,
+      workflow_name: resolvedWorkflow.name,
+      workflow_version: resolvedWorkflowVersion,
+      definition_hash: resolvedDefinitionHash,
+      workflow_snapshot_ref: workflowSnapshotRef,
       step_id: stepId || null,
       trace_id: traceId,
       dry_run: dryRun,
@@ -19889,14 +19953,14 @@ async function workflowRunEndpoint(req, res, route) {
         severity,
         reason,
         run_id: runId,
-        workflow_id: workflow.workflow_id,
+        workflow_id: resolvedWorkflow.workflow_id,
         step_id: stepId || null,
       },
       traceId,
     );
   };
 
-  for (const step of workflow.steps || []) {
+  for (const step of resolvedWorkflow.steps || []) {
     const stepStart = Date.now();
     if (step.kind === "approval_gate") {
       status = "blocked";
@@ -20100,15 +20164,18 @@ async function workflowRunEndpoint(req, res, route) {
     kind: "workflow_run",
     run_id: runId,
     trace_id: traceId,
-    workflow_id: workflow.workflow_id,
-    workflow_name: workflow.name,
+    workflow_id: resolvedWorkflow.workflow_id,
+    workflow_name: resolvedWorkflow.name,
+    workflow_version: resolvedWorkflowVersion,
+    definition_hash: resolvedDefinitionHash,
+    workflow_snapshot_ref: workflowSnapshotRef,
     dry_run: dryRun,
     status,
     failed_step_id: failedStepId,
     started_at: startedAt,
     completed_at: completedAt,
     run_duration_ms: totalDurationMs,
-    step_count: workflow.steps.length,
+    step_count: resolvedWorkflow.steps.length,
     steps: stepResults,
     friction_summary: frictionSummary,
   };
@@ -20117,13 +20184,16 @@ async function workflowRunEndpoint(req, res, route) {
     kind: "friction_rollup",
     run_id: runId,
     trace_id: traceId,
-    workflow_id: workflow.workflow_id,
-    workflow_name: workflow.name,
+    workflow_id: resolvedWorkflow.workflow_id,
+    workflow_name: resolvedWorkflow.name,
+    workflow_version: resolvedWorkflowVersion,
+    definition_hash: resolvedDefinitionHash,
+    workflow_snapshot_ref: workflowSnapshotRef,
     dry_run: dryRun,
     status,
     started_at: startedAt,
     completed_at: completedAt,
-    step_count: workflow.steps.length,
+    step_count: resolvedWorkflow.steps.length,
     ...frictionSummary,
     trajectory_timeline: stepResults.map((step) => ({
       step_id: step.step_id,
@@ -20140,7 +20210,9 @@ async function workflowRunEndpoint(req, res, route) {
     route,
     {
       run_id: runId,
-      workflow_id: workflow.workflow_id,
+      workflow_id: resolvedWorkflow.workflow_id,
+      workflow_version: resolvedWorkflowVersion,
+      definition_hash: resolvedDefinitionHash,
       status,
       job_friction_score: frictionSummary.job_friction_score,
       harmful_friction_ratio: frictionSummary.harmful_friction_ratio,
@@ -20152,7 +20224,10 @@ async function workflowRunEndpoint(req, res, route) {
     route,
     {
       run_id: runId,
-      workflow_id: workflow.workflow_id,
+      workflow_id: resolvedWorkflow.workflow_id,
+      workflow_version: resolvedWorkflowVersion,
+      definition_hash: resolvedDefinitionHash,
+      workflow_snapshot_ref: workflowSnapshotRef,
       status,
       dry_run: dryRun,
       trace_id: traceId,
@@ -20161,7 +20236,10 @@ async function workflowRunEndpoint(req, res, route) {
   );
   appendAudit("WORKFLOW_RUN", {
     run_id: runId,
-    workflow_id: workflow.workflow_id,
+    workflow_id: resolvedWorkflow.workflow_id,
+    workflow_version: resolvedWorkflowVersion,
+    definition_hash: resolvedDefinitionHash,
+    workflow_snapshot_ref: workflowSnapshotRef,
     status,
     dry_run: dryRun,
     trace_id: traceId,

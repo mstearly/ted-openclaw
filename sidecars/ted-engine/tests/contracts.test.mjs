@@ -419,6 +419,75 @@ describe("Workflow registry metadata contract", () => {
     expect(publishedEvent).toBeDefined();
   });
 
+  test("POST /ops/workflows/run pins workflow version metadata and snapshot reference", async () => {
+    const workflowId = `rf1-run-pin-${Date.now().toString(36)}`;
+    const publishPayload = {
+      workflow_id: workflowId,
+      name: "RF1 Run Pin Test",
+      steps: [
+        {
+          step_id: "inspect-llm",
+          kind: "route_call",
+          method: "GET",
+          route: "/ops/llm-provider",
+        },
+      ],
+    };
+    const publishResp = await fetch(`${baseUrl}/ops/workflows`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(publishPayload),
+    });
+    expect(publishResp.status).toBe(200);
+    const publishBody = await publishResp.json();
+    const publishedVersion = publishBody.workflow.workflow_version;
+
+    const runResp = await fetch(`${baseUrl}/ops/workflows/run`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ workflow_id: workflowId }),
+    });
+    expect(runResp.status).toBe(200);
+    const runBody = await runResp.json();
+    expect(runBody.workflow_id).toBe(workflowId);
+    expect(runBody.workflow_version).toBe(publishedVersion);
+    expect(typeof runBody.definition_hash).toBe("string");
+    expect(runBody.definition_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(typeof runBody.workflow_snapshot_ref).toBe("string");
+    expect(runBody.workflow_snapshot_ref).toContain(`${workflowId}@v${publishedVersion}:`);
+
+    const runsResp = await fetch(`${baseUrl}/ops/workflows/runs?workflow_id=${workflowId}`, {
+      headers: authHeaders,
+    });
+    expect(runsResp.status).toBe(200);
+    const runsBody = await runsResp.json();
+    expect(Array.isArray(runsBody.runs)).toBe(true);
+    expect(runsBody.runs.length).toBeGreaterThan(0);
+    const latestRun = runsBody.runs[0];
+    expect(latestRun.workflow_version).toBe(publishedVersion);
+    expect(typeof latestRun.definition_hash).toBe("string");
+    expect(typeof latestRun.workflow_snapshot_ref).toBe("string");
+
+    const frictionResp = await fetch(`${baseUrl}/ops/friction/summary?workflow_id=${workflowId}`, {
+      headers: authHeaders,
+    });
+    expect(frictionResp.status).toBe(200);
+    const frictionBody = await frictionResp.json();
+    expect(Array.isArray(frictionBody.recent_runs)).toBe(true);
+    if (frictionBody.recent_runs.length > 0) {
+      const latestRollup = frictionBody.recent_runs[0];
+      expect(latestRollup.workflow_version).toBe(publishedVersion);
+      expect(typeof latestRollup.definition_hash).toBe("string");
+      expect(typeof latestRollup.workflow_snapshot_ref).toBe("string");
+    }
+  });
+
   test("GET /ops/workflows returns versioned workflow metadata", async () => {
     const resp = await fetch(`${baseUrl}/ops/workflows`, { headers: authHeaders });
     expect(resp.status).toBe(200);

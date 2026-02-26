@@ -33,10 +33,11 @@ This inventory captures the currently active council execution package from SDD 
 | 112 | Master integrated execution plan           | Master wave plan          | Active          | Execute waves I0-I11                             |
 | 113 | Wave I0 execution log                      | Execution log             | Active          | Update with I0 outcomes                          |
 | 128 | Future-proofing retrofit assessment        | Council decision package  | Active baseline | Convert to task-level execution package          |
-| 129 | Future-proofing retrofit task-level plan   | Task-level execution plan | In execution    | Start RF1-003 run-level version pinning          |
+| 129 | Future-proofing retrofit task-level plan   | Task-level execution plan | In execution    | Start RF1-004 legacy run upcaster and backfill   |
 | 130 | RF0-002 baseline freeze execution log      | Execution log             | Completed       | Use as RF1 baseline evidence                     |
 | 131 | RF1-001 workflow schema evolution log      | Execution log             | Completed       | Use as RF1-002 handoff context                   |
 | 132 | RF1-002 immutable publish execution log    | Execution log             | Completed       | Use as RF1-003 handoff context                   |
+| 133 | RF1-003 run pinning execution log          | Execution log             | Completed       | Use as RF1-004 handoff context                   |
 
 ---
 
@@ -64,7 +65,7 @@ This inventory captures the currently active council execution package from SDD 
 1. Wave I0 completion checkpoint is satisfied.
 2. SDD 107 C3 gate is complete and Wave I4 T0/T1 + R1/MR0 policy lock are executed (SDD 125/126/127 evidence).
 3. SDD 128 retrofit direction is ratified as active baseline; SDD 129 provides task-level execution waves RF0-RF5.
-4. RF0-001, RF0-002, RF1-001, and RF1-002 are complete with evidence in SDD 130-132; execution handoff is RF1-003.
+4. RF0-001, RF0-002, RF1-001, RF1-002, and RF1-003 are complete with evidence in SDD 130-133; execution handoff is RF1-004.
 5. Production gates remain unchanged:
    - no transport Wave T2/T3 before completing T0/T1 prerequisites,
    - no connector MR-1/MR-2 production activation before P0-4 signoff.
