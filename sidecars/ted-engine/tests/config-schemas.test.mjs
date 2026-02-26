@@ -13,6 +13,7 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import { validateMigrationManifest } from "../modules/migration_registry.mjs";
+import { validateReplayGateContract } from "../modules/replay_gate_contract.mjs";
 import {
   validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
@@ -421,6 +422,13 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.errors).toHaveLength(0);
     expect(result.migrations.length).toBeGreaterThanOrEqual(1);
   });
+
+  test("replay_gate_contract.json passes structural validation", () => {
+    const contract = configs.get("replay_gate_contract.json");
+    const result = validateReplayGateContract(contract);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -445,6 +453,7 @@ describe("Required config files exist", () => {
     "builder_lane_config.json",
     "migration_state.json",
     "migration_manifest.json",
+    "replay_gate_contract.json",
     "ted_constitution.json",
     "ted_agent.json",
     "roadmap_master.json",
@@ -505,6 +514,18 @@ describe("Cross-config consistency", () => {
 
     for (const critIntent of graders.thresholds.critical_intents || []) {
       expect(graders.intents[critIntent]).toBeDefined();
+    }
+  });
+
+  test("replay corpus includes required replay gate scenarios", () => {
+    const corpus = configs.get("replay_corpus.json");
+    const contract = configs.get("replay_gate_contract.json");
+    if (!corpus || !contract) {
+      return;
+    }
+    const scenarioIds = new Set((corpus.scenarios || []).map((scenario) => scenario?.scenario_id));
+    for (const requiredScenarioId of contract.required_scenario_ids || []) {
+      expect(scenarioIds.has(requiredScenarioId)).toBe(true);
     }
   });
 });

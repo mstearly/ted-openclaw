@@ -8,7 +8,7 @@
  * Dynamically generates one test per route from the contract registry.
  */
 
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect, beforeAll, afterAll } from "vitest";
@@ -599,6 +599,39 @@ describe("Workflow registry metadata contract", () => {
         expect(workflow.supersedes_version).toBeGreaterThanOrEqual(1);
       }
     }
+  });
+});
+
+describe("Replay gate contract integration", () => {
+  test("POST /ops/replay/run exposes contract metadata and persists release evidence", async () => {
+    const runResp = await fetch(`${baseUrl}/ops/replay/run`, {
+      method: "POST",
+      headers: {
+        ...authHeaders,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ include: "all" }),
+    });
+    expect(runResp.status).toBe(200);
+    const runBody = await runResp.json();
+    expect(typeof runBody.replay_gate_contract_version).toBe("string");
+    expect(runBody.replay_gate_contract_version.length).toBeGreaterThan(0);
+    expect(runBody.release_gate?.contract_version).toBe(runBody.replay_gate_contract_version);
+    expect(Array.isArray(runBody.release_gate?.missing_required_scenarios)).toBe(true);
+    expect(runBody.release_gate?.missing_required_scenarios.length).toBe(0);
+
+    const runtimeDir = getTestRuntimeDir();
+    const evidencePath = resolve(runtimeDir, "artifacts", "replay", "release_evidence.jsonl");
+    expect(existsSync(evidencePath)).toBe(true);
+
+    const evidenceLines = readFileSync(evidencePath, "utf8")
+      .split("\n")
+      .filter((line) => line.trim().length > 0);
+    const evidenceRecords = evidenceLines.map((line) => JSON.parse(line));
+    const evidence = evidenceRecords.find((entry) => entry.run_id === runBody.run_id);
+    expect(evidence).toBeDefined();
+    expect(evidence.kind).toBe("replay_release_evidence");
+    expect(evidence.replay_gate_contract_version).toBe(runBody.replay_gate_contract_version);
   });
 });
 

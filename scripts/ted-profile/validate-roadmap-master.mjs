@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateMigrationManifest } from "../../sidecars/ted-engine/modules/migration_registry.mjs";
+import { validateReplayGateContract } from "../../sidecars/ted-engine/modules/replay_gate_contract.mjs";
 import {
   validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
@@ -41,6 +42,7 @@ function parseArgs(argv) {
       repoRoot,
       "sidecars/ted-engine/config/compatibility_policy.json",
     ),
+    replayGateContract: path.join(repoRoot, "sidecars/ted-engine/config/replay_gate_contract.json"),
     migrationManifest: path.join(repoRoot, "sidecars/ted-engine/config/migration_manifest.json"),
     retrofitBaselineLock: path.join(
       repoRoot,
@@ -80,6 +82,10 @@ function parseArgs(argv) {
     }
     if (arg === "--compatibility-policy") {
       out.compatibilityPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--replay-gate-contract") {
+      out.replayGateContract = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
     if (arg === "--migration-manifest") {
@@ -155,6 +161,11 @@ function main() {
       kind: "compatibility policy",
       path: args.compatibilityPolicy,
       validator: validateCompatibilityPolicy,
+    },
+    {
+      kind: "replay gate contract",
+      path: args.replayGateContract,
+      validator: validateReplayGateContract,
     },
     {
       kind: "migration manifest",

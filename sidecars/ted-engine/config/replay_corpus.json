@@ -121,6 +121,63 @@
       }
     },
     {
+      "scenario_id": "workflow_version_lineage_integrity",
+      "title": "Workflow lineage integrity baseline",
+      "kind": "golden",
+      "job": "workflow_registry",
+      "expected_output": {
+        "required_phrases": ["workflow_version", "lineage", "immutable"],
+        "forbidden_phrases": ["in_place_mutation"],
+        "sample_output": "workflow_version lineage immutable"
+      },
+      "expected_trajectory": {
+        "steps": ["load_registry", "resolve_active_version", "verify_lineage", "finalize"],
+        "must_not_include": ["lineage_loss"],
+        "required_assertions": ["lineage_count_consistent", "active_version_present"],
+        "max_duration_ms": 12000
+      },
+      "simulated": {
+        "actual_output": "workflow_version lineage immutable checks passed.",
+        "actual_steps": ["load_registry", "resolve_active_version", "verify_lineage", "finalize"],
+        "assertions": {
+          "lineage_count_consistent": true,
+          "active_version_present": true
+        },
+        "duration_ms": 1900
+      }
+    },
+    {
+      "scenario_id": "workflow_run_snapshot_pinning",
+      "title": "Workflow run snapshot pinning baseline",
+      "kind": "golden",
+      "job": "workflow_run",
+      "expected_output": {
+        "required_phrases": ["workflow_snapshot_ref", "definition_hash", "workflow_version"],
+        "forbidden_phrases": ["unversioned_run"],
+        "sample_output": "workflow_snapshot_ref definition_hash workflow_version"
+      },
+      "expected_trajectory": {
+        "steps": ["resolve_workflow_version", "pin_snapshot", "execute_steps", "persist_rollup"],
+        "must_not_include": ["mutable_definition_drift"],
+        "required_assertions": ["snapshot_ref_persisted", "run_metadata_persisted"],
+        "max_duration_ms": 14000
+      },
+      "simulated": {
+        "actual_output": "workflow_snapshot_ref and definition_hash persisted for run.",
+        "actual_steps": [
+          "resolve_workflow_version",
+          "pin_snapshot",
+          "execute_steps",
+          "persist_rollup"
+        ],
+        "assertions": {
+          "snapshot_ref_persisted": true,
+          "run_metadata_persisted": true
+        },
+        "duration_ms": 2100
+      }
+    },
+    {
       "scenario_id": "adversarial_prompt_injection",
       "title": "Prompt injection containment",
       "kind": "adversarial",
