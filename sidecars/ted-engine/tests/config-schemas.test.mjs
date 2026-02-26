@@ -20,6 +20,7 @@ import {
   validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
+  validateRetrofitBaselineLock,
   validateRoadmapMaster,
 } from "../modules/roadmap_governance.mjs";
 
@@ -380,6 +381,13 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("retrofit_rf0_baseline_lock.json passes structural validation", () => {
+    const baselineLock = configs.get("retrofit_rf0_baseline_lock.json");
+    const result = validateRetrofitBaselineLock(baselineLock);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -413,6 +421,7 @@ describe("Required config files exist", () => {
     "esign_provider_policy.json",
     "mobile_alert_policy.json",
     "compatibility_policy.json",
+    "retrofit_rf0_baseline_lock.json",
   ];
 
   test.each(requiredConfigs)("%s exists in config directory", (file) => {

@@ -12,6 +12,7 @@ import {
   validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
+  validateRetrofitBaselineLock,
   validateRoadmapMaster,
 } from "./modules/roadmap_governance.mjs";
 import {
@@ -170,6 +171,11 @@ const replayCorpusConfigPath = path.join(__dirname, "config", "replay_corpus.jso
 const schedulerConfigPath = path.join(__dirname, "config", "scheduler_config.json");
 const mobileAlertPolicyConfigPath = path.join(__dirname, "config", "mobile_alert_policy.json");
 const compatibilityPolicyConfigPath = path.join(__dirname, "config", "compatibility_policy.json");
+const retrofitBaselineLockConfigPath = path.join(
+  __dirname,
+  "config",
+  "retrofit_rf0_baseline_lock.json",
+);
 const schedulerDir = path.join(__dirname, "scheduler");
 fs.mkdirSync(schedulerDir, { recursive: true });
 const pendingDeliveryPath = path.join(schedulerDir, "pending_delivery.jsonl");
@@ -341,6 +347,7 @@ function snapshotPolicyState() {
     const autonomy = readConfigFile(autonomyLadderConfigPath);
     const llmProvider = readConfigFile(llmProviderConfigPath);
     const compatibilityPolicy = readConfigFile(compatibilityPolicyConfigPath);
+    const retrofitBaselineLock = readConfigFile(retrofitBaselineLockConfigPath);
     const snapshot = {
       hard_bans_count: Array.isArray(hardBans?.hard_ban_strings)
         ? hardBans.hard_ban_strings.length
@@ -353,6 +360,8 @@ function snapshotPolicyState() {
         compatibilityPolicy?.support_window?.backward_compatible_releases ?? null,
       compatibility_default_notice_days:
         compatibilityPolicy?.deprecation?.default_notice_days ?? null,
+      retrofit_baseline_id: retrofitBaselineLock?.baseline_id || null,
+      retrofit_baseline_scenarios: retrofitBaselineLock?.replay_sample_set?.scenario_count ?? null,
     };
     appendJsonlLine(policyLedgerPath, {
       kind: "policy_snapshot",
@@ -394,6 +403,7 @@ const MONITORED_CONFIGS = [
   "roadmap_master.json",
   "module_lifecycle_policy.json",
   "compatibility_policy.json",
+  "retrofit_rf0_baseline_lock.json",
 ];
 
 function hashConfigFile(filePath) {
@@ -1176,6 +1186,7 @@ function validateStartupIntegrity() {
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
     compatibilityPolicyConfigPath,
+    retrofitBaselineLockConfigPath,
   ]);
   const allConfigPaths = [
     operatorProfileConfigPath,
@@ -1197,6 +1208,7 @@ function validateStartupIntegrity() {
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
     compatibilityPolicyConfigPath,
+    retrofitBaselineLockConfigPath,
     hardBansConfigPath,
     briefConfigPath,
     urgencyRulesConfigPath,
@@ -1359,6 +1371,22 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: compatibilityPolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === retrofitBaselineLockConfigPath) {
+        const retrofitBaselineValidation = validateRetrofitBaselineLock(parsed);
+        if (!retrofitBaselineValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `retrofit_rf0_baseline_lock validation failed: ${retrofitBaselineValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: retrofitBaselineValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;

@@ -10,6 +10,7 @@ import {
   validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
+  validateRetrofitBaselineLock,
   validateRoadmapMaster,
 } from "../../sidecars/ted-engine/modules/roadmap_governance.mjs";
 
@@ -38,6 +39,10 @@ function parseArgs(argv) {
     compatibilityPolicy: path.join(
       repoRoot,
       "sidecars/ted-engine/config/compatibility_policy.json",
+    ),
+    retrofitBaselineLock: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/retrofit_rf0_baseline_lock.json",
     ),
   };
 
@@ -73,6 +78,10 @@ function parseArgs(argv) {
     }
     if (arg === "--compatibility-policy") {
       out.compatibilityPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--retrofit-baseline-lock") {
+      out.retrofitBaselineLock = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
   }
@@ -140,6 +149,11 @@ function main() {
       kind: "compatibility policy",
       path: args.compatibilityPolicy,
       validator: validateCompatibilityPolicy,
+    },
+    {
+      kind: "retrofit baseline lock",
+      path: args.retrofitBaselineLock,
+      validator: validateRetrofitBaselineLock,
     },
   ];
 

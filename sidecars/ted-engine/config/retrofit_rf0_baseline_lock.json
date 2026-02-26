@@ -1,0 +1,212 @@
+{
+  "_config_version": 1,
+  "baseline_id": "rf0-002-retrofit-baseline-v1",
+  "captured_at": "2026-02-26T00:00:00.000Z",
+  "description": "RF0-002 baseline lock for replay scenarios, workflow/friction KPI snapshot, and impacted workflow+migration route contracts.",
+  "sources": {
+    "replay_corpus_path": "sidecars/ted-engine/config/replay_corpus.json",
+    "route_contracts_path": "sidecars/ted-engine/config/route_contracts.json",
+    "workflow_runs_path": "sidecars/ted-engine/artifacts/workflows/workflow_runs.jsonl",
+    "friction_rollups_path": "sidecars/ted-engine/artifacts/friction/friction_rollups.jsonl"
+  },
+  "replay_sample_set": {
+    "replay_corpus_version": "2026-02-wave-d-v1",
+    "scenario_count": 7,
+    "golden_count": 4,
+    "adversarial_count": 3,
+    "scenario_ids": [
+      "golden_draft_email",
+      "golden_morning_brief",
+      "golden_meeting_prep",
+      "golden_commitments",
+      "adversarial_prompt_injection",
+      "adversarial_tool_contamination",
+      "adversarial_timeout_cascade"
+    ],
+    "scenarios": [
+      {
+        "scenario_id": "golden_draft_email",
+        "kind": "golden",
+        "job": "draft_email"
+      },
+      {
+        "scenario_id": "golden_morning_brief",
+        "kind": "golden",
+        "job": "morning_brief"
+      },
+      {
+        "scenario_id": "golden_meeting_prep",
+        "kind": "golden",
+        "job": "meeting_prep"
+      },
+      {
+        "scenario_id": "golden_commitments",
+        "kind": "golden",
+        "job": "commitments"
+      },
+      {
+        "scenario_id": "adversarial_prompt_injection",
+        "kind": "adversarial",
+        "job": "mail_triage"
+      },
+      {
+        "scenario_id": "adversarial_tool_contamination",
+        "kind": "adversarial",
+        "job": "connector_read"
+      },
+      {
+        "scenario_id": "adversarial_timeout_cascade",
+        "kind": "adversarial",
+        "job": "provider_fallback"
+      }
+    ]
+  },
+  "workflow_run_sample": {
+    "selection": {
+      "kind_filter": "workflow_run",
+      "sort_by": "started_at_desc",
+      "max_samples": 25
+    },
+    "sample_count": 0,
+    "samples": []
+  },
+  "friction_rollup_sample": {
+    "selection": {
+      "kind_filter": "friction_rollup",
+      "sort_by": "completed_at_desc",
+      "max_samples": 25
+    },
+    "sample_count": 0,
+    "samples": []
+  },
+  "baseline_metrics": {
+    "total_runs": 0,
+    "avg_job_friction_score": 0,
+    "failure_ratio": 0,
+    "retry_recovery_ratio": null,
+    "status_counts": {
+      "completed": 0,
+      "blocked": 0,
+      "failed": 0,
+      "other": 0
+    }
+  },
+  "route_contract_freeze": {
+    "route_contracts_source_hash": "19d4f79638bfe93ff069708904cf55942a770a2d6f9f0a2d917068df0ac12c22",
+    "workflow_routes": [
+      {
+        "route_key": "GET /ops/workflows",
+        "contract_hash": "f57d8ffad3bb39a95a90da6de5d296ce2c1c65fd85653925f5033101c8f9dd4b",
+        "contract": {
+          "status_codes": [200],
+          "required_fields": ["workflows", "total_count", "run_count"],
+          "content_type": "application/json"
+        }
+      },
+      {
+        "route_key": "POST /ops/workflows",
+        "contract_hash": "36837acc55a921e00f9f85b8d8bb23f2c5e874acdd5cdfa29785e2c456f2dc61",
+        "contract": {
+          "status_codes": [200, 400, 409],
+          "required_fields": ["ok"],
+          "content_type": "application/json"
+        }
+      },
+      {
+        "route_key": "POST /ops/workflows/lint",
+        "contract_hash": "f1ce4f0c81cdb854c6a1f35c9fafb8d7adefd488c3bbf99b976f191c9accb376",
+        "contract": {
+          "status_codes": [200, 400, 404],
+          "required_fields": [
+            "ok",
+            "workflow_id",
+            "workflow_name",
+            "publish_allowed",
+            "lint",
+            "policy_explainability",
+            "friction_forecast"
+          ],
+          "content_type": "application/json"
+        }
+      },
+      {
+        "route_key": "POST /ops/workflows/run",
+        "contract_hash": "1977252b4f9ad70234fe2fb1a91fd1f1fca4afc847e246d01210f2a29a74c268",
+        "contract": {
+          "status_codes": [200, 400, 404],
+          "required_fields": ["run_id", "workflow_id", "status", "steps"],
+          "content_type": "application/json"
+        }
+      },
+      {
+        "route_key": "GET /ops/workflows/runs",
+        "contract_hash": "88a9654a91b2e9141779a8eeda618b51d3d4ee858c36039d8c946f37437063c0",
+        "contract": {
+          "status_codes": [200],
+          "required_fields": ["runs", "total_count"],
+          "content_type": "application/json"
+        }
+      }
+    ],
+    "migration_routes": [
+      {
+        "route_key": "GET /status",
+        "contract_hash": "a2edaea88e382d6bcf9c611263e4d6473cdaffdafd74515825441005c334618e",
+        "contract": {
+          "status_codes": [200],
+          "required_fields": [
+            "version",
+            "uptime",
+            "profiles_count",
+            "deals_count",
+            "triage_open_count",
+            "catalog",
+            "operator",
+            "dependencies",
+            "api_version",
+            "min_supported_version",
+            "startup_validation"
+          ],
+          "content_type": "application/json"
+        }
+      },
+      {
+        "route_key": "GET /doctor",
+        "contract_hash": "99bd5464e425cbbdeab1b16056ece32425e3667d66e06d8f88519d4ab5ec8270",
+        "contract": {
+          "status_codes": [200],
+          "required_fields": [
+            "version",
+            "uptime",
+            "profiles_count",
+            "deals_count",
+            "triage_open_count",
+            "catalog",
+            "operator",
+            "dependencies",
+            "api_version"
+          ],
+          "content_type": "application/json"
+        }
+      },
+      {
+        "route_key": "GET /ops/setup/validate",
+        "contract_hash": "6b62c3866844e5bae1343161964d257753cc54825279de69003c4127cee33006",
+        "contract": {
+          "status_codes": [200],
+          "required_fields": ["checks", "issues", "blocking_issues", "ready"],
+          "content_type": "application/json"
+        }
+      },
+      {
+        "route_key": "GET /ops/setup/state",
+        "contract_hash": "949621626e1d77c3fe161a467ec6df8b371575970c8a5ce990ad2987e4d7d046",
+        "contract": {
+          "status_codes": [200],
+          "required_fields": ["checks", "issues", "profiles", "ready_for_live_graph"],
+          "content_type": "application/json"
+        }
+      }
+    ]
+  }
+}

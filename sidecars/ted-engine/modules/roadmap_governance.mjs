@@ -768,6 +768,252 @@ export function validateCompatibilityPolicy(policy) {
   };
 }
 
+function validateRouteFreezeCollection(params) {
+  const errors = [];
+  if (!Array.isArray(params.entries) || params.entries.length === 0) {
+    errors.push({
+      code: "RETROFIT_BASELINE_ROUTE_FREEZE_EMPTY",
+      message: `route_contract_freeze.${params.collectionName} must be a non-empty array`,
+    });
+    return errors;
+  }
+  for (const [index, entry] of params.entries.entries()) {
+    if (!isObject(entry)) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_ENTRY_INVALID",
+        message: `route_contract_freeze.${params.collectionName}[${index}] must be an object`,
+      });
+      continue;
+    }
+    if (typeof entry.route_key !== "string" || entry.route_key.trim().length === 0) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_KEY_INVALID",
+        message: `route_contract_freeze.${params.collectionName}[${index}].route_key must be a non-empty string`,
+      });
+    }
+    if (typeof entry.contract_hash !== "string" || entry.contract_hash.trim().length === 0) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_HASH_INVALID",
+        message: `route_contract_freeze.${params.collectionName}[${index}].contract_hash must be a non-empty string`,
+      });
+    }
+    if (!isObject(entry.contract)) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_CONTRACT_INVALID",
+        message: `route_contract_freeze.${params.collectionName}[${index}].contract must be an object`,
+      });
+      continue;
+    }
+    if (
+      !Array.isArray(entry.contract.status_codes) ||
+      entry.contract.status_codes.length === 0 ||
+      entry.contract.status_codes.some((status) => !Number.isInteger(status))
+    ) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_STATUS_CODES_INVALID",
+        message: `route_contract_freeze.${params.collectionName}[${index}].contract.status_codes must be a non-empty integer array`,
+      });
+    }
+    if (
+      !Array.isArray(entry.contract.required_fields) ||
+      entry.contract.required_fields.length === 0 ||
+      entry.contract.required_fields.some(
+        (field) => typeof field !== "string" || field.trim().length === 0,
+      )
+    ) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_REQUIRED_FIELDS_INVALID",
+        message: `route_contract_freeze.${params.collectionName}[${index}].contract.required_fields must be a non-empty string array`,
+      });
+    }
+    if (entry.contract.content_type !== "application/json") {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_CONTENT_TYPE_INVALID",
+        message: `route_contract_freeze.${params.collectionName}[${index}].contract.content_type must be application/json`,
+      });
+    }
+  }
+  return errors;
+}
+
+export function validateRetrofitBaselineLock(baseline) {
+  const errors = [];
+
+  if (!isObject(baseline)) {
+    return {
+      ok: false,
+      errors: [
+        {
+          code: "RETROFIT_BASELINE_INVALID_ROOT",
+          message: "retrofit_rf0_baseline_lock must be an object",
+        },
+      ],
+    };
+  }
+
+  if (typeof baseline.baseline_id !== "string" || baseline.baseline_id.trim().length === 0) {
+    errors.push({
+      code: "RETROFIT_BASELINE_ID_MISSING",
+      message: "baseline_id must be a non-empty string",
+    });
+  }
+  if (typeof baseline.captured_at !== "string" || baseline.captured_at.trim().length === 0) {
+    errors.push({
+      code: "RETROFIT_BASELINE_CAPTURED_AT_MISSING",
+      message: "captured_at must be a non-empty string",
+    });
+  }
+
+  const replaySampleSet = isObject(baseline.replay_sample_set) ? baseline.replay_sample_set : null;
+  if (!replaySampleSet) {
+    errors.push({
+      code: "RETROFIT_BASELINE_REPLAY_SET_MISSING",
+      message: "replay_sample_set must be present",
+    });
+  } else {
+    const scenarioIds = Array.isArray(replaySampleSet.scenario_ids)
+      ? replaySampleSet.scenario_ids
+      : [];
+    if (
+      scenarioIds.length === 0 ||
+      scenarioIds.some((entry) => typeof entry !== "string" || entry.trim().length === 0)
+    ) {
+      errors.push({
+        code: "RETROFIT_BASELINE_REPLAY_SCENARIOS_INVALID",
+        message: "replay_sample_set.scenario_ids must be a non-empty string array",
+      });
+    }
+  }
+
+  const runSample = isObject(baseline.workflow_run_sample) ? baseline.workflow_run_sample : null;
+  if (!runSample) {
+    errors.push({
+      code: "RETROFIT_BASELINE_RUN_SAMPLE_MISSING",
+      message: "workflow_run_sample must be present",
+    });
+  } else {
+    const sampleCount = Number(runSample.sample_count ?? NaN);
+    const samples = Array.isArray(runSample.samples) ? runSample.samples : null;
+    if (!Number.isInteger(sampleCount) || sampleCount < 0) {
+      errors.push({
+        code: "RETROFIT_BASELINE_RUN_SAMPLE_COUNT_INVALID",
+        message: "workflow_run_sample.sample_count must be an integer >= 0",
+      });
+    }
+    if (!samples) {
+      errors.push({
+        code: "RETROFIT_BASELINE_RUN_SAMPLE_ARRAY_INVALID",
+        message: "workflow_run_sample.samples must be an array",
+      });
+    } else if (Number.isInteger(sampleCount) && sampleCount !== samples.length) {
+      errors.push({
+        code: "RETROFIT_BASELINE_RUN_SAMPLE_MISMATCH",
+        message: "workflow_run_sample.sample_count must match samples length",
+      });
+    }
+  }
+
+  const rollupSample = isObject(baseline.friction_rollup_sample)
+    ? baseline.friction_rollup_sample
+    : null;
+  if (!rollupSample) {
+    errors.push({
+      code: "RETROFIT_BASELINE_ROLLUP_SAMPLE_MISSING",
+      message: "friction_rollup_sample must be present",
+    });
+  } else {
+    const sampleCount = Number(rollupSample.sample_count ?? NaN);
+    const samples = Array.isArray(rollupSample.samples) ? rollupSample.samples : null;
+    if (!Number.isInteger(sampleCount) || sampleCount < 0) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROLLUP_SAMPLE_COUNT_INVALID",
+        message: "friction_rollup_sample.sample_count must be an integer >= 0",
+      });
+    }
+    if (!samples) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROLLUP_SAMPLE_ARRAY_INVALID",
+        message: "friction_rollup_sample.samples must be an array",
+      });
+    } else if (Number.isInteger(sampleCount) && sampleCount !== samples.length) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROLLUP_SAMPLE_MISMATCH",
+        message: "friction_rollup_sample.sample_count must match samples length",
+      });
+    }
+  }
+
+  const baselineMetrics = isObject(baseline.baseline_metrics) ? baseline.baseline_metrics : null;
+  if (!baselineMetrics) {
+    errors.push({
+      code: "RETROFIT_BASELINE_METRICS_MISSING",
+      message: "baseline_metrics must be present",
+    });
+  } else {
+    if (!Number.isInteger(baselineMetrics.total_runs) || baselineMetrics.total_runs < 0) {
+      errors.push({
+        code: "RETROFIT_BASELINE_METRICS_TOTAL_RUNS_INVALID",
+        message: "baseline_metrics.total_runs must be an integer >= 0",
+      });
+    }
+    for (const field of ["avg_job_friction_score", "failure_ratio"]) {
+      if (typeof baselineMetrics[field] !== "number" || !Number.isFinite(baselineMetrics[field])) {
+        errors.push({
+          code: "RETROFIT_BASELINE_METRICS_FIELD_INVALID",
+          message: `baseline_metrics.${field} must be a finite number`,
+        });
+      }
+    }
+    if (
+      baselineMetrics.retry_recovery_ratio !== null &&
+      (typeof baselineMetrics.retry_recovery_ratio !== "number" ||
+        !Number.isFinite(baselineMetrics.retry_recovery_ratio))
+    ) {
+      errors.push({
+        code: "RETROFIT_BASELINE_METRICS_RETRY_RECOVERY_INVALID",
+        message: "baseline_metrics.retry_recovery_ratio must be number or null",
+      });
+    }
+  }
+
+  const routeFreeze = isObject(baseline.route_contract_freeze)
+    ? baseline.route_contract_freeze
+    : null;
+  if (!routeFreeze) {
+    errors.push({
+      code: "RETROFIT_BASELINE_ROUTE_FREEZE_MISSING",
+      message: "route_contract_freeze must be present",
+    });
+  } else {
+    if (
+      typeof routeFreeze.route_contracts_source_hash !== "string" ||
+      routeFreeze.route_contracts_source_hash.trim().length === 0
+    ) {
+      errors.push({
+        code: "RETROFIT_BASELINE_ROUTE_SOURCE_HASH_INVALID",
+        message: "route_contract_freeze.route_contracts_source_hash must be a non-empty string",
+      });
+    }
+    errors.push(
+      ...validateRouteFreezeCollection({
+        collectionName: "workflow_routes",
+        entries: routeFreeze.workflow_routes,
+      }),
+    );
+    errors.push(
+      ...validateRouteFreezeCollection({
+        collectionName: "migration_routes",
+        entries: routeFreeze.migration_routes,
+      }),
+    );
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+  };
+}
+
 function isValidTimeOfDay(value) {
   if (typeof value !== "string") {
     return false;

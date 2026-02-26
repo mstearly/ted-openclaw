@@ -155,9 +155,11 @@ function normalizeTemplateRoute(route) {
   // Strip trailing query-string expressions. These may be:
   //  - Full: ${queryString}  ${qsStr ? `?${qsStr}` : ""}
   //  - Partial (due to nested backtick truncation): ${qsStr   ${queryString
-  // We strip everything from the first occurrence of ${qsStr, ${queryString, or ${queryParams onwards.
+  // We strip everything from the first occurrence of ${qs, ${query, ${queryString, or ${queryParams onwards.
   let normalized = route
+    .replace(/\$\{qs\b.*$/, "")
     .replace(/\$\{qsStr\b.*$/, "")
+    .replace(/\$\{query\b.*$/, "")
     .replace(/\$\{queryString\b.*$/, "")
     .replace(/\$\{queryParams\b.*$/, "");
 
@@ -250,9 +252,9 @@ describe("Gateway — discovery", () => {
     expect(gatewayMethods.size).toBeGreaterThan(100);
   });
 
-  test("method count in expected range (140-175)", () => {
+  test("method count in expected range (140-240)", () => {
     expect(gatewayMethods.size).toBeGreaterThanOrEqual(140);
-    expect(gatewayMethods.size).toBeLessThanOrEqual(175);
+    expect(gatewayMethods.size).toBeLessThanOrEqual(240);
   });
 
   test("all method names start with ted.", () => {

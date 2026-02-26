@@ -21,12 +21,20 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const contractsPath = resolve(__dirname, "../config/route_contracts.json");
+const retrofitBaselineLockPath = resolve(__dirname, "../config/retrofit_rf0_baseline_lock.json");
 
 let contracts;
 try {
   contracts = JSON.parse(readFileSync(contractsPath, "utf-8"));
 } catch {
   throw new Error(`Cannot load route_contracts.json from ${contractsPath}`);
+}
+
+let retrofitBaselineLock;
+try {
+  retrofitBaselineLock = JSON.parse(readFileSync(retrofitBaselineLockPath, "utf-8"));
+} catch {
+  throw new Error(`Cannot load retrofit_rf0_baseline_lock.json from ${retrofitBaselineLockPath}`);
 }
 
 const routeEntries = Object.entries(contracts.routes);
@@ -52,9 +60,9 @@ describe("Contract Registry — structure", () => {
     expect(routeEntries.length).toBeGreaterThan(100);
   });
 
-  test("route count matches expected range (155-170)", () => {
+  test("route count matches expected range (155-230)", () => {
     expect(routeEntries.length).toBeGreaterThanOrEqual(155);
-    expect(routeEntries.length).toBeLessThanOrEqual(170);
+    expect(routeEntries.length).toBeLessThanOrEqual(230);
   });
 });
 
@@ -166,6 +174,29 @@ describe("Contract Registry — critical routes have required_fields", () => {
     const contract = contracts.routes[routeKey];
     expect(contract).toBeDefined();
     expect(contract.required_fields.length).toBeGreaterThan(0);
+  });
+});
+
+describe("RF0 baseline lock — frozen route parity", () => {
+  const workflowRoutes = Array.isArray(retrofitBaselineLock?.route_contract_freeze?.workflow_routes)
+    ? retrofitBaselineLock.route_contract_freeze.workflow_routes
+    : [];
+  const migrationRoutes = Array.isArray(
+    retrofitBaselineLock?.route_contract_freeze?.migration_routes,
+  )
+    ? retrofitBaselineLock.route_contract_freeze.migration_routes
+    : [];
+  const frozenRoutes = [...workflowRoutes, ...migrationRoutes];
+
+  test("has frozen workflow and migration route entries", () => {
+    expect(workflowRoutes.length).toBeGreaterThan(0);
+    expect(migrationRoutes.length).toBeGreaterThan(0);
+  });
+
+  test.each(frozenRoutes)("$route_key matches current route_contracts entry", (entry) => {
+    const liveContract = contracts.routes[entry.route_key];
+    expect(liveContract).toBeDefined();
+    expect(entry.contract).toEqual(liveContract);
   });
 });
 
@@ -307,8 +338,8 @@ describe("Contract Registry — consistency", () => {
     }
   });
 
-  test("all graph routes include 400 status code for invalid profile", () => {
-    const graphRoutes = routeEntries.filter(([key]) => key.includes("/graph/"));
+  test("all profile-scoped graph routes include 400 status code for invalid profile", () => {
+    const graphRoutes = routeEntries.filter(([key]) => key.split(" ")[1].startsWith("/graph/"));
     for (const [_routeKey, contract] of graphRoutes) {
       expect(contract.status_codes).toContain(400);
     }

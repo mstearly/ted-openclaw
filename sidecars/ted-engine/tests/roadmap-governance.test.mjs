@@ -10,6 +10,7 @@ import {
   validateMobileAlertPolicy,
   validateModuleRequestIntakeTemplate,
   validateModuleLifecyclePolicy,
+  validateRetrofitBaselineLock,
   validateRoadmapMaster,
 } from "../modules/roadmap_governance.mjs";
 
@@ -28,6 +29,7 @@ const connectorAdmissionPolicyPath = resolve(
 const esignProviderPolicyPath = resolve(__dirname, "../config/esign_provider_policy.json");
 const mobileAlertPolicyPath = resolve(__dirname, "../config/mobile_alert_policy.json");
 const compatibilityPolicyPath = resolve(__dirname, "../config/compatibility_policy.json");
+const retrofitBaselineLockPath = resolve(__dirname, "../config/retrofit_rf0_baseline_lock.json");
 
 function loadJson(filePath) {
   return JSON.parse(readFileSync(filePath, "utf8"));
@@ -95,6 +97,7 @@ describe("roadmap governance module", () => {
     const esignPolicy = loadJson(esignProviderPolicyPath);
     const mobileAlertPolicy = loadJson(mobileAlertPolicyPath);
     const compatibilityPolicy = loadJson(compatibilityPolicyPath);
+    const retrofitBaselineLock = loadJson(retrofitBaselineLockPath);
 
     expect(validateModuleRequestIntakeTemplate(intakeTemplate).ok).toBe(true);
     expect(validateConnectorAuthModePolicy(authModePolicy).ok).toBe(true);
@@ -102,6 +105,7 @@ describe("roadmap governance module", () => {
     expect(validateEsignProviderPolicy(esignPolicy).ok).toBe(true);
     expect(validateMobileAlertPolicy(mobileAlertPolicy).ok).toBe(true);
     expect(validateCompatibilityPolicy(compatibilityPolicy).ok).toBe(true);
+    expect(validateRetrofitBaselineLock(retrofitBaselineLock).ok).toBe(true);
   });
 
   test("rejects inconsistent e-sign policy combinations", () => {
@@ -144,5 +148,16 @@ describe("roadmap governance module", () => {
     const codes = new Set((result.errors || []).map((entry) => entry.code));
     expect(result.ok).toBe(false);
     expect(codes.has("COMPAT_POLICY_SUPPORT_WINDOW_INVALID")).toBe(true);
+  });
+
+  test("rejects retrofit baseline lock when route freeze is empty", () => {
+    const baselineLock = loadJson(retrofitBaselineLockPath);
+    const mutated = JSON.parse(JSON.stringify(baselineLock));
+    mutated.route_contract_freeze.workflow_routes = [];
+
+    const result = validateRetrofitBaselineLock(mutated);
+    const codes = new Set((result.errors || []).map((entry) => entry.code));
+    expect(result.ok).toBe(false);
+    expect(codes.has("RETROFIT_BASELINE_ROUTE_FREEZE_EMPTY")).toBe(true);
   });
 });
