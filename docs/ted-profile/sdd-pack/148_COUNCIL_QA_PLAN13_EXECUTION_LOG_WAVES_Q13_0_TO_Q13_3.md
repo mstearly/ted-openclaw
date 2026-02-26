@@ -61,3 +61,18 @@ Browser-based UI suite cannot execute in this host due missing system runtime li
 1. Resolve browser host dependency (`libnspr4`) in CI/dev environment.
 2. Run `ui` browser test suite and promote Plan 13 browser controls to required status checks.
 3. Proceed to `Q13-4` enforcement gates once browser run is green.
+
+---
+
+## 6. Q13-4 Progress Update
+
+Implemented:
+
+1. CI task `ted-workflow-browser-gate` added in `.github/workflows/ci.yml`.
+2. Task command installs Playwright Chromium runtime with dependencies and runs:
+   - `ui/src/ui/views/ted.workflow.browser.test.ts`
+
+Current local blocker remains:
+
+1. This workstation cannot execute browser tests due missing `libnspr4.so` and no passwordless sudo for host dependency install.
+2. CI environments with dependency install support are now the primary execution path for browser-gate activation.
