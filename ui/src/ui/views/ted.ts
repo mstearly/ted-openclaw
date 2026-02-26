@@ -2819,7 +2819,7 @@ function renderExternalMcpConnectionsCard(
   `;
 }
 
-function renderExecutionWavesControlCard(
+export function renderExecutionWavesControlCard(
   props: TedViewProps,
 ): typeof nothing | ReturnType<typeof html> {
   const readValue = (id: string): string => {
