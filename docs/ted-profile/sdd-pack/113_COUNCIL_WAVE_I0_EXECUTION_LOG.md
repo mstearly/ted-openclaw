@@ -68,6 +68,8 @@ Planned tasks from SDD 112:
 12. SDD 120 - C1-003/C1-004 context compatibility and fallback execution
 13. SDD 121 - C2-001 context semantics unit coverage
 14. SDD 122 - C3-001 context truthfulness release gate
+15. SDD 123 - C3-002 context semantics replay validation report
+16. SDD 124 - C3-003 handoff package to Plan 2 owner
 
 ---
 
@@ -103,3 +105,8 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
    - dedicated gate script (`pnpm test:context-semantics-gate`),
    - CI checks matrix lane (`context-semantics-gate`).
    - Evidence doc: `SDD 122`
+9. Executed `C3-002` replay validation and approved drift decision.
+   - Evidence doc: `SDD 123`
+10. Published `C3-003` handoff declaration; Plan 2 transport wave is unblocked.
+
+- Evidence doc: `SDD 124`

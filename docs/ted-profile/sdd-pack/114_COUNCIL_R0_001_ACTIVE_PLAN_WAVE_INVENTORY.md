@@ -25,8 +25,8 @@ This inventory captures the currently active council execution package from SDD 
 | 104 | Collective critical review (99-103)        | Reconciliation package    | Applied         | Keep as alignment reference                      |
 | 105 | Targeted deep research round               | Research package          | Completed       | Use compatibility matrix in implementation gates |
 | 106 | Boardroom briefing                         | Executive package         | Completed       | Use as steering/approval narrative               |
-| 107 | Plan 1 context truthfulness                | Task-level execution plan | In execution    | C0/C1 currently active                           |
-| 108 | Plan 2 transport optimization              | Task-level execution plan | Ready           | Start after SDD 107 C3 gate                      |
+| 107 | Plan 1 context truthfulness                | Task-level execution plan | Completed       | Closed at C3-003 handoff checkpoint              |
+| 108 | Plan 2 transport optimization              | Task-level execution plan | In execution    | Execute T0-001/T0-003 in Wave I4                 |
 | 109 | Plan 3 mobile governance                   | Task-level execution plan | Ready           | Start at integrated Wave I5                      |
 | 110 | Plan 4 roadmap/module lifecycle            | Task-level execution plan | In execution    | R0 active now                                    |
 | 111 | Plan 5 Monday/RightSignature               | Task-level execution plan | In execution    | MR-0 active now                                  |
@@ -56,8 +56,8 @@ This inventory captures the currently active council execution package from SDD 
 
 ## 4. Immediate Execution Position
 
-1. Wave I0 is active.
-2. Wave I1/I2 context work has been initiated in code (strict unsupported semantics handling and tests).
+1. Wave I0 completion checkpoint is satisfied.
+2. SDD 107 C3 gate is complete and Plan 2 transport execution is unblocked for Wave I4.
 3. Production gates remain unchanged:
-   - no transport Wave T2/T3 before SDD 107 C3,
+   - no transport Wave T2/T3 before completing T0/T1 prerequisites,
    - no connector MR-1/MR-2 production activation before P0-4 signoff.
