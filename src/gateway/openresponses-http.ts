@@ -145,7 +145,7 @@ type UnsupportedContextSemantic = {
   reason: string;
 };
 
-function modelSupportsPreviousResponseId(model: string): boolean {
+export function modelSupportsPreviousResponseId(model: string): boolean {
   return model === "openclaw" || model.startsWith("openclaw:");
 }
 
@@ -197,7 +197,7 @@ function emitContextSemanticsTelemetry(params: {
   );
 }
 
-function getUnsupportedContextSemantics(
+export function getUnsupportedContextSemantics(
   payload: CreateResponseBody,
   model: string,
 ): UnsupportedContextSemantic[] {

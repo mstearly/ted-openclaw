@@ -66,6 +66,7 @@ Planned tasks from SDD 112:
 10. SDD 118 - R0-002 roadmap master artifact
 11. SDD 119 - R0-003 roadmap dependency validation rules
 12. SDD 120 - C1-003/C1-004 context compatibility and fallback execution
+13. SDD 121 - C2-001 context semantics unit coverage
 
 ---
 
@@ -95,3 +96,5 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
    - deterministic continuation fallback metadata,
    - request-correlated context semantics telemetry.
    - Evidence doc: `SDD 120`
+7. Executed `C2-001` unit-level semantics branch coverage.
+   - Evidence doc: `SDD 121`

@@ -82,6 +82,7 @@ Contract guarantees:
 
 1. `src/gateway/openresponses-http.e2e.test.ts` - continuation/fallback assertions for `previous_response_id`; rejection assertions for `reasoning`, `context_management.compaction`, `truncation`.
 2. `src/gateway/openresponses-parity.e2e.test.ts` - parity suite remains green.
+3. `src/gateway/openresponses-http.context-semantics.test.ts` - unit coverage for compatibility/rejection branches.
 
 ---
 
