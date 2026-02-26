@@ -151,6 +151,55 @@ describe("OpenResponses HTTP API (e2e)", () => {
       );
       await ensureResponseConsumed(resMissingModel);
 
+      agentCommand.mockReset();
+      const resPrevResponseId = await postResponses(port, {
+        model: "openclaw",
+        input: "hi",
+        previous_response_id: "resp_123",
+      });
+      expect(resPrevResponseId.status).toBe(400);
+      const prevResponseIdJson = (await resPrevResponseId.json()) as Record<string, unknown>;
+      const prevResponseIdError =
+        (prevResponseIdJson.error as Record<string, unknown> | undefined) ?? {};
+      const prevResponseIdMessage =
+        typeof prevResponseIdError.message === "string" ? prevResponseIdError.message : "";
+      expect(prevResponseIdError.type).toBe("invalid_request_error");
+      expect(prevResponseIdMessage).toContain("previous_response_id");
+      expect(agentCommand).not.toHaveBeenCalled();
+      await ensureResponseConsumed(resPrevResponseId);
+
+      agentCommand.mockReset();
+      const resReasoning = await postResponses(port, {
+        model: "openclaw",
+        input: "hi",
+        reasoning: { effort: "low" },
+      });
+      expect(resReasoning.status).toBe(400);
+      const reasoningJson = (await resReasoning.json()) as Record<string, unknown>;
+      const reasoningError = (reasoningJson.error as Record<string, unknown> | undefined) ?? {};
+      const reasoningMessage =
+        typeof reasoningError.message === "string" ? reasoningError.message : "";
+      expect(reasoningError.type).toBe("invalid_request_error");
+      expect(reasoningMessage).toContain("reasoning");
+      expect(agentCommand).not.toHaveBeenCalled();
+      await ensureResponseConsumed(resReasoning);
+
+      agentCommand.mockReset();
+      const resTruncation = await postResponses(port, {
+        model: "openclaw",
+        input: "hi",
+        truncation: "auto",
+      });
+      expect(resTruncation.status).toBe(400);
+      const truncationJson = (await resTruncation.json()) as Record<string, unknown>;
+      const truncationError = (truncationJson.error as Record<string, unknown> | undefined) ?? {};
+      const truncationMessage =
+        typeof truncationError.message === "string" ? truncationError.message : "";
+      expect(truncationError.type).toBe("invalid_request_error");
+      expect(truncationMessage).toContain("truncation");
+      expect(agentCommand).not.toHaveBeenCalled();
+      await ensureResponseConsumed(resTruncation);
+
       mockAgentOnce([{ text: "hello" }]);
       const resHeader = await postResponses(
         port,

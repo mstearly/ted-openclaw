@@ -130,6 +130,37 @@ function extractClientTools(body: CreateResponseBody): ClientToolDefinition[] {
   return (body.tools ?? []) as ClientToolDefinition[];
 }
 
+type UnsupportedContextSemantic = {
+  field: "previous_response_id" | "reasoning" | "truncation";
+  reason: string;
+};
+
+function getUnsupportedContextSemantics(payload: CreateResponseBody): UnsupportedContextSemantic[] {
+  const unsupported: UnsupportedContextSemantic[] = [];
+  if (typeof payload.previous_response_id === "string" && payload.previous_response_id.length > 0) {
+    unsupported.push({
+      field: "previous_response_id",
+      reason:
+        "continuation by response id is not implemented in gateway mode yet; resend required context in `input`.",
+    });
+  }
+  if (payload.reasoning) {
+    unsupported.push({
+      field: "reasoning",
+      reason:
+        "reasoning controls are not implemented in gateway mode yet; remove `reasoning` for now.",
+    });
+  }
+  if (payload.truncation) {
+    unsupported.push({
+      field: "truncation",
+      reason:
+        "truncation controls are not implemented in gateway mode yet; remove `truncation` for now.",
+    });
+  }
+  return unsupported;
+}
+
 function applyToolChoice(params: {
   tools: ClientToolDefinition[];
   toolChoice: CreateResponseBody["tool_choice"];
@@ -365,6 +396,18 @@ export async function handleOpenResponsesHttpRequest(
   }
 
   const payload: CreateResponseBody = parseResult.data;
+  const unsupportedContextSemantics = getUnsupportedContextSemantics(payload);
+  if (unsupportedContextSemantics.length > 0) {
+    sendJson(res, 400, {
+      error: {
+        message: `Unsupported context semantics: ${unsupportedContextSemantics.map((item) => item.field).join(", ")}`,
+        type: "invalid_request_error",
+        details: unsupportedContextSemantics,
+      },
+    });
+    return true;
+  }
+
   const stream = Boolean(payload.stream);
   const model = payload.model;
   const user = payload.user;
