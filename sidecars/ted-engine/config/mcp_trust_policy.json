@@ -1,0 +1,9 @@
+{
+  "_config_version": 1,
+  "default_server_trust_tier": "sandboxed",
+  "default_tool_action": "read_only",
+  "trust_tiers": ["sandboxed", "trusted_read", "trusted_write"],
+  "tool_actions": ["read_only", "approval_required", "deny"],
+  "servers": {},
+  "tool_policies": {}
+}

@@ -76,6 +76,31 @@
       "required_fields": ["total_calls", "unique_tools_used", "most_used", "least_used", "tools"],
       "content_type": "application/json"
     },
+    "GET /ops/mcp/external/servers": {
+      "status_codes": [200],
+      "required_fields": ["servers", "total_count", "cache_ttl_ms"],
+      "content_type": "application/json"
+    },
+    "POST /ops/mcp/external/servers/upsert": {
+      "status_codes": [200, 400, 403],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/mcp/external/servers/remove": {
+      "status_codes": [200, 400, 403, 404],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/mcp/external/servers/test": {
+      "status_codes": [200, 400, 404, 502],
+      "required_fields": ["ok", "server_id"],
+      "content_type": "application/json"
+    },
+    "POST /ops/mcp/external/servers/tools/list": {
+      "status_codes": [200, 400],
+      "required_fields": ["tools", "total_count", "errors"],
+      "content_type": "application/json"
+    },
     "GET /ops/llm-provider": {
       "status_codes": [200, 500],
       "required_fields": ["default_provider", "providers"],
@@ -84,6 +109,112 @@
     "POST /ops/llm-provider": {
       "status_codes": [200, 400, 500],
       "required_fields": ["updated", "default_provider"],
+      "content_type": "application/json"
+    },
+    "GET /ops/llm-routing-policy": {
+      "status_codes": [200],
+      "required_fields": [
+        "fallback_order",
+        "per_intent",
+        "per_job",
+        "provider_models",
+        "constraints"
+      ],
+      "content_type": "application/json"
+    },
+    "POST /ops/llm-routing-policy": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/llm-provider/test": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "provider", "latency_ms"],
+      "content_type": "application/json"
+    },
+    "GET /ops/workflows": {
+      "status_codes": [200],
+      "required_fields": ["workflows", "total_count", "run_count"],
+      "content_type": "application/json"
+    },
+    "POST /ops/workflows": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok"],
+      "content_type": "application/json"
+    },
+    "POST /ops/workflows/run": {
+      "status_codes": [200, 400, 404],
+      "required_fields": ["run_id", "workflow_id", "status", "steps"],
+      "content_type": "application/json"
+    },
+    "GET /ops/workflows/runs": {
+      "status_codes": [200],
+      "required_fields": ["runs", "total_count"],
+      "content_type": "application/json"
+    },
+    "GET /ops/memory/preferences": {
+      "status_codes": [200],
+      "required_fields": ["preferences", "total_count"],
+      "content_type": "application/json"
+    },
+    "POST /ops/memory/preferences/upsert": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "memory_key", "scope"],
+      "content_type": "application/json"
+    },
+    "POST /ops/memory/preferences/forget": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "forgotten", "scope"],
+      "content_type": "application/json"
+    },
+    "GET /ops/memory/preferences/export": {
+      "status_codes": [200, 403],
+      "required_fields": ["preferences", "total_count"],
+      "content_type": "application/json"
+    },
+    "GET /ops/mcp/trust-policy": {
+      "status_codes": [200],
+      "required_fields": [
+        "default_server_trust_tier",
+        "default_tool_action",
+        "servers",
+        "tool_policies"
+      ],
+      "content_type": "application/json"
+    },
+    "POST /ops/mcp/trust-policy": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "servers", "tool_policies"],
+      "content_type": "application/json"
+    },
+    "POST /ops/mcp/tool-policy": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "tool_alias", "action"],
+      "content_type": "application/json"
+    },
+    "GET /ops/graph/delta/status": {
+      "status_codes": [200],
+      "required_fields": ["strategy", "entries", "total_count"],
+      "content_type": "application/json"
+    },
+    "POST /ops/graph/delta/run": {
+      "status_codes": [200, 400, 409, 502],
+      "required_fields": ["ok", "profile_id", "workload", "value_count"],
+      "content_type": "application/json"
+    },
+    "GET /ops/evaluation/matrix": {
+      "status_codes": [200],
+      "required_fields": ["enabled", "thresholds", "slices", "recent_runs"],
+      "content_type": "application/json"
+    },
+    "POST /ops/evaluation/matrix": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "slices"],
+      "content_type": "application/json"
+    },
+    "POST /ops/evaluation/matrix/run": {
+      "status_codes": [200, 400, 409],
+      "required_fields": ["total_slices", "passed_slices", "pass_rate", "results"],
       "content_type": "application/json"
     },
     "POST /ops/ingestion/run": {

@@ -1,0 +1,16 @@
+{
+  "_config_version": 1,
+  "mode": "delta_preferred",
+  "fallback_mode": "polling",
+  "delta": {
+    "mail": true,
+    "calendar": true,
+    "planner": true,
+    "todo": true
+  },
+  "webhook": {
+    "enabled": false,
+    "public_base_url": "",
+    "validation_token_required": true
+  }
+}

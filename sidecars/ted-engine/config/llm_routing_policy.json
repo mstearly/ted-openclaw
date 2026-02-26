@@ -1,0 +1,23 @@
+{
+  "_config_version": 1,
+  "default_provider": "openai_direct",
+  "default_model": "gpt-4o",
+  "fallback_order": ["openai_direct", "anthropic_direct", "openai_compatible", "azure_openai"],
+  "per_intent": {
+    "morning_brief": { "provider": "openai_direct", "model": "gpt-4o" },
+    "draft_email": { "provider": "openai_compatible", "model": "qwen2.5:14b-instruct" },
+    "research": { "provider": "anthropic_direct", "model": "claude-3-7-sonnet-latest" }
+  },
+  "per_job": {},
+  "provider_models": {
+    "openai_direct": ["gpt-4o", "gpt-4.1-mini"],
+    "azure_openai": ["gpt-4o"],
+    "anthropic_direct": ["claude-3-7-sonnet-latest", "claude-3-5-sonnet-latest"],
+    "openai_compatible": ["qwen2.5:14b-instruct", "llama3.1:8b-instruct"]
+  },
+  "constraints": {
+    "enforce_entity_hipaa": true,
+    "deny_unlisted_provider": true,
+    "max_timeout_ms": 20000
+  }
+}

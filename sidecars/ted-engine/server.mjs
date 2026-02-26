@@ -124,6 +124,13 @@ const notificationBudgetConfigPath = path.join(__dirname, "config", "notificatio
 const onboardingRampConfigPath = path.join(__dirname, "config", "onboarding_ramp.json");
 const planningPreferencesConfigPath = path.join(__dirname, "config", "planning_preferences.json");
 const paraRulesConfigPath = path.join(__dirname, "config", "para_rules.json");
+const externalMcpConfigPath = path.join(__dirname, "config", "external_mcp_servers.json");
+const llmRoutingPolicyConfigPath = path.join(__dirname, "config", "llm_routing_policy.json");
+const workflowRegistryConfigPath = path.join(__dirname, "config", "workflow_registry.json");
+const memoryPolicyConfigPath = path.join(__dirname, "config", "memory_policy.json");
+const mcpTrustPolicyConfigPath = path.join(__dirname, "config", "mcp_trust_policy.json");
+const evalMatrixConfigPath = path.join(__dirname, "config", "eval_matrix.json");
+const graphSyncStrategyConfigPath = path.join(__dirname, "config", "graph_sync_strategy.json");
 const outputContractsConfigPath = path.join(__dirname, "config", "output_contracts.json");
 const evaluationGradersConfigPath = path.join(__dirname, "config", "evaluation_graders.json");
 const syntheticCanariesConfigPath = path.join(__dirname, "config", "synthetic_canaries.json");
@@ -177,6 +184,16 @@ const todoDir = path.join(artifactsDir, "todo");
 const todoLedgerPath = path.join(todoDir, "todo.jsonl");
 const syncDir = path.join(artifactsDir, "sync");
 const syncLedgerPath = path.join(syncDir, "sync_proposals.jsonl");
+const externalMcpDir = path.join(artifactsDir, "external_mcp");
+const externalMcpLedgerPath = path.join(externalMcpDir, "external_mcp.jsonl");
+const workflowRunsDir = path.join(artifactsDir, "workflows");
+const workflowRunsPath = path.join(workflowRunsDir, "workflow_runs.jsonl");
+const memoryDir = path.join(artifactsDir, "memory");
+const memoryLedgerPath = path.join(memoryDir, "preferences.jsonl");
+const graphDeltaDir = path.join(artifactsDir, "graph_delta");
+const graphDeltaCursorPath = path.join(graphDeltaDir, "delta_cursors.jsonl");
+const evalMatrixDir = path.join(artifactsDir, "evaluation_matrix");
+const evalMatrixRunsPath = path.join(evalMatrixDir, "matrix_runs.jsonl");
 // Codex Builder Lane — improvement proposals + learning
 const improvementDir = path.join(artifactsDir, "improvement");
 const improvementLedgerPath = path.join(improvementDir, "proposals.jsonl");
@@ -200,6 +217,11 @@ fs.mkdirSync(facilityDir, { recursive: true });
 fs.mkdirSync(plannerDir, { recursive: true });
 fs.mkdirSync(todoDir, { recursive: true });
 fs.mkdirSync(syncDir, { recursive: true });
+fs.mkdirSync(externalMcpDir, { recursive: true });
+fs.mkdirSync(workflowRunsDir, { recursive: true });
+fs.mkdirSync(memoryDir, { recursive: true });
+fs.mkdirSync(graphDeltaDir, { recursive: true });
+fs.mkdirSync(evalMatrixDir, { recursive: true });
 if (!fs.existsSync(improvementDir)) {
   fs.mkdirSync(improvementDir, { recursive: true });
 }
@@ -238,6 +260,9 @@ const intakeDir = path.join(artifactsDir, "intake");
 const intakeLedgerPath = path.join(intakeDir, "intake_cards.jsonl");
 fs.mkdirSync(intakeDir, { recursive: true });
 const graphLastErrorByProfile = new Map();
+const _externalMcpToolsCache = new Map();
+const EXTERNAL_MCP_TOOLS_CACHE_TTL_MS = 30 * 1000;
+const DEFAULT_EXTERNAL_MCP_TIMEOUT_MS = 8000;
 
 // Ops state persisted to ops_ledger (JC-087d) — replay on startup
 function replayOpsState() {
@@ -310,6 +335,13 @@ const MONITORED_CONFIGS = [
   "urgency_rules.json",
   "operator_profile.json",
   "builder_lane_config.json",
+  "external_mcp_servers.json",
+  "llm_routing_policy.json",
+  "workflow_registry.json",
+  "memory_policy.json",
+  "mcp_trust_policy.json",
+  "eval_matrix.json",
+  "graph_sync_strategy.json",
 ];
 
 function hashConfigFile(filePath) {
@@ -1039,6 +1071,11 @@ function validateStartupIntegrity() {
     plannerLedgerPath,
     todoLedgerPath,
     syncLedgerPath,
+    externalMcpLedgerPath,
+    workflowRunsPath,
+    memoryLedgerPath,
+    graphDeltaCursorPath,
+    evalMatrixRunsPath,
     improvementLedgerPath,
     meetingsPrepPath,
     meetingsDebriefPath,
@@ -1080,6 +1117,13 @@ function validateStartupIntegrity() {
     operatorProfileConfigPath,
     graphProfilesConfigPath,
     llmProviderConfigPath,
+    externalMcpConfigPath,
+    llmRoutingPolicyConfigPath,
+    workflowRegistryConfigPath,
+    memoryPolicyConfigPath,
+    mcpTrustPolicyConfigPath,
+    evalMatrixConfigPath,
+    graphSyncStrategyConfigPath,
     hardBansConfigPath,
     briefConfigPath,
     urgencyRulesConfigPath,
@@ -1674,6 +1718,26 @@ executionBoundaryPolicy.set("/intake/create", "APPROVAL_FIRST");
 executionBoundaryPolicy.set("/ops/trust/reset", "APPROVAL_FIRST");
 // Sprint 1 (SDD 72): Tool usage telemetry
 executionBoundaryPolicy.set("/ops/tool-usage", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers/upsert", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers/remove", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers/test", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers/tools/list", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/trust-policy", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/tool-policy", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/llm-routing-policy", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/llm-provider/test", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/workflows", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/workflows/run", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/workflows/runs", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/memory/preferences", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/memory/preferences/upsert", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/memory/preferences/forget", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/memory/preferences/export", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/graph/delta/status", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/graph/delta/run", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/evaluation/matrix", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/evaluation/matrix/run", "WORKFLOW_ONLY");
 // Sprint 2 (SDD 72): Evaluation pipeline
 executionBoundaryPolicy.set("/ops/evaluation/status", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/evaluation/run", "WORKFLOW_ONLY");
@@ -4889,6 +4953,602 @@ function _getParaRules() {
   return readConfigFile(paraRulesConfigPath);
 }
 
+function writeConfigFileAtomic(filePath, payload) {
+  const tempPath = `${filePath}.tmp.${Date.now()}`;
+  ensureDirectory(path.dirname(filePath));
+  fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.renameSync(tempPath, filePath);
+}
+
+function getLlmRoutingPolicy() {
+  const fallback = {
+    _config_version: 1,
+    default_provider: "openai_direct",
+    default_model: "gpt-4o",
+    fallback_order: ["openai_direct", "anthropic_direct", "openai_compatible", "azure_openai"],
+    per_intent: {},
+    per_job: {},
+    provider_models: {},
+    constraints: {
+      enforce_entity_hipaa: true,
+      deny_unlisted_provider: true,
+      max_timeout_ms: 20000,
+    },
+  };
+  const cfg = readConfigFile(llmRoutingPolicyConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+  return {
+    ...fallback,
+    ...cfg,
+    per_intent: cfg.per_intent && typeof cfg.per_intent === "object" ? cfg.per_intent : {},
+    per_job: cfg.per_job && typeof cfg.per_job === "object" ? cfg.per_job : {},
+    provider_models:
+      cfg.provider_models && typeof cfg.provider_models === "object" ? cfg.provider_models : {},
+    constraints:
+      cfg.constraints && typeof cfg.constraints === "object"
+        ? { ...fallback.constraints, ...cfg.constraints }
+        : fallback.constraints,
+    fallback_order: Array.isArray(cfg.fallback_order)
+      ? cfg.fallback_order.filter((p) => typeof p === "string" && p.trim())
+      : fallback.fallback_order,
+  };
+}
+
+function writeLlmRoutingPolicy(nextCfg) {
+  writeConfigFileAtomic(llmRoutingPolicyConfigPath, {
+    ...getLlmRoutingPolicy(),
+    ...(nextCfg && typeof nextCfg === "object" ? nextCfg : {}),
+  });
+}
+
+function getWorkflowRegistryConfig() {
+  const fallback = { _config_version: 1, workflows: [] };
+  const cfg = readConfigFile(workflowRegistryConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+  return {
+    ...fallback,
+    ...cfg,
+    workflows: Array.isArray(cfg.workflows) ? cfg.workflows : [],
+  };
+}
+
+function writeWorkflowRegistryConfig(nextCfg) {
+  writeConfigFileAtomic(workflowRegistryConfigPath, {
+    ...getWorkflowRegistryConfig(),
+    ...(nextCfg && typeof nextCfg === "object" ? nextCfg : {}),
+  });
+}
+
+function getMemoryPolicy() {
+  const fallback = {
+    _config_version: 1,
+    default_ttl_days: 180,
+    max_records_per_entity: 5000,
+    allow_export: true,
+    allow_forget: true,
+    scopes: ["operator_preference", "workflow_preference", "style_preference"],
+    require_provenance: true,
+  };
+  const cfg = readConfigFile(memoryPolicyConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+  return {
+    ...fallback,
+    ...cfg,
+    scopes: Array.isArray(cfg.scopes) ? cfg.scopes.filter((s) => typeof s === "string") : [],
+  };
+}
+
+function getMcpTrustPolicy() {
+  const fallback = {
+    _config_version: 1,
+    default_server_trust_tier: "sandboxed",
+    default_tool_action: "read_only",
+    trust_tiers: ["sandboxed", "trusted_read", "trusted_write"],
+    tool_actions: ["read_only", "approval_required", "deny"],
+    servers: {},
+    tool_policies: {},
+  };
+  const cfg = readConfigFile(mcpTrustPolicyConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+  return {
+    ...fallback,
+    ...cfg,
+    servers: cfg.servers && typeof cfg.servers === "object" ? cfg.servers : {},
+    tool_policies:
+      cfg.tool_policies && typeof cfg.tool_policies === "object" ? cfg.tool_policies : {},
+  };
+}
+
+function writeMcpTrustPolicy(nextCfg) {
+  writeConfigFileAtomic(mcpTrustPolicyConfigPath, {
+    ...getMcpTrustPolicy(),
+    ...(nextCfg && typeof nextCfg === "object" ? nextCfg : {}),
+  });
+}
+
+function getEvalMatrixConfig() {
+  const fallback = {
+    _config_version: 1,
+    enabled: true,
+    thresholds: {
+      min_pass_rate: 0.85,
+      max_p95_latency_ms: 12000,
+      max_cost_usd_per_run: 2.5,
+    },
+    slices: [],
+  };
+  const cfg = readConfigFile(evalMatrixConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+  return {
+    ...fallback,
+    ...cfg,
+    thresholds:
+      cfg.thresholds && typeof cfg.thresholds === "object"
+        ? { ...fallback.thresholds, ...cfg.thresholds }
+        : fallback.thresholds,
+    slices: Array.isArray(cfg.slices) ? cfg.slices : [],
+  };
+}
+
+function writeEvalMatrixConfig(nextCfg) {
+  writeConfigFileAtomic(evalMatrixConfigPath, {
+    ...getEvalMatrixConfig(),
+    ...(nextCfg && typeof nextCfg === "object" ? nextCfg : {}),
+  });
+}
+
+function getGraphSyncStrategyConfig() {
+  const fallback = {
+    _config_version: 1,
+    mode: "delta_preferred",
+    fallback_mode: "polling",
+    delta: { mail: true, calendar: true, planner: true, todo: true },
+    webhook: { enabled: false, public_base_url: "", validation_token_required: true },
+  };
+  const cfg = readConfigFile(graphSyncStrategyConfigPath);
+  if (!cfg || typeof cfg !== "object") {
+    return fallback;
+  }
+  return {
+    ...fallback,
+    ...cfg,
+    delta:
+      cfg.delta && typeof cfg.delta === "object"
+        ? { ...fallback.delta, ...cfg.delta }
+        : fallback.delta,
+    webhook:
+      cfg.webhook && typeof cfg.webhook === "object"
+        ? { ...fallback.webhook, ...cfg.webhook }
+        : fallback.webhook,
+  };
+}
+
+function uniqueStringList(raw, maxItems = 512) {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out = [];
+  const seen = new Set();
+  for (const value of raw) {
+    if (typeof value !== "string") {
+      continue;
+    }
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) {
+      continue;
+    }
+    seen.add(trimmed);
+    out.push(trimmed);
+    if (out.length >= maxItems) {
+      break;
+    }
+  }
+  return out;
+}
+
+function normalizeExternalMcpServerConfig(serverId, rawServer) {
+  if (!isSlugSafe(serverId)) {
+    return null;
+  }
+  if (!rawServer || typeof rawServer !== "object" || Array.isArray(rawServer)) {
+    return null;
+  }
+  const urlRaw = typeof rawServer.url === "string" ? rawServer.url.trim() : "";
+  if (!urlRaw) {
+    return null;
+  }
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(urlRaw);
+  } catch {
+    return null;
+  }
+  if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+    return null;
+  }
+
+  const timeoutRaw = Number.parseInt(String(rawServer.timeout_ms || ""), 10);
+  const timeoutMs =
+    Number.isFinite(timeoutRaw) && timeoutRaw >= 1000 && timeoutRaw <= 60000
+      ? timeoutRaw
+      : DEFAULT_EXTERNAL_MCP_TIMEOUT_MS;
+
+  const authTokenEnv =
+    typeof rawServer.auth_token_env === "string" ? rawServer.auth_token_env.trim() : "";
+  const authHeaderName =
+    typeof rawServer.auth_header_name === "string" ? rawServer.auth_header_name.trim() : "";
+  const description = typeof rawServer.description === "string" ? rawServer.description.trim() : "";
+  const trustTierRaw =
+    typeof rawServer.trust_tier === "string" ? rawServer.trust_tier.trim().toLowerCase() : "";
+  const trustTier =
+    trustTierRaw === "trusted_read" || trustTierRaw === "trusted_write"
+      ? trustTierRaw
+      : "sandboxed";
+
+  return {
+    server_id: serverId,
+    enabled: rawServer.enabled !== false,
+    transport: "http",
+    url: parsedUrl.toString(),
+    timeout_ms: timeoutMs,
+    auth_token_env: authTokenEnv || undefined,
+    auth_header_name: authHeaderName || undefined,
+    description: description || undefined,
+    trust_tier: trustTier,
+    allow_tools: uniqueStringList(rawServer.allow_tools),
+    deny_tools: uniqueStringList(rawServer.deny_tools),
+  };
+}
+
+function getExternalMcpConfig() {
+  const raw = readConfigFile(externalMcpConfigPath);
+  const rawServers =
+    raw && typeof raw === "object" && raw.servers && typeof raw.servers === "object"
+      ? raw.servers
+      : {};
+  const servers = {};
+  for (const [serverId, serverCfg] of Object.entries(rawServers)) {
+    const normalized = normalizeExternalMcpServerConfig(serverId, serverCfg);
+    if (!normalized) {
+      continue;
+    }
+    servers[serverId] = normalized;
+  }
+  return { _config_version: 1, servers };
+}
+
+function writeExternalMcpConfig(nextConfig) {
+  const payload = { _config_version: 1, servers: {} };
+  const inputServers =
+    nextConfig && typeof nextConfig === "object" && nextConfig.servers ? nextConfig.servers : {};
+  for (const [serverId, serverCfg] of Object.entries(inputServers)) {
+    const normalized = normalizeExternalMcpServerConfig(serverId, serverCfg);
+    if (!normalized) {
+      continue;
+    }
+    payload.servers[serverId] = {
+      enabled: normalized.enabled,
+      transport: "http",
+      url: normalized.url,
+      timeout_ms: normalized.timeout_ms,
+      auth_token_env: normalized.auth_token_env || undefined,
+      auth_header_name: normalized.auth_header_name || undefined,
+      description: normalized.description || undefined,
+      trust_tier: normalized.trust_tier || "sandboxed",
+      allow_tools: normalized.allow_tools || [],
+      deny_tools: normalized.deny_tools || [],
+    };
+  }
+  ensureDirectory(path.dirname(externalMcpConfigPath));
+  const tempPath = `${externalMcpConfigPath}.tmp.${Date.now()}`;
+  fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  fs.renameSync(tempPath, externalMcpConfigPath);
+}
+
+function getExternalMcpServer(serverId) {
+  const cfg = getExternalMcpConfig();
+  return cfg.servers[serverId] || null;
+}
+
+function isExternalMcpToolAllowed(server, toolName) {
+  if (!server || typeof server !== "object") {
+    return false;
+  }
+  const allowList = Array.isArray(server.allow_tools) ? server.allow_tools : [];
+  const denyList = Array.isArray(server.deny_tools) ? server.deny_tools : [];
+  if (allowList.length > 0 && !allowList.includes(toolName)) {
+    return false;
+  }
+  if (denyList.includes(toolName)) {
+    return false;
+  }
+  return true;
+}
+
+function externalMcpToolAlias(serverId, remoteToolName) {
+  if (/^[A-Za-z0-9_-]+$/.test(remoteToolName)) {
+    return `ext_${serverId}__${remoteToolName}`;
+  }
+  return `ext_${serverId}__b64_${Buffer.from(remoteToolName, "utf8").toString("base64url")}`;
+}
+
+function parseExternalMcpToolAlias(toolName) {
+  if (typeof toolName !== "string" || !toolName.startsWith("ext_")) {
+    return null;
+  }
+  const separatorIdx = toolName.indexOf("__", 4);
+  if (separatorIdx < 0) {
+    return null;
+  }
+  const serverId = toolName.slice(4, separatorIdx).trim();
+  const encoded = toolName.slice(separatorIdx + 2).trim();
+  if (!serverId || !isSlugSafe(serverId) || !encoded) {
+    return null;
+  }
+  if (encoded.startsWith("b64_")) {
+    try {
+      return {
+        server_id: serverId,
+        remote_tool_name: Buffer.from(encoded.slice(4), "base64url").toString("utf8"),
+      };
+    } catch {
+      return null;
+    }
+  }
+  return { server_id: serverId, remote_tool_name: encoded };
+}
+
+function resolveExternalMcpToolPolicy(serverId, toolAlias) {
+  const policy = getMcpTrustPolicy();
+  const serverPolicy =
+    policy.servers && typeof policy.servers === "object" ? policy.servers[serverId] || {} : {};
+  const trustTier =
+    typeof serverPolicy.trust_tier === "string" && serverPolicy.trust_tier.trim().length > 0
+      ? serverPolicy.trust_tier
+      : policy.default_server_trust_tier || "sandboxed";
+  const toolAction =
+    policy.tool_policies && typeof policy.tool_policies === "object"
+      ? policy.tool_policies[toolAlias] || policy.default_tool_action || "read_only"
+      : policy.default_tool_action || "read_only";
+  return { trust_tier: trustTier, tool_action: toolAction };
+}
+
+function buildExternalMcpHeaders(server) {
+  const headers = { "content-type": "application/json", "x-ted-mcp-proxy-hop": "1" };
+  const tokenEnv = typeof server.auth_token_env === "string" ? server.auth_token_env.trim() : "";
+  if (!tokenEnv) {
+    return headers;
+  }
+  const tokenValue = process.env[tokenEnv];
+  if (typeof tokenValue !== "string" || tokenValue.trim().length === 0) {
+    return headers;
+  }
+  const headerNameRaw =
+    typeof server.auth_header_name === "string" && server.auth_header_name.trim().length > 0
+      ? server.auth_header_name.trim()
+      : "authorization";
+  const isAuthorization = headerNameRaw.toLowerCase() === "authorization";
+  const tokenTrimmed = tokenValue.trim();
+  headers[headerNameRaw] =
+    isAuthorization && !/^bearer\s+/i.test(tokenTrimmed) ? `Bearer ${tokenTrimmed}` : tokenTrimmed;
+  return headers;
+}
+
+async function callExternalMcpRpc(server, rpcMethod, rpcParams) {
+  const timeoutMs =
+    Number.isFinite(server.timeout_ms) && server.timeout_ms >= 1000
+      ? server.timeout_ms
+      : DEFAULT_EXTERNAL_MCP_TIMEOUT_MS;
+  const controller = new AbortController();
+  const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+  const requestPayload = {
+    jsonrpc: "2.0",
+    id: `ted-ext-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`,
+    method: rpcMethod,
+    params: rpcParams && typeof rpcParams === "object" ? rpcParams : {},
+  };
+
+  try {
+    const response = await fetch(server.url, {
+      method: "POST",
+      headers: buildExternalMcpHeaders(server),
+      body: JSON.stringify(requestPayload),
+      signal: controller.signal,
+    });
+    const bodyText = await response.text();
+    let parsedBody;
+    try {
+      parsedBody = bodyText ? JSON.parse(bodyText) : {};
+    } catch {
+      parsedBody = {};
+    }
+    if (!response.ok) {
+      throw new Error(`external_mcp_http_${response.status}`);
+    }
+    if (parsedBody && typeof parsedBody === "object" && parsedBody.error) {
+      const errMessage =
+        typeof parsedBody.error.message === "string"
+          ? parsedBody.error.message
+          : "external_mcp_rpc_error";
+      throw new Error(errMessage);
+    }
+    if (!parsedBody || typeof parsedBody !== "object" || !("result" in parsedBody)) {
+      throw new Error("external_mcp_invalid_response");
+    }
+    return parsedBody.result;
+  } catch (err) {
+    if (err?.name === "AbortError") {
+      throw new Error(`external_mcp_timeout_${timeoutMs}ms`, { cause: err });
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
+}
+
+function normalizeExternalToolDefs(serverId, server, rpcResult) {
+  const rawTools =
+    rpcResult && typeof rpcResult === "object" && Array.isArray(rpcResult.tools)
+      ? rpcResult.tools
+      : [];
+  const out = [];
+  for (const tool of rawTools) {
+    if (!tool || typeof tool !== "object") {
+      continue;
+    }
+    const remoteToolName = typeof tool.name === "string" ? tool.name.trim() : "";
+    if (!remoteToolName || !isExternalMcpToolAllowed(server, remoteToolName)) {
+      continue;
+    }
+    const inputSchema =
+      tool.inputSchema && typeof tool.inputSchema === "object"
+        ? tool.inputSchema
+        : { type: "object", properties: {}, required: [] };
+    const description =
+      typeof tool.description === "string" && tool.description.trim().length > 0
+        ? tool.description.trim()
+        : `External MCP tool (${serverId}): ${remoteToolName}`;
+    out.push({
+      name: externalMcpToolAlias(serverId, remoteToolName),
+      remote_tool_name: remoteToolName,
+      server_id: serverId,
+      description,
+      inputSchema,
+    });
+  }
+  return out;
+}
+
+async function getExternalToolDefsForServer(serverId, server, options = {}) {
+  const refresh = options.refresh === true;
+  const cache = _externalMcpToolsCache.get(serverId);
+  const now = Date.now();
+  if (
+    !refresh &&
+    cache &&
+    Number.isFinite(cache.fetched_at_ms) &&
+    now - cache.fetched_at_ms < EXTERNAL_MCP_TOOLS_CACHE_TTL_MS
+  ) {
+    return { tools: cache.tools, source: "cache", stale: false };
+  }
+  try {
+    const result = await callExternalMcpRpc(server, "tools/list", {});
+    const normalized = normalizeExternalToolDefs(serverId, server, result);
+    _externalMcpToolsCache.set(serverId, { fetched_at_ms: now, tools: normalized });
+    return { tools: normalized, source: "live", stale: false };
+  } catch (err) {
+    if (cache && Array.isArray(cache.tools)) {
+      return {
+        tools: cache.tools,
+        source: "cache",
+        stale: true,
+        error: err?.message || String(err),
+      };
+    }
+    throw err;
+  }
+}
+
+async function listExternalMcpTools(options = {}) {
+  const refresh = options.refresh === true;
+  const onlyServerId = typeof options.server_id === "string" ? options.server_id.trim() : "";
+  const cfg = getExternalMcpConfig();
+  const entries = Object.entries(cfg.servers)
+    .filter(([id, server]) => server.enabled !== false && (!onlyServerId || id === onlyServerId))
+    .toSorted(([a], [b]) => a.localeCompare(b));
+  const tools = [];
+  const errors = [];
+
+  await Promise.all(
+    entries.map(async ([serverId, server]) => {
+      try {
+        const fetched = await getExternalToolDefsForServer(serverId, server, { refresh });
+        tools.push(...fetched.tools);
+        if (fetched.stale) {
+          errors.push({
+            server_id: serverId,
+            error: fetched.error || "external_mcp_stale_cache_used",
+            source: "cache",
+          });
+        }
+      } catch (err) {
+        errors.push({ server_id: serverId, error: err?.message || String(err), source: "live" });
+      }
+    }),
+  );
+
+  return { tools, errors };
+}
+
+async function callExternalMcpTool(toolAlias, toolArgs, options = {}) {
+  const parsedAlias = parseExternalMcpToolAlias(toolAlias);
+  if (!parsedAlias) {
+    throw new Error("external_mcp_tool_alias_invalid");
+  }
+  const server = getExternalMcpServer(parsedAlias.server_id);
+  if (!server || server.enabled === false) {
+    throw new Error("external_mcp_server_not_enabled");
+  }
+  if (!isExternalMcpToolAllowed(server, parsedAlias.remote_tool_name)) {
+    throw new Error("external_mcp_tool_not_allowed");
+  }
+  const policy = resolveExternalMcpToolPolicy(parsedAlias.server_id, toolAlias);
+  if (policy.tool_action === "deny") {
+    throw new Error("external_mcp_tool_denied_by_policy");
+  }
+  if (policy.trust_tier === "sandboxed" && policy.tool_action !== "read_only") {
+    throw new Error("external_mcp_tool_sandboxed_non_read_blocked");
+  }
+  const approvalSource = options?.approval_source;
+  if (policy.tool_action === "approval_required" && approvalSource !== "operator") {
+    throw new Error("external_mcp_tool_requires_operator_approval");
+  }
+  return callExternalMcpRpc(server, "tools/call", {
+    name: parsedAlias.remote_tool_name,
+    arguments: toolArgs && typeof toolArgs === "object" ? toolArgs : {},
+  });
+}
+
+function externalMcpServerView(server) {
+  const tokenEnv = server.auth_token_env || null;
+  const tokenConfigured =
+    tokenEnv &&
+    typeof process.env[tokenEnv] === "string" &&
+    process.env[tokenEnv].trim().length > 0;
+  return {
+    server_id: server.server_id,
+    enabled: server.enabled !== false,
+    transport: server.transport || "http",
+    url: server.url,
+    timeout_ms: server.timeout_ms || DEFAULT_EXTERNAL_MCP_TIMEOUT_MS,
+    description: server.description || null,
+    trust_tier: server.trust_tier || "sandboxed",
+    auth_token_env: tokenEnv,
+    auth_token_configured: !!tokenConfigured,
+    allow_tools: server.allow_tools || [],
+    deny_tools: server.deny_tools || [],
+  };
+}
+
+function normalizeMcpToolResult(result) {
+  if (result && typeof result === "object" && Array.isArray(result.content)) {
+    return result;
+  }
+  return {
+    content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+  };
+}
+
 // JC-090b: Configurable output contracts
 const OUTPUT_CONTRACTS_DEFAULTS = {
   morning_brief: {
@@ -5144,6 +5804,63 @@ function getProviderHealthSummary() {
 
 // ─── LLM Provider Infrastructure (JC-070b) ───
 
+function _findEntityOverrideKey(cfg, entityContext) {
+  if (!entityContext) {
+    return null;
+  }
+  return (
+    Object.keys(cfg?.entity_overrides || {}).find(
+      (k) => typeof k === "string" && k.toLowerCase() === entityContext.toLowerCase(),
+    ) || null
+  );
+}
+
+function _providerAllowedForEntity(cfg, providerName, entityContext) {
+  const providerCfg = cfg?.providers?.[providerName];
+  if (!providerCfg?.enabled) {
+    return { ok: false, reason: `provider_disabled: ${providerName}` };
+  }
+  const entityKey = _findEntityOverrideKey(cfg, entityContext);
+  if (entityKey && cfg.entity_overrides?.[entityKey]?.required_hipaa_cleared) {
+    if (!providerCfg.hipaa_cleared) {
+      return {
+        ok: false,
+        reason: `hipaa_required_but_provider_not_cleared: ${providerName}`,
+        entity: entityContext,
+      };
+    }
+  }
+  return { ok: true, config: providerCfg };
+}
+
+function _firstModelForProvider(providerName, providerCfg) {
+  const routing = getLlmRoutingPolicy();
+  const modelList = routing?.provider_models?.[providerName];
+  if (Array.isArray(modelList)) {
+    const first = modelList.find((m) => typeof m === "string" && m.trim().length > 0);
+    if (first) {
+      return first;
+    }
+  }
+  return providerCfg?.model || routing?.default_model || "gpt-4o";
+}
+
+function _extractPolicyRouteRule(jobId) {
+  const routing = getLlmRoutingPolicy();
+  if (!jobId || typeof jobId !== "string") {
+    return null;
+  }
+  const fromJob = routing?.per_job?.[jobId];
+  if (fromJob && typeof fromJob === "object") {
+    return { ...fromJob, source: "policy_per_job" };
+  }
+  const fromIntent = routing?.per_intent?.[jobId];
+  if (fromIntent && typeof fromIntent === "object") {
+    return { ...fromIntent, source: "policy_per_intent" };
+  }
+  return null;
+}
+
 function selectLlmProvider(entityContext, jobId) {
   const cfg = getLlmProviderConfig();
   if (!cfg) {
@@ -5154,9 +5871,14 @@ function selectLlmProvider(entityContext, jobId) {
   if (jobId && cfg.per_job_overrides && cfg.per_job_overrides[jobId]) {
     const override = cfg.per_job_overrides[jobId];
     const providerName = override.provider;
-    const providerCfg = cfg.providers?.[providerName];
-    if (providerCfg?.enabled) {
-      return { provider: providerName, config: providerCfg, reason: "per_job_override" };
+    const providerCheck = _providerAllowedForEntity(cfg, providerName, entityContext);
+    if (providerCheck.ok) {
+      return {
+        provider: providerName,
+        config: providerCheck.config,
+        model: _firstModelForProvider(providerName, providerCheck.config),
+        reason: "per_job_override",
+      };
     }
     return { provider: null, reason: `per_job_override_provider_disabled: ${providerName}` };
   }
@@ -5171,16 +5893,14 @@ function selectLlmProvider(entityContext, jobId) {
     const override = cfg.entity_overrides[entityKey];
     const providerName = override.provider;
     if (providerName) {
-      const providerCfg = cfg.providers?.[providerName];
-      if (providerCfg?.enabled) {
-        if (override.required_hipaa_cleared && !providerCfg.hipaa_cleared) {
-          return {
-            provider: null,
-            reason: `hipaa_required_but_provider_not_cleared: ${providerName}`,
-            entity: entityContext,
-          };
-        }
-        return { provider: providerName, config: providerCfg, reason: "entity_override" };
+      const providerCheck = _providerAllowedForEntity(cfg, providerName, entityContext);
+      if (providerCheck.ok) {
+        return {
+          provider: providerName,
+          config: providerCheck.config,
+          model: _firstModelForProvider(providerName, providerCheck.config),
+          reason: "entity_override",
+        };
       }
       return {
         provider: null,
@@ -5195,28 +5915,48 @@ function selectLlmProvider(entityContext, jobId) {
   if (defaultName === "disabled") {
     return { provider: null, reason: "llm_disabled_by_config" };
   }
-  const defaultCfg = cfg.providers?.[defaultName];
-  if (!defaultCfg?.enabled) {
+  const defaultCheck = _providerAllowedForEntity(cfg, defaultName, entityContext);
+  if (!defaultCheck.ok) {
     return { provider: null, reason: `default_provider_disabled: ${defaultName}` };
   }
 
-  // HIPAA check: if entity requires HIPAA and default provider is not cleared, block
-  if (entityKey && cfg.entity_overrides?.[entityKey]?.required_hipaa_cleared) {
-    if (!defaultCfg.hipaa_cleared) {
-      return {
-        provider: null,
-        reason: `hipaa_required_for_entity_but_default_not_cleared`,
-        entity: entityContext,
-      };
-    }
-  }
-
-  return { provider: defaultName, config: defaultCfg, reason: "default" };
+  return {
+    provider: defaultName,
+    config: defaultCheck.config,
+    model: _firstModelForProvider(defaultName, defaultCheck.config),
+    reason: "default",
+  };
 }
 
 // SH-002: LLM provider fallback wrapper — uses provider health circuit breaker
 function selectLlmProviderWithFallback(entity, intent) {
-  const primary = selectLlmProvider(entity);
+  const llmConfig = getLlmProviderConfig();
+  if (!llmConfig) {
+    return { provider: null, reason: "llm_provider_config_missing" };
+  }
+
+  const policyRoute = _extractPolicyRouteRule(intent);
+  if (policyRoute?.provider) {
+    const providerName = String(policyRoute.provider).trim();
+    const providerCheck = _providerAllowedForEntity(llmConfig, providerName, entity);
+    if (providerCheck.ok) {
+      const model =
+        typeof policyRoute.model === "string" && policyRoute.model.trim().length > 0
+          ? policyRoute.model.trim()
+          : _firstModelForProvider(providerName, providerCheck.config);
+      const selected = {
+        provider: providerName,
+        config: providerCheck.config,
+        model,
+        reason: policyRoute.source || "policy_override",
+      };
+      if (!isProviderCircuitOpen(providerName)) {
+        return { ...selected, isFallback: false };
+      }
+    }
+  }
+
+  const primary = selectLlmProvider(entity, intent);
   if (!primary || !primary.provider) {
     return primary;
   }
@@ -5224,13 +5964,19 @@ function selectLlmProviderWithFallback(entity, intent) {
     return { ...primary, isFallback: false };
   }
   // Primary circuit open — try fallback
-  const llmConfig = getLlmProviderConfig();
-  if (!llmConfig || !llmConfig.providers) {
+  if (!llmConfig.providers) {
     return { ...primary, isFallback: false };
   }
-  const providerEntries = Object.entries(llmConfig.providers);
+  const routing = getLlmRoutingPolicy();
+  const fallbackOrder = Array.isArray(routing.fallback_order)
+    ? routing.fallback_order.filter((name) => typeof name === "string" && name.trim().length > 0)
+    : Object.keys(llmConfig.providers);
+  const providerEntries = fallbackOrder
+    .map((name) => [name, llmConfig.providers?.[name]])
+    .filter(([, cfg]) => !!cfg);
   for (const [pName, pCfg] of providerEntries) {
-    if (pName !== primary.provider && pCfg.enabled && !isProviderCircuitOpen(pName)) {
+    const providerCheck = _providerAllowedForEntity(llmConfig, pName, entity);
+    if (pName !== primary.provider && providerCheck.ok && !isProviderCircuitOpen(pName)) {
       logLine(
         `LLM_FALLBACK: ${primary.provider} circuit open, falling back to ${pName} for intent=${intent}`,
       );
@@ -5240,7 +5986,13 @@ function selectLlmProviderWithFallback(entity, intent) {
         intent,
         reason: "primary_circuit_open",
       });
-      return { provider: pName, config: pCfg, isFallback: true };
+      return {
+        provider: pName,
+        config: providerCheck.config,
+        model: _firstModelForProvider(pName, pCfg),
+        isFallback: true,
+        reason: "policy_fallback",
+      };
     }
   }
   // All circuits open — use primary anyway
@@ -6206,13 +6958,13 @@ function loadPromptFromRegistry(intent) {
   }
 }
 
-async function openaiDirectCall(messages, providerConfig, maxTokens) {
+async function openaiDirectCall(messages, providerConfig, maxTokens, forcedModel) {
   const apiKey = process.env[providerConfig.api_key_env || "OPENAI_API_KEY"] || "";
   if (!apiKey) {
     return { ok: false, error: "api_key_not_set", env_var: providerConfig.api_key_env };
   }
 
-  const model = providerConfig.model || "gpt-4.1";
+  const model = forcedModel || providerConfig.model || "gpt-4.1";
   const endpoint = providerConfig.endpoint || "https://api.openai.com/v1/chat/completions";
   const cfg = getLlmProviderConfig();
   const timeoutMs = cfg?.timeout_ms || 12000;
@@ -6264,14 +7016,14 @@ async function openaiDirectCall(messages, providerConfig, maxTokens) {
   }
 }
 
-async function azureOpenaiCall(messages, providerConfig, maxTokens) {
+async function azureOpenaiCall(messages, providerConfig, maxTokens, forcedModel) {
   const apiKey = process.env[providerConfig.api_key_env || "AZURE_OPENAI_API_KEY"] || "";
   const endpoint = process.env[providerConfig.endpoint_env || "AZURE_OPENAI_ENDPOINT"] || "";
   if (!apiKey || !endpoint) {
     return { ok: false, error: "azure_credentials_not_set" };
   }
 
-  const model = providerConfig.model || "gpt-4.1";
+  const model = forcedModel || providerConfig.model || "gpt-4.1";
   const apiVersion = providerConfig.api_version || "2024-12-01-preview";
   const url = `${endpoint}/openai/deployments/${model}/chat/completions?api-version=${apiVersion}`;
   const cfg = getLlmProviderConfig();
@@ -6318,6 +7070,216 @@ async function azureOpenaiCall(messages, providerConfig, maxTokens) {
   }
 }
 
+function _anthropicMessageBody(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  const systemParts = [];
+  const converted = [];
+  for (const item of list) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const roleRaw = typeof item.role === "string" ? item.role.trim().toLowerCase() : "user";
+    const content =
+      typeof item.content === "string"
+        ? item.content
+        : Array.isArray(item.content)
+          ? item.content
+              .map((part) =>
+                part && typeof part === "object" && typeof part.text === "string" ? part.text : "",
+              )
+              .join("\n")
+          : "";
+    if (!content) {
+      continue;
+    }
+    if (roleRaw === "system") {
+      systemParts.push(content);
+      continue;
+    }
+    const role = roleRaw === "assistant" ? "assistant" : "user";
+    converted.push({ role, content });
+  }
+  return {
+    system: systemParts.join("\n\n").trim() || undefined,
+    messages: converted.length > 0 ? converted : [{ role: "user", content: "Continue." }],
+  };
+}
+
+async function anthropicDirectCall(messages, providerConfig, maxTokens, forcedModel) {
+  const apiKey = process.env[providerConfig.api_key_env || "ANTHROPIC_API_KEY"] || "";
+  if (!apiKey) {
+    return { ok: false, error: "anthropic_api_key_not_set", env_var: providerConfig.api_key_env };
+  }
+
+  const endpoint = providerConfig.endpoint || "https://api.anthropic.com/v1/messages";
+  const model = forcedModel || providerConfig.model || "claude-3-7-sonnet-latest";
+  const cfg = getLlmProviderConfig();
+  const timeoutMs = cfg?.timeout_ms || 12000;
+  const apiVersion = providerConfig.api_version || "2023-06-01";
+  const transformed = _anthropicMessageBody(messages);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": apiVersion,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        system: transformed.system,
+        messages: transformed.messages,
+        max_tokens: maxTokens || 1024,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      return {
+        ok: false,
+        error: "anthropic_llm_api_error",
+        status: response.status,
+        detail: errBody?.error?.message || response.statusText,
+      };
+    }
+    const data = await response.json();
+    const contentParts = Array.isArray(data?.content) ? data.content : [];
+    const text = contentParts
+      .map((part) =>
+        part && typeof part === "object" && typeof part.text === "string" ? part.text : "",
+      )
+      .filter(Boolean)
+      .join("\n");
+    return {
+      ok: true,
+      content: text,
+      model: data?.model || model,
+      usage: data?.usage || null,
+    };
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") {
+      return { ok: false, error: "anthropic_llm_timeout", timeout_ms: timeoutMs };
+    }
+    return { ok: false, error: "anthropic_llm_network_error", detail: err.message };
+  }
+}
+
+async function openaiCompatibleCall(messages, providerConfig, maxTokens, forcedModel) {
+  const endpointEnv =
+    typeof providerConfig.endpoint_env === "string" ? providerConfig.endpoint_env.trim() : "";
+  const endpointFromEnv = endpointEnv ? process.env[endpointEnv] : "";
+  const endpoint =
+    endpointFromEnv ||
+    providerConfig.endpoint ||
+    process.env.OPENAI_COMPATIBLE_BASE_URL ||
+    "http://127.0.0.1:11434/v1/chat/completions";
+  const apiKeyEnv =
+    typeof providerConfig.api_key_env === "string" ? providerConfig.api_key_env.trim() : "";
+  const apiKey = apiKeyEnv
+    ? process.env[apiKeyEnv] || ""
+    : process.env.OPENAI_COMPATIBLE_API_KEY || "";
+  const model = forcedModel || providerConfig.model || "qwen2.5:14b-instruct";
+  const cfg = getLlmProviderConfig();
+  const timeoutMs = cfg?.timeout_ms || 12000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const headers = { "content-type": "application/json" };
+    if (apiKey) {
+      headers.authorization = `Bearer ${apiKey}`;
+    }
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.3,
+        ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errBody = await response.json().catch(() => ({}));
+      return {
+        ok: false,
+        error: "openai_compatible_api_error",
+        status: response.status,
+        detail: errBody?.error?.message || response.statusText,
+      };
+    }
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content || "";
+    return { ok: true, content, model: data?.model || model, usage: data?.usage || null };
+  } catch (err) {
+    clearTimeout(timer);
+    if (err.name === "AbortError") {
+      return { ok: false, error: "openai_compatible_timeout", timeout_ms: timeoutMs };
+    }
+    return { ok: false, error: "openai_compatible_network_error", detail: err.message };
+  }
+}
+
+async function invokeLlmProvider(providerName, providerConfig, messages, maxTokens, modelOverride) {
+  if (providerName === "openai_direct") {
+    return openaiDirectCall(messages, providerConfig, maxTokens, modelOverride);
+  }
+  if (providerName === "azure_openai") {
+    return azureOpenaiCall(messages, providerConfig, maxTokens, modelOverride);
+  }
+  if (providerName === "anthropic_direct") {
+    return anthropicDirectCall(messages, providerConfig, maxTokens, modelOverride);
+  }
+  if (providerName === "openai_compatible") {
+    return openaiCompatibleCall(messages, providerConfig, maxTokens, modelOverride);
+  }
+  return { ok: false, error: `unsupported_provider: ${providerName}` };
+}
+
+async function runLlmProviderSmokeTest(providerName, model, prompt, entityContext) {
+  const cfg = getLlmProviderConfig();
+  if (!cfg || !cfg.providers || !cfg.providers[providerName]) {
+    return { ok: false, error: "provider_not_configured" };
+  }
+  const providerCfg = cfg.providers[providerName];
+  const allowed = _providerAllowedForEntity(cfg, providerName, entityContext || null);
+  if (!allowed.ok) {
+    return { ok: false, error: allowed.reason || "provider_not_allowed_for_entity" };
+  }
+  const messagePrompt =
+    typeof prompt === "string" && prompt.trim().length > 0
+      ? prompt.trim()
+      : "Return JSON with keys: ok, provider, model, summary.";
+  const start = Date.now();
+  const result = await invokeLlmProvider(
+    providerName,
+    providerCfg,
+    [{ role: "user", content: messagePrompt }],
+    400,
+    model || undefined,
+  );
+  const latencyMs = Date.now() - start;
+  return {
+    ok: result.ok,
+    provider: providerName,
+    model: result.model || model || providerCfg.model || null,
+    latency_ms: latencyMs,
+    usage: result.usage || null,
+    error: result.ok ? null : result.error || "provider_test_failed",
+    detail: result.ok ? null : result.detail || null,
+    output_preview:
+      result.ok && typeof result.content === "string" ? result.content.slice(0, 320) : null,
+  };
+}
+
 async function routeLlmCall(messages, entityContext, jobId, options) {
   // Sprint 1 (SDD 72): Per-call tool restriction
   const toolRestriction = options?.allowed_tools;
@@ -6361,13 +7323,13 @@ async function routeLlmCall(messages, entityContext, jobId, options) {
   const startMs = Date.now();
   let result;
 
-  if (selection.provider === "openai_direct") {
-    result = await openaiDirectCall(sanitizedMessages, selection.config, intentMaxLength);
-  } else if (selection.provider === "azure_openai") {
-    result = await azureOpenaiCall(sanitizedMessages, selection.config, intentMaxLength);
-  } else {
-    result = { ok: false, error: `unsupported_provider: ${selection.provider}` };
-  }
+  result = await invokeLlmProvider(
+    selection.provider,
+    selection.config,
+    sanitizedMessages,
+    intentMaxLength,
+    selection.model,
+  );
 
   const latencyMs = Date.now() - startMs;
 
@@ -10064,6 +11026,7 @@ const BASELINE_LEDGER_NAMES = [
   "planner",
   "todo",
   "sync",
+  "external_mcp",
   "improvement",
   "meetings_prep",
   "meetings_debrief",
@@ -15068,7 +16031,10 @@ function builderLaneImprovementMetrics(res, _route) {
 // BL-007: Record operator calibration response
 async function builderLaneCalibrationResponse(req, res, route) {
   const body = await readJsonBodyGuarded(req, res, route);
-  if (!body || typeof body !== "object") {
+  if (!body) {
+    return;
+  }
+  if (typeof body !== "object") {
     sendJson(res, 400, { error: "invalid_json_body" });
     return;
   }
@@ -15262,7 +16228,10 @@ function _recordShadowEval(proposalId, domain, productionOutput, shadowOutput) {
 // multiplying signal weight for faster convergence.
 async function amplifyCorrection(req, res, route) {
   const body = await readJsonBodyGuarded(req, res, route);
-  if (!body || typeof body !== "object") {
+  if (!body) {
+    return;
+  }
+  if (typeof body !== "object") {
     sendJson(res, 400, { error: "invalid_json_body" });
     return;
   }
@@ -15353,7 +16322,10 @@ function checkRulePromotion(pattern) {
 
 async function selectArchetype(req, res, route) {
   const body = await readJsonBodyGuarded(req, res, route);
-  if (!body || typeof body !== "object") {
+  if (!body) {
+    return;
+  }
+  if (typeof body !== "object") {
     sendJson(res, 400, { error: "invalid_json_body" });
     return;
   }
@@ -15421,7 +16393,10 @@ async function startVoiceExtraction(req, res, route) {
     return;
   }
   const body = await readJsonBodyGuarded(req, res, route);
-  if (!body || typeof body !== "object") {
+  if (!body) {
+    return;
+  }
+  if (typeof body !== "object") {
     sendJson(res, 400, { error: "invalid_json_body" });
     return;
   }
@@ -15790,6 +16765,1031 @@ async function mcpCallInternal(method, path, authToken, body, extraHeaders) {
   return payload;
 }
 
+function externalMcpListServersEndpoint(res, route) {
+  const cfg = getExternalMcpConfig();
+  const servers = Object.values(cfg.servers)
+    .map((server) => externalMcpServerView(server))
+    .toSorted((a, b) => a.server_id.localeCompare(b.server_id));
+  sendJson(res, 200, {
+    servers,
+    total_count: servers.length,
+    cache_ttl_ms: EXTERNAL_MCP_TOOLS_CACHE_TTL_MS,
+  });
+  appendAudit("EXTERNAL_MCP_SERVERS_LIST", { count: servers.length });
+  logLine(`GET ${route} -> 200 (${servers.length} servers)`);
+}
+
+async function externalMcpUpsertServerEndpoint(req, res, route) {
+  const approvalSource = req.headers["x-ted-approval-source"];
+  if (approvalSource !== "operator") {
+    sendJson(res, 403, {
+      error: "OPERATOR_APPROVAL_REQUIRED",
+      message: "Adding/updating external MCP servers requires operator confirmation.",
+    });
+    appendEvent("governance.operator_required.blocked", route, {
+      action: "external_mcp_server_upsert",
+      approval_source: approvalSource || "none",
+    });
+    return;
+  }
+
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+
+  const serverId = typeof body.server_id === "string" ? body.server_id.trim() : "";
+  if (!serverId || !isSlugSafe(serverId)) {
+    sendJson(res, 400, { error: "invalid_server_id" });
+    return;
+  }
+
+  const authTokenEnv =
+    typeof body.auth_token_env === "string" ? body.auth_token_env.trim() : undefined;
+  if (authTokenEnv && !/^[A-Z][A-Z0-9_]*$/.test(authTokenEnv)) {
+    sendJson(res, 400, {
+      error: "invalid_auth_token_env",
+      message: "auth_token_env must match ^[A-Z][A-Z0-9_]*$",
+    });
+    return;
+  }
+
+  const candidate = {
+    enabled: body.enabled !== false,
+    transport: "http",
+    url: typeof body.url === "string" ? body.url.trim() : "",
+    timeout_ms: body.timeout_ms,
+    auth_token_env: authTokenEnv,
+    auth_header_name:
+      typeof body.auth_header_name === "string" ? body.auth_header_name.trim() : undefined,
+    description: typeof body.description === "string" ? body.description.trim() : undefined,
+    trust_tier: typeof body.trust_tier === "string" ? body.trust_tier.trim() : undefined,
+    allow_tools: body.allow_tools,
+    deny_tools: body.deny_tools,
+  };
+  const normalized = normalizeExternalMcpServerConfig(serverId, candidate);
+  if (!normalized) {
+    sendJson(res, 400, { error: "invalid_external_mcp_server_config" });
+    return;
+  }
+
+  const cfg = getExternalMcpConfig();
+  cfg.servers[serverId] = normalized;
+  writeExternalMcpConfig(cfg);
+  _externalMcpToolsCache.delete(serverId);
+
+  appendJsonlLine(externalMcpLedgerPath, {
+    kind: "external_mcp_server_upserted",
+    server_id: serverId,
+    enabled: normalized.enabled,
+    url: normalized.url,
+    at: new Date().toISOString(),
+  });
+  appendEvent("mcp.external.server.upserted", route, {
+    server_id: serverId,
+    enabled: normalized.enabled,
+  });
+  appendAudit("EXTERNAL_MCP_SERVER_UPSERT", {
+    server_id: serverId,
+    enabled: normalized.enabled,
+    has_token_env: !!normalized.auth_token_env,
+  });
+  sendJson(res, 200, { ok: true, server: externalMcpServerView(normalized) });
+}
+
+async function externalMcpRemoveServerEndpoint(req, res, route) {
+  const approvalSource = req.headers["x-ted-approval-source"];
+  if (approvalSource !== "operator") {
+    sendJson(res, 403, {
+      error: "OPERATOR_APPROVAL_REQUIRED",
+      message: "Removing external MCP servers requires operator confirmation.",
+    });
+    appendEvent("governance.operator_required.blocked", route, {
+      action: "external_mcp_server_remove",
+      approval_source: approvalSource || "none",
+    });
+    return;
+  }
+
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+
+  const serverId = typeof body.server_id === "string" ? body.server_id.trim() : "";
+  if (!serverId || !isSlugSafe(serverId)) {
+    sendJson(res, 400, { error: "invalid_server_id" });
+    return;
+  }
+
+  const cfg = getExternalMcpConfig();
+  if (!cfg.servers[serverId]) {
+    sendJson(res, 404, { error: "server_not_found", server_id: serverId });
+    return;
+  }
+  delete cfg.servers[serverId];
+  writeExternalMcpConfig(cfg);
+  _externalMcpToolsCache.delete(serverId);
+
+  appendJsonlLine(externalMcpLedgerPath, {
+    kind: "external_mcp_server_removed",
+    server_id: serverId,
+    at: new Date().toISOString(),
+  });
+  appendEvent("mcp.external.server.removed", route, { server_id: serverId });
+  appendAudit("EXTERNAL_MCP_SERVER_REMOVE", { server_id: serverId });
+  sendJson(res, 200, { ok: true, removed: true, server_id: serverId });
+}
+
+async function externalMcpTestServerEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const serverId = typeof body.server_id === "string" ? body.server_id.trim() : "";
+  if (!serverId || !isSlugSafe(serverId)) {
+    sendJson(res, 400, { error: "invalid_server_id" });
+    return;
+  }
+
+  const server = getExternalMcpServer(serverId);
+  if (!server) {
+    sendJson(res, 404, { error: "server_not_found", server_id: serverId });
+    return;
+  }
+
+  try {
+    const fetched = await getExternalToolDefsForServer(serverId, server, { refresh: true });
+    appendEvent("mcp.external.server.health_checked", route, {
+      server_id: serverId,
+      ok: true,
+      tool_count: fetched.tools.length,
+      stale: !!fetched.stale,
+    });
+    appendAudit("EXTERNAL_MCP_SERVER_TEST", {
+      server_id: serverId,
+      ok: true,
+      tool_count: fetched.tools.length,
+      stale: !!fetched.stale,
+    });
+    sendJson(res, 200, {
+      ok: true,
+      server_id: serverId,
+      stale: !!fetched.stale,
+      source: fetched.source,
+      tool_count: fetched.tools.length,
+      tools_preview: fetched.tools.slice(0, 20).map((tool) => ({
+        local_name: tool.name,
+        remote_name: tool.remote_tool_name,
+      })),
+    });
+  } catch (err) {
+    appendEvent("mcp.external.server.health_checked", route, {
+      server_id: serverId,
+      ok: false,
+      error: err?.message || String(err),
+    });
+    appendAudit("EXTERNAL_MCP_SERVER_TEST", {
+      server_id: serverId,
+      ok: false,
+      error: err?.message || String(err),
+    });
+    sendJson(res, 502, {
+      ok: false,
+      server_id: serverId,
+      error: err?.message || String(err),
+    });
+  }
+}
+
+async function externalMcpListToolsEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const serverId = typeof body.server_id === "string" ? body.server_id.trim() : undefined;
+  if (serverId && !isSlugSafe(serverId)) {
+    sendJson(res, 400, { error: "invalid_server_id" });
+    return;
+  }
+  const refresh = body.refresh === true;
+  const listed = await listExternalMcpTools({ server_id: serverId, refresh });
+  sendJson(res, 200, {
+    tools: listed.tools.map((tool) => ({
+      local_name: tool.name,
+      remote_name: tool.remote_tool_name,
+      server_id: tool.server_id,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+    })),
+    total_count: listed.tools.length,
+    errors: listed.errors,
+    refreshed: refresh,
+  });
+  appendAudit("EXTERNAL_MCP_TOOLS_LIST", {
+    server_id: serverId || "all",
+    count: listed.tools.length,
+    errors: listed.errors.length,
+    refreshed: refresh,
+  });
+}
+
+function normalizeWorkflowStep(rawStep, index) {
+  const step = rawStep && typeof rawStep === "object" ? rawStep : {};
+  const kind = typeof step.kind === "string" ? step.kind.trim() : "";
+  const stepIdRaw = typeof step.step_id === "string" ? step.step_id.trim() : "";
+  const stepId = stepIdRaw || `step-${index + 1}`;
+  if (!kind || !isSlugSafe(stepId)) {
+    return null;
+  }
+  if (kind === "route_call") {
+    const route = typeof step.route === "string" ? step.route.trim() : "";
+    const methodRaw = typeof step.method === "string" ? step.method.trim().toUpperCase() : "GET";
+    if (!route.startsWith("/") || (methodRaw !== "GET" && methodRaw !== "POST")) {
+      return null;
+    }
+    return {
+      step_id: stepId,
+      kind,
+      method: methodRaw,
+      route,
+      body: step.body && typeof step.body === "object" ? step.body : undefined,
+      retry:
+        step.retry && typeof step.retry === "object"
+          ? {
+              max_attempts: Number.isFinite(step.retry.max_attempts)
+                ? Math.max(1, Math.min(5, step.retry.max_attempts))
+                : 1,
+              backoff_ms: Number.isFinite(step.retry.backoff_ms)
+                ? Math.max(100, Math.min(30000, step.retry.backoff_ms))
+                : 1000,
+            }
+          : { max_attempts: 1, backoff_ms: 1000 },
+    };
+  }
+  if (kind === "approval_gate") {
+    return {
+      step_id: stepId,
+      kind,
+      reason: typeof step.reason === "string" ? step.reason.trim() : "operator_approval_required",
+    };
+  }
+  if (kind === "condition") {
+    return {
+      step_id: stepId,
+      kind,
+      expression: typeof step.expression === "string" ? step.expression.trim() : "",
+      on_true: typeof step.on_true === "string" ? step.on_true.trim() : "",
+      on_false: typeof step.on_false === "string" ? step.on_false.trim() : "",
+    };
+  }
+  return null;
+}
+
+function normalizeWorkflowDefinition(rawWorkflow) {
+  const wf = rawWorkflow && typeof rawWorkflow === "object" ? rawWorkflow : {};
+  const workflowId = typeof wf.workflow_id === "string" ? wf.workflow_id.trim() : "";
+  if (!workflowId || !isSlugSafe(workflowId)) {
+    return null;
+  }
+  const stepsRaw = Array.isArray(wf.steps) ? wf.steps : [];
+  const steps = stepsRaw.map((step, idx) => normalizeWorkflowStep(step, idx)).filter(Boolean);
+  if (steps.length === 0) {
+    return null;
+  }
+  const trigger = wf.trigger && typeof wf.trigger === "object" ? wf.trigger : {};
+  const triggerKind = typeof trigger.kind === "string" ? trigger.kind.trim() : "manual";
+  return {
+    workflow_id: workflowId,
+    name: typeof wf.name === "string" && wf.name.trim().length > 0 ? wf.name.trim() : workflowId,
+    enabled: wf.enabled !== false,
+    entity: typeof wf.entity === "string" && wf.entity.trim().length > 0 ? wf.entity.trim() : null,
+    trigger: {
+      kind: triggerKind || "manual",
+      schedule: typeof trigger.schedule === "string" ? trigger.schedule.trim() : undefined,
+      timezone: typeof trigger.timezone === "string" ? trigger.timezone.trim() : undefined,
+    },
+    steps,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function listWorkflowRuns(options = {}) {
+  const workflowId = typeof options.workflow_id === "string" ? options.workflow_id.trim() : "";
+  const limitRaw = Number.parseInt(String(options.limit || ""), 10);
+  const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(limitRaw, 200)) : 25;
+  const lines = readJsonlLines(workflowRunsPath).filter((entry) => entry.kind === "workflow_run");
+  let filtered = lines;
+  if (workflowId) {
+    filtered = filtered.filter((entry) => entry.workflow_id === workflowId);
+  }
+  filtered.sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
+  return filtered.slice(0, limit);
+}
+
+function workflowsRegistryEndpoint(res, route) {
+  const cfg = getWorkflowRegistryConfig();
+  sendJson(res, 200, {
+    workflows: cfg.workflows,
+    total_count: cfg.workflows.length,
+    run_count: listWorkflowRuns({ limit: 1_000_000 }).length,
+  });
+  appendAudit("WORKFLOW_REGISTRY_LIST", { count: cfg.workflows.length });
+  logLine(`GET ${route} -> 200`);
+}
+
+async function workflowsRegistryMutateEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const action = typeof body.action === "string" ? body.action.trim() : "upsert";
+  const cfg = getWorkflowRegistryConfig();
+  if (action === "remove") {
+    const workflowId = typeof body.workflow_id === "string" ? body.workflow_id.trim() : "";
+    if (!workflowId || !isSlugSafe(workflowId)) {
+      sendJson(res, 400, { error: "invalid_workflow_id" });
+      return;
+    }
+    const nextWorkflows = cfg.workflows.filter((wf) => wf.workflow_id !== workflowId);
+    writeWorkflowRegistryConfig({ workflows: nextWorkflows });
+    appendEvent("workflow.registry.removed", route, { workflow_id: workflowId });
+    appendAudit("WORKFLOW_REGISTRY_REMOVE", { workflow_id: workflowId });
+    sendJson(res, 200, { ok: true, removed: workflowId, total_count: nextWorkflows.length });
+    return;
+  }
+
+  const normalized = normalizeWorkflowDefinition(body.workflow || body);
+  if (!normalized) {
+    sendJson(res, 400, { error: "invalid_workflow_definition" });
+    return;
+  }
+  const existingIdx = cfg.workflows.findIndex((wf) => wf.workflow_id === normalized.workflow_id);
+  const nextWorkflows = [...cfg.workflows];
+  if (existingIdx >= 0) {
+    nextWorkflows[existingIdx] = normalized;
+  } else {
+    nextWorkflows.push(normalized);
+  }
+  writeWorkflowRegistryConfig({ workflows: nextWorkflows });
+  appendEvent("workflow.registry.upserted", route, {
+    workflow_id: normalized.workflow_id,
+    step_count: normalized.steps.length,
+  });
+  appendAudit("WORKFLOW_REGISTRY_UPSERT", {
+    workflow_id: normalized.workflow_id,
+    step_count: normalized.steps.length,
+  });
+  sendJson(res, 200, { ok: true, workflow: normalized, total_count: nextWorkflows.length });
+}
+
+async function workflowRunEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const workflowId = typeof body.workflow_id === "string" ? body.workflow_id.trim() : "";
+  if (!workflowId || !isSlugSafe(workflowId)) {
+    sendJson(res, 400, { error: "invalid_workflow_id" });
+    return;
+  }
+  const cfg = getWorkflowRegistryConfig();
+  const workflow = cfg.workflows.find((wf) => wf.workflow_id === workflowId);
+  if (!workflow) {
+    sendJson(res, 404, { error: "workflow_not_found", workflow_id: workflowId });
+    return;
+  }
+
+  const dryRun = body.dry_run === true;
+  const runId = `wfr-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
+  const startedAt = new Date().toISOString();
+  const stepResults = [];
+  let status = "completed";
+  let failedStepId = null;
+  let token = null;
+
+  for (const step of workflow.steps || []) {
+    const stepStart = Date.now();
+    if (step.kind === "approval_gate") {
+      status = "blocked";
+      failedStepId = step.step_id;
+      stepResults.push({
+        step_id: step.step_id,
+        kind: step.kind,
+        status: "blocked",
+        reason: step.reason || "operator_approval_required",
+        duration_ms: Date.now() - stepStart,
+      });
+      break;
+    }
+    if (step.kind === "condition") {
+      // Placeholder deterministic branch state for v1 runtime.
+      stepResults.push({
+        step_id: step.step_id,
+        kind: step.kind,
+        status: "skipped",
+        reason: "condition_runtime_not_enabled",
+        duration_ms: Date.now() - stepStart,
+      });
+      continue;
+    }
+    if (step.kind !== "route_call") {
+      stepResults.push({
+        step_id: step.step_id,
+        kind: step.kind,
+        status: "skipped",
+        reason: "unknown_step_kind",
+        duration_ms: Date.now() - stepStart,
+      });
+      continue;
+    }
+
+    if (dryRun) {
+      stepResults.push({
+        step_id: step.step_id,
+        kind: step.kind,
+        status: "dry_run",
+        method: step.method,
+        route: step.route,
+        duration_ms: Date.now() - stepStart,
+      });
+      continue;
+    }
+
+    if (!token) {
+      token = mintBearerToken().token;
+    }
+
+    const retryMax = Number.isFinite(step.retry?.max_attempts)
+      ? Math.max(1, Math.min(step.retry.max_attempts, 5))
+      : 1;
+    const retryBackoff = Number.isFinite(step.retry?.backoff_ms)
+      ? Math.max(100, Math.min(step.retry.backoff_ms, 30000))
+      : 1000;
+    let lastErr = null;
+    let payload = null;
+    for (let attempt = 1; attempt <= retryMax; attempt++) {
+      try {
+        payload = await mcpCallInternal(
+          step.method || "GET",
+          step.route,
+          token,
+          step.body || undefined,
+        );
+        lastErr = null;
+        break;
+      } catch (err) {
+        lastErr = err;
+        if (attempt < retryMax) {
+          await new Promise((resolve) => setTimeout(resolve, retryBackoff * attempt));
+        }
+      }
+    }
+    if (lastErr) {
+      status = "failed";
+      failedStepId = step.step_id;
+      stepResults.push({
+        step_id: step.step_id,
+        kind: step.kind,
+        status: "failed",
+        error:
+          lastErr instanceof Error ? lastErr.message : JSON.stringify(lastErr ?? "unknown_error"),
+        duration_ms: Date.now() - stepStart,
+      });
+      break;
+    }
+    stepResults.push({
+      step_id: step.step_id,
+      kind: step.kind,
+      status: "completed",
+      method: step.method,
+      route: step.route,
+      response_keys:
+        payload && typeof payload === "object" ? Object.keys(payload).slice(0, 20) : [],
+      duration_ms: Date.now() - stepStart,
+    });
+  }
+
+  const completedAt = new Date().toISOString();
+  const record = {
+    kind: "workflow_run",
+    run_id: runId,
+    workflow_id: workflow.workflow_id,
+    workflow_name: workflow.name,
+    dry_run: dryRun,
+    status,
+    failed_step_id: failedStepId,
+    started_at: startedAt,
+    completed_at: completedAt,
+    step_count: workflow.steps.length,
+    steps: stepResults,
+  };
+  appendJsonlLine(workflowRunsPath, record);
+  appendEvent("workflow.run.completed", route, {
+    run_id: runId,
+    workflow_id: workflow.workflow_id,
+    status,
+    dry_run: dryRun,
+  });
+  appendAudit("WORKFLOW_RUN", {
+    run_id: runId,
+    workflow_id: workflow.workflow_id,
+    status,
+    dry_run: dryRun,
+  });
+  sendJson(res, 200, { ok: status !== "failed", ...record });
+}
+
+function workflowRunsEndpoint(parsedUrl, res, route) {
+  const workflowId = parsedUrl?.searchParams?.get("workflow_id") || "";
+  const limit = parsedUrl?.searchParams?.get("limit") || "25";
+  const runs = listWorkflowRuns({
+    workflow_id: workflowId,
+    limit: Number.parseInt(limit, 10),
+  });
+  sendJson(res, 200, { runs, total_count: runs.length });
+  logLine(`GET ${route} -> 200`);
+}
+
+function buildMemoryState(options = {}) {
+  const scopeFilter = typeof options.scope === "string" ? options.scope.trim() : "";
+  const entityFilter = typeof options.entity === "string" ? options.entity.trim() : "";
+  const lines = readJsonlLines(memoryLedgerPath);
+  const stateMap = new Map();
+  for (const line of lines) {
+    if (!line || typeof line !== "object") {
+      continue;
+    }
+    if (line.kind === "memory_pref_upserted") {
+      const key = typeof line.memory_key === "string" ? line.memory_key.trim() : "";
+      if (!key) {
+        continue;
+      }
+      const identity = `${line.entity || "global"}::${line.scope || "operator_preference"}::${key}`;
+      stateMap.set(identity, {
+        memory_key: key,
+        scope: line.scope || "operator_preference",
+        entity: line.entity || null,
+        value: line.value,
+        confidence: line.confidence ?? null,
+        source: line.source || null,
+        pinned: line.pinned === true,
+        expires_at: line.expires_at || null,
+        updated_at: line.updated_at || line.timestamp || null,
+      });
+      continue;
+    }
+    if (line.kind === "memory_pref_forgotten") {
+      const key = typeof line.memory_key === "string" ? line.memory_key.trim() : "";
+      if (!key) {
+        continue;
+      }
+      const identity = `${line.entity || "global"}::${line.scope || "operator_preference"}::${key}`;
+      stateMap.delete(identity);
+    }
+  }
+  let values = [...stateMap.values()];
+  if (scopeFilter) {
+    values = values.filter((item) => item.scope === scopeFilter);
+  }
+  if (entityFilter) {
+    values = values.filter((item) => (item.entity || "") === entityFilter);
+  }
+  values.sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""));
+  return values;
+}
+
+function memoryPreferencesListEndpoint(parsedUrl, res, route) {
+  const scope = parsedUrl?.searchParams?.get("scope") || "";
+  const entity = parsedUrl?.searchParams?.get("entity") || "";
+  const prefs = buildMemoryState({ scope, entity });
+  sendJson(res, 200, { preferences: prefs, total_count: prefs.length });
+  logLine(`GET ${route} -> 200`);
+}
+
+async function memoryPreferencesUpsertEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const memoryKey = typeof body.memory_key === "string" ? body.memory_key.trim() : "";
+  if (!memoryKey) {
+    sendJson(res, 400, { error: "memory_key_required" });
+    return;
+  }
+  const policy = getMemoryPolicy();
+  const scope =
+    typeof body.scope === "string" && policy.scopes.includes(body.scope)
+      ? body.scope
+      : "operator_preference";
+  const entity =
+    typeof body.entity === "string" && body.entity.trim().length > 0 ? body.entity.trim() : null;
+  const ttlDaysRaw = Number.parseInt(String(body.ttl_days || ""), 10);
+  const ttlDays = Number.isFinite(ttlDaysRaw)
+    ? Math.max(1, Math.min(ttlDaysRaw, 3650))
+    : policy.default_ttl_days || 180;
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + ttlDays * 86400000).toISOString();
+
+  appendJsonlLine(memoryLedgerPath, {
+    kind: "memory_pref_upserted",
+    memory_key: memoryKey,
+    scope,
+    entity,
+    value: body.value ?? null,
+    confidence:
+      typeof body.confidence === "number" ? Math.max(0, Math.min(body.confidence, 1)) : null,
+    source: typeof body.source === "string" ? body.source.trim() : "operator",
+    pinned: body.pinned === true,
+    expires_at: expiresAt,
+    updated_at: now.toISOString(),
+  });
+  appendEvent("memory.preference.upserted", route, { memory_key: memoryKey, scope, entity });
+  appendAudit("MEMORY_PREF_UPSERT", { memory_key: memoryKey, scope, entity });
+  sendJson(res, 200, { ok: true, memory_key: memoryKey, scope, entity, expires_at: expiresAt });
+}
+
+async function memoryPreferencesForgetEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const memoryKey = typeof body.memory_key === "string" ? body.memory_key.trim() : "";
+  if (!memoryKey) {
+    sendJson(res, 400, { error: "memory_key_required" });
+    return;
+  }
+  const scope =
+    typeof body.scope === "string" && body.scope.trim().length > 0
+      ? body.scope.trim()
+      : "operator_preference";
+  const entity =
+    typeof body.entity === "string" && body.entity.trim().length > 0 ? body.entity.trim() : null;
+  appendJsonlLine(memoryLedgerPath, {
+    kind: "memory_pref_forgotten",
+    memory_key: memoryKey,
+    scope,
+    entity,
+    at: new Date().toISOString(),
+  });
+  appendEvent("memory.preference.forgotten", route, { memory_key: memoryKey, scope, entity });
+  appendAudit("MEMORY_PREF_FORGET", { memory_key: memoryKey, scope, entity });
+  sendJson(res, 200, { ok: true, forgotten: memoryKey, scope, entity });
+}
+
+function memoryPreferencesExportEndpoint(parsedUrl, res, route) {
+  const entity = parsedUrl?.searchParams?.get("entity") || "";
+  const policy = getMemoryPolicy();
+  if (policy.allow_export === false) {
+    sendJson(res, 403, { error: "memory_export_disabled" });
+    return;
+  }
+  const prefs = buildMemoryState({ entity });
+  sendJson(res, 200, {
+    export_generated_at: new Date().toISOString(),
+    entity: entity || null,
+    preferences: prefs,
+    total_count: prefs.length,
+  });
+  logLine(`GET ${route} -> 200`);
+}
+
+function mcpTrustPolicyGetEndpoint(res, route) {
+  const cfg = getMcpTrustPolicy();
+  sendJson(res, 200, cfg);
+  appendAudit("MCP_TRUST_POLICY_GET", {});
+  logLine(`GET ${route} -> 200`);
+}
+
+async function mcpTrustPolicySetEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const current = getMcpTrustPolicy();
+  const next = {
+    ...current,
+    ...body,
+    servers:
+      body.servers && typeof body.servers === "object"
+        ? { ...current.servers, ...body.servers }
+        : current.servers,
+    tool_policies:
+      body.tool_policies && typeof body.tool_policies === "object"
+        ? { ...current.tool_policies, ...body.tool_policies }
+        : current.tool_policies,
+  };
+  writeMcpTrustPolicy(next);
+  appendEvent("mcp.external.policy.updated", route, {
+    servers: Object.keys(next.servers || {}).length,
+    tool_policies: Object.keys(next.tool_policies || {}).length,
+  });
+  appendAudit("MCP_TRUST_POLICY_SET", {
+    servers: Object.keys(next.servers || {}).length,
+    tool_policies: Object.keys(next.tool_policies || {}).length,
+  });
+  sendJson(res, 200, {
+    ok: true,
+    servers: Object.keys(next.servers || {}).length,
+    tool_policies: Object.keys(next.tool_policies || {}).length,
+  });
+}
+
+async function mcpToolPolicySetEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const toolAlias = typeof body.tool_alias === "string" ? body.tool_alias.trim() : "";
+  const action = typeof body.action === "string" ? body.action.trim() : "";
+  const allowedActions = new Set(["read_only", "approval_required", "deny"]);
+  if (!toolAlias || !allowedActions.has(action)) {
+    sendJson(res, 400, { error: "invalid_tool_alias_or_action" });
+    return;
+  }
+  const current = getMcpTrustPolicy();
+  const nextPolicies = { ...current.tool_policies, [toolAlias]: action };
+  writeMcpTrustPolicy({ ...current, tool_policies: nextPolicies });
+  appendEvent("mcp.external.tool.policy.updated", route, { tool_alias: toolAlias, action });
+  appendAudit("MCP_TOOL_POLICY_SET", { tool_alias: toolAlias, action });
+  sendJson(res, 200, { ok: true, tool_alias: toolAlias, action });
+}
+
+function graphDeltaStatusEndpoint(parsedUrl, res, route) {
+  const profileId = parsedUrl?.searchParams?.get("profile_id") || "";
+  const workload = parsedUrl?.searchParams?.get("workload") || "";
+  const entries = readJsonlLines(graphDeltaCursorPath)
+    .filter((entry) => entry.kind === "graph_delta_cursor_updated")
+    .filter((entry) => (!profileId ? true : entry.profile_id === profileId))
+    .filter((entry) => (!workload ? true : entry.workload === workload))
+    .toSorted((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""))
+    .slice(0, 100);
+  const strategy = getGraphSyncStrategyConfig();
+  sendJson(res, 200, {
+    strategy,
+    entries,
+    total_count: entries.length,
+  });
+  logLine(`GET ${route} -> 200`);
+}
+
+function _latestGraphDeltaCursor(profileId, workload) {
+  const lines = readJsonlLines(graphDeltaCursorPath)
+    .filter((entry) => entry.kind === "graph_delta_cursor_updated")
+    .filter((entry) => entry.profile_id === profileId && entry.workload === workload)
+    .toSorted((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+  return lines[0] || null;
+}
+
+async function graphDeltaRunEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const profileIdRaw =
+    typeof body.profile_id === "string" ? body.profile_id.trim().toLowerCase() : "olumie";
+  const workloadRaw =
+    typeof body.workload === "string" ? body.workload.trim().toLowerCase() : "mail";
+  if (!GRAPH_ALLOWED_PROFILES.has(profileIdRaw)) {
+    sendJson(res, 400, { error: "unsupported_profile_id", profile_id: profileIdRaw });
+    return;
+  }
+  const allowedWorkloads = new Set(["mail", "calendar"]);
+  if (!allowedWorkloads.has(workloadRaw)) {
+    sendJson(res, 400, { error: "unsupported_workload", workload: workloadRaw });
+    return;
+  }
+
+  const tokenResult = await ensureValidToken(profileIdRaw);
+  if (!tokenResult.ok) {
+    setGraphLastError(profileIdRaw, "NOT_AUTHENTICATED");
+    sendJson(res, 409, { error: "NOT_AUTHENTICATED", next_action: "RUN_DEVICE_CODE_AUTH" });
+    return;
+  }
+
+  const latestCursor = _latestGraphDeltaCursor(profileIdRaw, workloadRaw);
+  let endpoint = latestCursor?.next_link || latestCursor?.delta_link || "";
+  if (!endpoint) {
+    endpoint =
+      workloadRaw === "mail"
+        ? "https://graph.microsoft.com/v1.0/me/messages/delta?$select=id,subject,receivedDateTime,isRead&$top=25"
+        : "https://graph.microsoft.com/v1.0/me/events/delta?$select=id,subject,start,end,lastModifiedDateTime&$top=25";
+  }
+
+  let response;
+  try {
+    response = await graphFetchWithRetry(
+      endpoint,
+      {
+        method: "GET",
+        headers: {
+          authorization: `Bearer ${tokenResult.accessToken}`,
+          prefer: 'outlook.timezone="UTC"',
+        },
+      },
+      {
+        label: `graph_delta_${workloadRaw}`,
+        maxRetries: 3,
+        baseDelayMs: 500,
+      },
+    );
+  } catch (err) {
+    sendJson(res, 502, {
+      error: "graph_delta_fetch_failed",
+      detail: err?.message || String(err),
+      profile_id: profileIdRaw,
+      workload: workloadRaw,
+    });
+    return;
+  }
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    sendJson(res, 502, {
+      error: "graph_delta_http_error",
+      status: response.status,
+      detail: detail.slice(0, 500),
+      profile_id: profileIdRaw,
+      workload: workloadRaw,
+    });
+    return;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  const nextLink =
+    typeof payload?.["@odata.nextLink"] === "string" ? payload["@odata.nextLink"] : null;
+  const deltaLink =
+    typeof payload?.["@odata.deltaLink"] === "string" ? payload["@odata.deltaLink"] : null;
+  const valueCount = Array.isArray(payload?.value) ? payload.value.length : 0;
+  const entry = {
+    kind: "graph_delta_cursor_updated",
+    profile_id: profileIdRaw,
+    workload: workloadRaw,
+    timestamp: new Date().toISOString(),
+    next_link: nextLink,
+    delta_link: deltaLink,
+    value_count: valueCount,
+  };
+  appendJsonlLine(graphDeltaCursorPath, entry);
+  appendEvent("graph.delta.cursor.updated", route, {
+    profile_id: profileIdRaw,
+    workload: workloadRaw,
+    value_count: valueCount,
+    has_delta_link: !!deltaLink,
+  });
+  appendAudit("GRAPH_DELTA_RUN", {
+    profile_id: profileIdRaw,
+    workload: workloadRaw,
+    value_count: valueCount,
+    has_delta_link: !!deltaLink,
+    has_next_link: !!nextLink,
+  });
+  sendJson(res, 200, { ok: true, ...entry });
+}
+
+function evalMatrixGetEndpoint(res, route) {
+  const cfg = getEvalMatrixConfig();
+  const recentRuns = readJsonlLines(evalMatrixRunsPath)
+    .filter((entry) => entry.kind === "eval_matrix_run")
+    .toSorted((a, b) => (b.generated_at || "").localeCompare(a.generated_at || ""))
+    .slice(0, 20);
+  sendJson(res, 200, { ...cfg, recent_runs: recentRuns });
+  logLine(`GET ${route} -> 200`);
+}
+
+async function evalMatrixSetEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const current = getEvalMatrixConfig();
+  const next = {
+    ...current,
+    ...body,
+    thresholds:
+      body.thresholds && typeof body.thresholds === "object"
+        ? { ...current.thresholds, ...body.thresholds }
+        : current.thresholds,
+    slices: Array.isArray(body.slices) ? body.slices : current.slices,
+  };
+  writeEvalMatrixConfig(next);
+  appendEvent("evaluation.matrix.updated", route, {
+    slices: Array.isArray(next.slices) ? next.slices.length : 0,
+  });
+  appendAudit("EVAL_MATRIX_SET", { slices: Array.isArray(next.slices) ? next.slices.length : 0 });
+  sendJson(res, 200, { ok: true, slices: Array.isArray(next.slices) ? next.slices.length : 0 });
+}
+
+function evalPromptForIntent(intent) {
+  const prompts = {
+    research:
+      "Summarize the strategic implications of Microsoft Graph throttling guidance in 5 bullets.",
+    draft_email: "Draft a concise professional follow-up email about diligence deadlines.",
+    morning_brief: "Produce a short morning brief with priorities, calendar, and commitments.",
+    eod_digest: "Produce a short end-of-day digest with completed and pending actions.",
+  };
+  return prompts[intent] || "Generate a concise structured summary in JSON.";
+}
+
+async function evalMatrixRunEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const cfg = getEvalMatrixConfig();
+  const slices = (Array.isArray(cfg.slices) ? cfg.slices : []).filter(
+    (slice) => slice?.enabled !== false,
+  );
+  if (slices.length === 0) {
+    sendJson(res, 409, { error: "no_enabled_eval_slices" });
+    return;
+  }
+
+  const llmCfg = getLlmProviderConfig();
+  const results = [];
+  for (const slice of slices) {
+    const provider = typeof slice.provider === "string" ? slice.provider.trim() : "";
+    const model = typeof slice.model === "string" ? slice.model.trim() : "";
+    const intent = typeof slice.intent === "string" ? slice.intent.trim() : "research";
+    const providerCfg = llmCfg?.providers?.[provider];
+    if (!providerCfg || providerCfg.enabled !== true) {
+      results.push({
+        slice_id: slice.slice_id || `${provider}-${intent}`,
+        provider,
+        model,
+        intent,
+        ok: false,
+        error: "provider_not_enabled",
+        latency_ms: 0,
+      });
+      continue;
+    }
+    const start = Date.now();
+    const llmResult = await invokeLlmProvider(
+      provider,
+      providerCfg,
+      [{ role: "user", content: evalPromptForIntent(intent) }],
+      600,
+      model || undefined,
+    );
+    const latencyMs = Date.now() - start;
+    results.push({
+      slice_id: slice.slice_id || `${provider}-${intent}`,
+      provider,
+      model: model || providerCfg.model || null,
+      intent,
+      ok: llmResult.ok,
+      error: llmResult.ok ? null : llmResult.error || "llm_call_failed",
+      latency_ms: latencyMs,
+      output_chars:
+        llmResult.ok && typeof llmResult.content === "string" ? llmResult.content.length : 0,
+    });
+  }
+
+  const passCount = results.filter((r) => r.ok).length;
+  const passRate = results.length > 0 ? passCount / results.length : 0;
+  const p95Latency = (() => {
+    const values = results.map((r) => Number(r.latency_ms) || 0).toSorted((a, b) => a - b);
+    if (values.length === 0) {
+      return 0;
+    }
+    const idx = Math.min(values.length - 1, Math.floor(values.length * 0.95));
+    return values[idx];
+  })();
+  const thresholdPass =
+    passRate >= (cfg.thresholds?.min_pass_rate || 0.85) &&
+    p95Latency <= (cfg.thresholds?.max_p95_latency_ms || 12000);
+  const summary = {
+    generated_at: new Date().toISOString(),
+    total_slices: results.length,
+    passed_slices: passCount,
+    pass_rate: Math.round(passRate * 1000) / 1000,
+    p95_latency_ms: p95Latency,
+    threshold_pass: thresholdPass,
+  };
+  appendJsonlLine(evalMatrixRunsPath, {
+    kind: "eval_matrix_run",
+    ...summary,
+    results,
+  });
+  appendEvent("evaluation.matrix.ran", route, summary);
+  appendAudit("EVAL_MATRIX_RUN", summary);
+  sendJson(res, 200, { ...summary, results });
+}
+
 // ─── MCP Tool Registry (JC-073b + JC-073d) ───
 
 const MCP_TOOLS = [
@@ -15895,6 +17895,116 @@ const MCP_TOOLS = [
     execute: async (_args, _authToken) => {
       const items = listOpenTriageItems();
       return { items, total_count: items.length };
+    },
+  },
+  {
+    name: "ted_external_mcp_servers",
+    description: "List configured external MCP server connections and token-env readiness.",
+    inputSchema: { type: "object", properties: {}, required: [] },
+    execute: async (_args, authToken) => {
+      return mcpCallInternal("GET", "/ops/mcp/external/servers", authToken);
+    },
+  },
+  {
+    name: "ted_external_mcp_tools",
+    description:
+      "List imported external MCP tools. Optionally target one server and force refresh.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        server_id: { type: "string", description: "Optional server ID to scope the list." },
+        refresh: { type: "boolean", description: "Force refresh from remote servers." },
+      },
+      required: [],
+    },
+    execute: async (args, authToken) => {
+      return mcpCallInternal("POST", "/ops/mcp/external/servers/tools/list", authToken, {
+        server_id:
+          typeof args.server_id === "string" && args.server_id.trim().length > 0
+            ? args.server_id.trim()
+            : undefined,
+        refresh: args.refresh === true,
+      });
+    },
+  },
+  {
+    name: "ted_external_mcp_server_test",
+    description: "Run a connectivity/tool discovery test for one external MCP server.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        server_id: { type: "string", description: "External MCP server ID." },
+      },
+      required: ["server_id"],
+    },
+    execute: async (args, authToken) => {
+      return mcpCallInternal("POST", "/ops/mcp/external/servers/test", authToken, {
+        server_id: args.server_id,
+      });
+    },
+  },
+  {
+    name: "ted_external_mcp_server_upsert",
+    description: "Create or update an external MCP server connection. Requires operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        server_id: { type: "string", description: "Server identifier (slug-safe)." },
+        url: { type: "string", description: "External MCP endpoint URL." },
+        enabled: { type: "boolean", description: "Set false to disable without deleting." },
+        timeout_ms: {
+          type: "number",
+          description: "Optional timeout in ms (1000-60000, default 8000).",
+        },
+        auth_token_env: {
+          type: "string",
+          description: "Optional environment variable holding auth token for this server.",
+        },
+        auth_header_name: {
+          type: "string",
+          description: "Optional auth header name. Default: Authorization.",
+        },
+        allow_tools: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional allowlist of remote tool names.",
+        },
+        deny_tools: {
+          type: "array",
+          items: { type: "string" },
+          description: "Optional denylist of remote tool names.",
+        },
+        description: {
+          type: "string",
+          description: "Optional operator-facing server description.",
+        },
+      },
+      required: ["server_id", "url"],
+    },
+    execute: async (args, authToken) => {
+      return mcpCallInternal("POST", "/ops/mcp/external/servers/upsert", authToken, args, {
+        "x-ted-approval-source": "operator",
+      });
+    },
+  },
+  {
+    name: "ted_external_mcp_server_remove",
+    description: "Remove an external MCP server connection. Requires operator approval.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        server_id: { type: "string", description: "External MCP server ID to remove." },
+      },
+      required: ["server_id"],
+    },
+    execute: async (args, authToken) => {
+      return mcpCallInternal(
+        "POST",
+        "/ops/mcp/external/servers/remove",
+        authToken,
+        { server_id: args.server_id },
+        { "x-ted-approval-source": "operator" },
+      );
     },
   },
 
@@ -17046,6 +19156,17 @@ const MCP_RESOURCES = [
     },
   },
   {
+    uri: "ted://config/external_mcp_servers",
+    name: "External MCP Servers",
+    description:
+      "Configured external MCP servers (URLs, allow/deny tool policy, auth token env references).",
+    mimeType: "application/json",
+    read: () => {
+      const cfg = getExternalMcpConfig();
+      return JSON.stringify(cfg);
+    },
+  },
+  {
     uri: "ted://audit/recent",
     name: "Recent Audit Log",
     description:
@@ -17129,6 +19250,16 @@ async function handleMcpRequest(req, res, route) {
   const rpcId = body.id;
   const rpcMethod = body.method;
   const rpcParams = body.params || {};
+  const approvalSourceHeader = req.headers["x-ted-approval-source"];
+  const approvalSource = Array.isArray(approvalSourceHeader)
+    ? (approvalSourceHeader[0] || "").trim()
+    : typeof approvalSourceHeader === "string"
+      ? approvalSourceHeader.trim()
+      : "";
+  const proxyHopHeader = req.headers["x-ted-mcp-proxy-hop"];
+  const proxyHopRaw = Array.isArray(proxyHopHeader) ? proxyHopHeader[0] : proxyHopHeader;
+  const proxyHop = typeof proxyHopRaw === "string" ? Number.parseInt(proxyHopRaw.trim(), 10) : 0;
+  const isExternalMcpProxyHop = Number.isFinite(proxyHop) && proxyHop > 0;
 
   appendAudit("MCP_REQUEST", { method: rpcMethod, id: rpcId });
 
@@ -17140,7 +19271,21 @@ async function handleMcpRequest(req, res, route) {
         description: t.description,
         inputSchema: t.inputSchema,
       }));
-      sendJson(res, 200, { jsonrpc: "2.0", id: rpcId, result: { tools: toolDefs } });
+      const resultPayload = { tools: toolDefs };
+      if (!isExternalMcpProxyHop) {
+        const external = await listExternalMcpTools({ refresh: false });
+        for (const tool of external.tools) {
+          toolDefs.push({
+            name: tool.name,
+            description: `[external:${tool.server_id}] ${tool.description}`,
+            inputSchema: tool.inputSchema,
+          });
+        }
+        if (external.errors.length > 0) {
+          resultPayload.external_warnings = external.errors;
+        }
+      }
+      sendJson(res, 200, { jsonrpc: "2.0", id: rpcId, result: resultPayload });
       logLine(`POST ${route} tools/list -> 200 (${toolDefs.length} tools)`);
       return;
     }
@@ -17150,7 +19295,43 @@ async function handleMcpRequest(req, res, route) {
       const toolName = typeof rpcParams.name === "string" ? rpcParams.name : "";
       const toolArgs = rpcParams.arguments || {};
       const tool = MCP_TOOLS.find((t) => t.name === toolName);
-      if (!tool) {
+      const toolStartMs = Date.now();
+      let result;
+      let callType = "local";
+      if (tool) {
+        result = await tool.execute(toolArgs, authToken);
+      } else if (parseExternalMcpToolAlias(toolName)) {
+        if (isExternalMcpProxyHop) {
+          sendJson(res, 200, {
+            jsonrpc: "2.0",
+            id: rpcId,
+            error: { code: -32602, message: "External tool dispatch blocked for proxy-hop calls" },
+          });
+          logLine(`POST ${route} tools/call ${toolName} -> 200 (proxy-hop blocked)`);
+          return;
+        }
+        try {
+          result = await callExternalMcpTool(toolName, toolArgs, {
+            approval_source: approvalSource || "none",
+          });
+        } catch (err) {
+          appendEvent("mcp.external.tool.blocked", route, {
+            tool: toolName,
+            reason: err?.message || String(err),
+          });
+          sendJson(res, 200, {
+            jsonrpc: "2.0",
+            id: rpcId,
+            error: {
+              code: -32602,
+              message: `External tool unavailable: ${err?.message || String(err)}`,
+            },
+          });
+          logLine(`POST ${route} tools/call ${toolName} -> 200 (external blocked)`);
+          return;
+        }
+        callType = "external";
+      } else {
         sendJson(res, 200, {
           jsonrpc: "2.0",
           id: rpcId,
@@ -17159,18 +19340,17 @@ async function handleMcpRequest(req, res, route) {
         logLine(`POST ${route} tools/call ${toolName} -> 200 (unknown tool)`);
         return;
       }
-      const toolStartMs = Date.now();
-      const result = await tool.execute(toolArgs, authToken);
       recordToolUsage(toolName, Date.now() - toolStartMs);
       sendJson(res, 200, {
         jsonrpc: "2.0",
         id: rpcId,
-        result: {
-          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
-        },
+        result: normalizeMcpToolResult(result),
       });
-      appendAudit("MCP_TOOL_CALL", { tool: toolName, success: true });
-      logLine(`POST ${route} tools/call ${toolName} -> 200`);
+      appendAudit("MCP_TOOL_CALL", { tool: toolName, success: true, source: callType });
+      if (callType === "external") {
+        appendEvent("mcp.external.tool.invoked", route, { tool: toolName, status: "ok" });
+      }
+      logLine(`POST ${route} tools/call ${toolName} -> 200 (${callType})`);
       return;
     }
 
@@ -18104,6 +20284,81 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (method === "GET" && route === "/ops/llm-routing-policy") {
+      const cfg = getLlmRoutingPolicy();
+      sendJson(res, 200, cfg);
+      appendAudit("LLM_ROUTING_POLICY_GET", {
+        per_intent_count: Object.keys(cfg.per_intent || {}).length,
+        per_job_count: Object.keys(cfg.per_job || {}).length,
+      });
+      logLine(`GET ${route} -> 200`);
+      return;
+    }
+
+    if (method === "POST" && route === "/ops/llm-routing-policy") {
+      const body = await readJsonBodyGuarded(req, res, route);
+      if (!body || typeof body !== "object") {
+        sendJson(res, 400, { error: "invalid_json_body" });
+        logLine(`POST ${route} -> 400`);
+        return;
+      }
+      writeLlmRoutingPolicy(body);
+      const nextCfg = getLlmRoutingPolicy();
+      appendEvent("policy.config.changed", route, {
+        config_key: "llm_routing_policy",
+        per_intent_count: Object.keys(nextCfg.per_intent || {}).length,
+        per_job_count: Object.keys(nextCfg.per_job || {}).length,
+      });
+      appendAudit("LLM_ROUTING_POLICY_SET", {
+        per_intent_count: Object.keys(nextCfg.per_intent || {}).length,
+        per_job_count: Object.keys(nextCfg.per_job || {}).length,
+      });
+      sendJson(res, 200, {
+        ok: true,
+        per_intent_count: Object.keys(nextCfg.per_intent || {}).length,
+        per_job_count: Object.keys(nextCfg.per_job || {}).length,
+      });
+      logLine(`POST ${route} -> 200`);
+      return;
+    }
+
+    if (method === "POST" && route === "/ops/llm-provider/test") {
+      const body = await readJsonBodyGuarded(req, res, route);
+      if (!body || typeof body !== "object") {
+        sendJson(res, 400, { error: "invalid_json_body" });
+        logLine(`POST ${route} -> 400`);
+        return;
+      }
+      const provider =
+        typeof body.provider === "string" && body.provider.trim().length > 0
+          ? body.provider.trim()
+          : "";
+      if (!provider) {
+        sendJson(res, 400, { error: "provider_required" });
+        logLine(`POST ${route} -> 400`);
+        return;
+      }
+      const model =
+        typeof body.model === "string" && body.model.trim().length > 0 ? body.model.trim() : "";
+      const prompt =
+        typeof body.prompt === "string" && body.prompt.trim().length > 0
+          ? body.prompt.trim()
+          : "Return JSON with keys: ok, provider, model, summary.";
+      const entity =
+        typeof body.entity === "string" && body.entity.trim().length > 0 ? body.entity.trim() : "";
+      const result = await runLlmProviderSmokeTest(provider, model || null, prompt, entity || null);
+      appendAudit("LLM_PROVIDER_SMOKE_TEST", {
+        provider,
+        model: model || null,
+        entity: entity || null,
+        ok: result.ok,
+        error: result.ok ? undefined : result.error || "provider_test_failed",
+      });
+      sendJson(res, result.ok ? 200 : 400, result);
+      logLine(`POST ${route} -> ${result.ok ? "200" : "400"}`);
+      return;
+    }
+
     // ─── Notification Budget Status (JC-084a) ───
 
     if (method === "GET" && route === "/ops/notification-budget") {
@@ -18344,6 +20599,92 @@ const server = http.createServer(async (req, res) => {
     // ─── Intake Job Card Creation ───
     if (method === "POST" && route === "/intake/create") {
       await createIntakeJobCard(req, res, route);
+      return;
+    }
+
+    // ─── Sprint 1 (SDD 72): Tool Usage Telemetry ───
+    if (method === "GET" && route === "/ops/mcp/external/servers") {
+      externalMcpListServersEndpoint(res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/mcp/external/servers/upsert") {
+      await externalMcpUpsertServerEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/mcp/external/servers/remove") {
+      await externalMcpRemoveServerEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/mcp/external/servers/test") {
+      await externalMcpTestServerEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/mcp/external/servers/tools/list") {
+      await externalMcpListToolsEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/mcp/trust-policy") {
+      mcpTrustPolicyGetEndpoint(res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/mcp/trust-policy") {
+      await mcpTrustPolicySetEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/mcp/tool-policy") {
+      await mcpToolPolicySetEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/workflows") {
+      workflowsRegistryEndpoint(res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/workflows") {
+      await workflowsRegistryMutateEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/workflows/run") {
+      await workflowRunEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/workflows/runs") {
+      workflowRunsEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/memory/preferences") {
+      memoryPreferencesListEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/memory/preferences/upsert") {
+      await memoryPreferencesUpsertEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/memory/preferences/forget") {
+      await memoryPreferencesForgetEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/memory/preferences/export") {
+      memoryPreferencesExportEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/graph/delta/status") {
+      graphDeltaStatusEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/graph/delta/run") {
+      await graphDeltaRunEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/evaluation/matrix") {
+      evalMatrixGetEndpoint(res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/evaluation/matrix") {
+      await evalMatrixSetEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/evaluation/matrix/run") {
+      await evalMatrixRunEndpoint(req, res, route);
       return;
     }
 

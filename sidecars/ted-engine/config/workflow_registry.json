@@ -1,0 +1,25 @@
+{
+  "_config_version": 1,
+  "workflows": [
+    {
+      "workflow_id": "daily-ops-brief",
+      "name": "Daily Ops Brief",
+      "enabled": false,
+      "entity": "olumie",
+      "trigger": {
+        "kind": "cron",
+        "schedule": "0 7 * * 1-5",
+        "timezone": "America/Indiana/Indianapolis"
+      },
+      "steps": [
+        {
+          "step_id": "brief",
+          "kind": "route_call",
+          "method": "GET",
+          "route": "/reporting/morning-brief",
+          "retry": { "max_attempts": 2, "backoff_ms": 1000 }
+        }
+      ]
+    }
+  ]
+}

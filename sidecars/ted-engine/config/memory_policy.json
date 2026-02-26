@@ -1,0 +1,9 @@
+{
+  "_config_version": 1,
+  "default_ttl_days": 180,
+  "max_records_per_entity": 5000,
+  "allow_export": true,
+  "allow_forget": true,
+  "scopes": ["operator_preference", "workflow_preference", "style_preference"],
+  "require_provenance": true
+}

@@ -1,0 +1,25 @@
+{
+  "_config_version": 1,
+  "enabled": true,
+  "thresholds": {
+    "min_pass_rate": 0.85,
+    "max_p95_latency_ms": 12000,
+    "max_cost_usd_per_run": 2.5
+  },
+  "slices": [
+    {
+      "slice_id": "research-default",
+      "intent": "research",
+      "provider": "anthropic_direct",
+      "model": "claude-3-7-sonnet-latest",
+      "enabled": true
+    },
+    {
+      "slice_id": "draft-email-local",
+      "intent": "draft_email",
+      "provider": "openai_compatible",
+      "model": "qwen2.5:14b-instruct",
+      "enabled": true
+    }
+  ]
+}
