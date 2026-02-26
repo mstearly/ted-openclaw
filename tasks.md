@@ -91,3 +91,8 @@ For each job card increment:
 - Orchestration retry/idempotency evidence
 - Offline/production eval coverage and regression results
 - Security/compliance abuse-path checks
+
+## Security Governance Tracking
+
+- SEC-RISK-001 — Matrix residual-risk review by 2026-03-31 (owner: Council + Operator). Validate guard status, confirm no `uploadContentFromUrl(...)` callsites, and decide MDO-3 vs MDO-4 from SDD 82.
+- SEC-RISK-002 — Matrix dependency replacement wave. Deliver a maintained path without the `request` transitive chain and close when `pnpm audit --prod` no longer reports the Matrix advisory path.

@@ -19,6 +19,9 @@ jobs:
         with:
           install-bun: "false"
 
+      - name: Enforce Matrix URL upload guard
+        run: pnpm security:matrix-upload-url-guard
+
       - name: Audit production dependencies (critical gate)
         run: pnpm audit --prod --audit-level=critical
 

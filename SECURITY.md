@@ -49,6 +49,26 @@ When patching a GHSA via `gh api`, include `X-GitHub-Api-Version: 2022-11-28` (o
 - Using OpenClaw in ways that the docs recommend not to
 - Prompt injection attacks
 
+## Time-Boxed Dependency Exception
+
+### Active exception: Matrix transitive `request` advisory
+
+- Advisory: `GHSA-p8p7-x288-28g6` (`request`, moderate).
+- Scope: `@openclaw/matrix -> @vector-im/matrix-bot-sdk -> request`.
+- Owner: Council + Operator.
+- Accepted on: February 26, 2026.
+- Mandatory review date: March 31, 2026.
+- Compensating controls:
+  - CI/pipeline guard blocks repository callsites of `uploadContentFromUrl(...)` via
+    `pnpm security:matrix-upload-url-guard`.
+  - Matrix plugin only downloads inbound media from `mxc://` URLs in runtime flow.
+  - Matrix homeserver configuration applies strict URL validation and secure defaults.
+- Invalidating condition:
+  - Any new feature that introduces server-side fetch of user-supplied arbitrary URLs must remove this exception before release.
+- Exit criteria:
+  - A maintained Matrix path is adopted that removes the `request` dependency chain.
+  - `pnpm audit --prod` no longer reports the Matrix `request` advisory path.
+
 ## Operational Guidance
 
 For threat model + hardening guidance (including `openclaw security audit --deep` and `--fix`), see:
