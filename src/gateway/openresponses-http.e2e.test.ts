@@ -678,7 +678,7 @@ describe("OpenResponses HTTP API (e2e)", () => {
     }
   });
 
-  it("exposes transport status contract and policy-driven fallback metadata", async () => {
+  it("exposes transport status contract and runtime fallback metadata", async () => {
     const transportConfig = {
       gateway: {
         http: {
@@ -719,14 +719,16 @@ describe("OpenResponses HTTP API (e2e)", () => {
       expect(statusJson.object).toBe("openresponses.transport_status");
       const selection = (statusJson.selection as Record<string, unknown> | undefined) ?? {};
       expect(selection.requested_mode).toBe("websocket");
-      expect(selection.selected_transport).toBe("sse");
-      expect(selection.fallback_reason).toBe("websocket_path_not_enabled");
+      expect(selection.selected_transport).toBe("websocket");
+      expect(selection.fallback_reason).toBeUndefined();
       const fallbackCodes = (statusJson.fallback_reason_codes as string[] | undefined) ?? [];
-      expect(fallbackCodes).toContain("websocket_path_not_enabled");
       expect(fallbackCodes).toContain("ws_connect_failed");
+      expect(fallbackCodes).toContain("circuit_breaker_open");
 
       agentCommand.mockReset();
-      agentCommand.mockResolvedValueOnce({ payloads: [{ text: "hello" }] } as never);
+      agentCommand
+        .mockRejectedValueOnce(new Error("connect failed"))
+        .mockResolvedValueOnce({ payloads: [{ text: "hello" }] } as never);
       const runResponse = await postResponses(transportPort, {
         model: "openclaw",
         input: "hi",
@@ -738,13 +740,14 @@ describe("OpenResponses HTTP API (e2e)", () => {
         (runMetadata.transport_policy as Record<string, unknown> | undefined) ?? {};
       expect(transportPolicy.requested_mode).toBe("websocket");
       expect(transportPolicy.selected_transport).toBe("sse");
-      expect(transportPolicy.fallback_reason).toBe("websocket_path_not_enabled");
+      expect(transportPolicy.fallback_reason).toBe("ws_connect_failed");
+      expect(transportPolicy.websocket_attempts).toBe(1);
 
       const transportSummary = (runMetadata.transport as Record<string, unknown> | undefined) ?? {};
       const transportRun = (transportSummary.run as Record<string, unknown> | undefined) ?? {};
       expect(transportRun.fallback_count).toBeGreaterThanOrEqual(1);
       expect((transportRun.fallback_reasons as string[] | undefined) ?? []).toContain(
-        "websocket_path_not_enabled",
+        "ws_connect_failed",
       );
     } finally {
       await transportServer.close({ reason: "transport status policy test done" });

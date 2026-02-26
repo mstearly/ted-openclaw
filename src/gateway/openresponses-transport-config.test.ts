@@ -32,7 +32,7 @@ describe("openresponses transport config", () => {
     expect(validation.errors[0]).toContain("duplicate transport capability entry");
   });
 
-  it("resolves deterministic SSE fallback reason when websocket is requested", () => {
+  it("selects websocket when policy mode is websocket and model is capable", () => {
     const selection = resolveOpenResponsesTransportSelection({
       config: {
         enabled: true,
@@ -56,7 +56,47 @@ describe("openresponses transport config", () => {
       model: "openclaw",
     });
     expect(selection.requestedMode).toBe("websocket");
+    expect(selection.selectedTransport).toBe("websocket");
+    expect(selection.fallbackReason).toBeUndefined();
+  });
+
+  it("falls back deterministically when auto canary is disabled", () => {
+    const selection = resolveOpenResponsesTransportSelection({
+      config: {
+        enabled: true,
+        transportCapabilityMatrix: {
+          entries: [{ provider: "openai", model: "openclaw", websocketMode: true }],
+        },
+        transportPolicy: {
+          mode: "auto",
+          canaryPercent: 0,
+        },
+      },
+      model: "openclaw",
+      requestKey: "req-fixed",
+    });
+    expect(selection.requestedMode).toBe("auto");
     expect(selection.selectedTransport).toBe("sse");
-    expect(selection.fallbackReason).toBe("websocket_path_not_enabled");
+    expect(selection.fallbackReason).toBe("auto_canary_disabled");
+  });
+
+  it("selects websocket when auto canary is 100 percent", () => {
+    const selection = resolveOpenResponsesTransportSelection({
+      config: {
+        enabled: true,
+        transportCapabilityMatrix: {
+          entries: [{ provider: "openai", model: "openclaw", websocketMode: true }],
+        },
+        transportPolicy: {
+          mode: "auto",
+          canaryPercent: 100,
+        },
+      },
+      model: "openclaw",
+      requestKey: "req-fixed",
+    });
+    expect(selection.requestedMode).toBe("auto");
+    expect(selection.selectedTransport).toBe("websocket");
+    expect(selection.fallbackReason).toBeUndefined();
   });
 });

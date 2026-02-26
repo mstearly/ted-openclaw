@@ -164,9 +164,19 @@ function findCapability(
   return null;
 }
 
+function hashToPercent(seed: string): number {
+  let hash = 5381;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 33) ^ seed.charCodeAt(index);
+  }
+  const normalized = Math.abs(hash >>> 0);
+  return normalized % 100;
+}
+
 export function resolveOpenResponsesTransportSelection(params: {
   config: GatewayHttpResponsesConfig | undefined;
   model: string;
+  requestKey?: string;
 }): OpenResponsesTransportSelection {
   const normalized = normalizeOpenResponsesTransportConfig(params.config);
   const capability = findCapability(normalized.capabilities, params.model);
@@ -198,11 +208,38 @@ export function resolveOpenResponsesTransportSelection(params: {
     };
   }
 
-  // Wave T1 intentionally keeps runtime on SSE until Wave T2 websocket execution path lands.
+  if (mode === "websocket") {
+    return {
+      requestedMode: mode,
+      selectedTransport: "websocket",
+      capability,
+    };
+  }
+
+  const canaryPercent = Math.max(0, Math.min(100, normalized.policy.canaryPercent));
+  if (canaryPercent === 0) {
+    return {
+      requestedMode: mode,
+      selectedTransport: "sse",
+      fallbackReason: "auto_canary_disabled",
+      capability,
+    };
+  }
+
+  const bucket = hashToPercent(
+    `${params.requestKey ?? "default"}::${params.model}::${capability.provider}`,
+  );
+  if (bucket < canaryPercent) {
+    return {
+      requestedMode: mode,
+      selectedTransport: "websocket",
+      capability,
+    };
+  }
   return {
     requestedMode: mode,
     selectedTransport: "sse",
-    fallbackReason: "websocket_path_not_enabled",
+    fallbackReason: "auto_canary_not_selected",
     capability,
   };
 }

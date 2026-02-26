@@ -56,6 +56,7 @@ import {
   normalizeOpenResponsesTransportConfig,
   resolveOpenResponsesTransportSelection,
 } from "./openresponses-transport-config.js";
+import { executeOpenResponsesWithTransport } from "./openresponses-transport-runtime.js";
 import {
   completeTransportRun,
   getTransportRunSummary,
@@ -75,6 +76,17 @@ const DEFAULT_BODY_BYTES = 20 * 1024 * 1024;
 const DEFAULT_MAX_URL_PARTS = 8;
 const PREVIOUS_RESPONSE_TTL_MS = 6 * 60 * 60 * 1000;
 const MAX_TRACKED_PREVIOUS_RESPONSES = 2000;
+const TRANSPORT_FALLBACK_REASON_CODES = [
+  "model_not_in_capability_matrix",
+  "model_not_websocket_capable",
+  "auto_canary_disabled",
+  "auto_canary_not_selected",
+  "ws_connect_failed",
+  "ws_auth_failed",
+  "ws_timeout",
+  "ws_transport_error",
+  "circuit_breaker_open",
+];
 
 type TrackedPreviousResponse = {
   sessionKey: string;
@@ -479,9 +491,7 @@ export async function handleOpenResponsesTransportStatusHttpRequest(
       [
         ...transportConfig.policy.forceSseOnErrorCode,
         ...transportConfig.capabilities.flatMap((capability) => capability.knownFallbackTriggers),
-        "model_not_in_capability_matrix",
-        "model_not_websocket_capable",
-        "websocket_path_not_enabled",
+        ...TRANSPORT_FALLBACK_REASON_CODES,
       ].filter((reason) => reason.trim().length > 0),
     ),
   ];
@@ -716,15 +726,19 @@ export async function handleOpenResponsesHttpRequest(
   const transportSelection = resolveOpenResponsesTransportSelection({
     config: opts.config,
     model,
+    requestKey: contextSemanticsRequestId,
   });
+  const transportConfig = normalizeOpenResponsesTransportConfig(opts.config);
+  const transportPolicyMetadata: Record<string, unknown> = {
+    requested_mode: transportSelection.requestedMode,
+    selected_transport: transportSelection.selectedTransport,
+    fallback_reason: transportSelection.fallbackReason,
+    capability: transportSelection.capability,
+    websocket_attempts: transportSelection.selectedTransport === "websocket" ? 1 : 0,
+  };
   const responseMetadataBase: Record<string, unknown> = {
     ...(contextSemanticsMetadata ? { context_semantics: contextSemanticsMetadata } : {}),
-    transport_policy: {
-      requested_mode: transportSelection.requestedMode,
-      selected_transport: transportSelection.selectedTransport,
-      fallback_reason: transportSelection.fallbackReason,
-      capability: transportSelection.capability,
-    },
+    transport_policy: transportPolicyMetadata,
   };
 
   // Build prompt from input
@@ -789,19 +803,69 @@ export async function handleOpenResponsesHttpRequest(
     typeof payload.max_output_tokens === "number"
       ? { maxTokens: payload.max_output_tokens }
       : undefined;
+  const runAgentWithTransport = () =>
+    executeOpenResponsesWithTransport({
+      provider: "openresponses",
+      model,
+      selection: transportSelection,
+      policy: transportConfig.policy,
+      runSse: () =>
+        runResponsesAgentCommand({
+          message: prompt.message,
+          images,
+          clientTools: resolvedClientTools,
+          extraSystemPrompt,
+          streamParams,
+          sessionKey,
+          runId: responseId,
+          deps,
+        }),
+      runWebsocket: () =>
+        runResponsesAgentCommand({
+          message: prompt.message,
+          images,
+          clientTools: resolvedClientTools,
+          extraSystemPrompt,
+          streamParams,
+          sessionKey,
+          runId: responseId,
+          deps,
+        }),
+    });
+  const applyRuntimeTransportOutcome = (outcome: {
+    transportUsed: "sse" | "websocket";
+    fallbackReason?: string;
+    websocketAttempts: number;
+  }) => {
+    transportPolicyMetadata.selected_transport = outcome.transportUsed;
+    transportPolicyMetadata.websocket_attempts = outcome.websocketAttempts;
+    if (outcome.fallbackReason) {
+      transportPolicyMetadata.fallback_reason = outcome.fallbackReason;
+    } else if (!transportSelection.fallbackReason) {
+      delete transportPolicyMetadata.fallback_reason;
+    }
+    if (
+      transportSelection.selectedTransport === "websocket" &&
+      outcome.transportUsed === "sse" &&
+      outcome.fallbackReason
+    ) {
+      recordTransportFallback({
+        runId: responseId,
+        requestId: contextSemanticsRequestId,
+        provider: "openresponses",
+        model,
+        from: "websocket",
+        to: "sse",
+        reason: outcome.fallbackReason,
+      });
+    }
+  };
 
   if (!stream) {
     try {
-      const result = await runResponsesAgentCommand({
-        message: prompt.message,
-        images,
-        clientTools: resolvedClientTools,
-        extraSystemPrompt,
-        streamParams,
-        sessionKey,
-        runId: responseId,
-        deps,
-      });
+      const transportResult = await runAgentWithTransport();
+      applyRuntimeTransportOutcome(transportResult);
+      const result = transportResult.result;
 
       const payloads = (result as { payloads?: Array<{ text?: string }> } | null)?.payloads;
       const usage = extractUsageFromResult(result);
@@ -1052,16 +1116,9 @@ export async function handleOpenResponsesHttpRequest(
 
   void (async () => {
     try {
-      const result = await runResponsesAgentCommand({
-        message: prompt.message,
-        images,
-        clientTools: resolvedClientTools,
-        extraSystemPrompt,
-        streamParams,
-        sessionKey,
-        runId: responseId,
-        deps,
-      });
+      const transportResult = await runAgentWithTransport();
+      applyRuntimeTransportOutcome(transportResult);
+      const result = transportResult.result;
 
       finalUsage = extractUsageFromResult(result);
       maybeFinalize();
