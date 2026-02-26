@@ -14,24 +14,25 @@ This document defines the recommended execution order for all Ted QA plans. Each
 
 ## Master Index
 
-| Order | Plan                      | Document   | Items   | Duration   | Automation  | Gate?           |
-| ----- | ------------------------- | ---------- | ------- | ---------- | ----------- | --------------- |
-| 1     | Static Analysis & Linting | SDD 63 §1  | ~10     | Minutes    | Full CI     | Yes             |
-| 2     | Unit Testing              | SDD 63 §2  | ~15     | Minutes    | Full CI     | Yes             |
-| 3     | Component Integration     | SDD 63 §3  | ~10     | Minutes    | Full CI     | Yes             |
-| 4     | API Contract Testing      | SDD 63 §4  | ~12     | Minutes    | Full CI     | Yes             |
-| 5     | Data Integrity            | SDD 63 §5  | ~12     | 10-30 min  | Mostly auto | Yes             |
-| 6     | Security Testing          | SDD 63 §6  | ~20     | Hours-Days | Semi-auto   | Critical/High   |
-| 7     | LLM/AI Testing            | SDD 63 §7  | ~15     | Hours      | Semi-auto   | Safety issues   |
-| 8     | External Integration      | SDD 63 §8  | ~15     | Hours      | Semi-auto   | Yes             |
-| 9     | End-to-End Testing        | SDD 63 §9  | ~15     | Hours      | Semi-auto   | Yes             |
-| 10    | Performance Testing       | SDD 63 §10 | ~12     | Hours      | Auto        | Regression only |
-| 11    | Accessibility (WCAG AA)   | SDD 63 §11 | ~24     | Hours      | Semi-auto   | Level A         |
-| 12    | **UI/UX Testing**         | **SDD 62** | **184** | Hours-Days | Semi-auto   | Render failures |
-| 13    | Operational Readiness     | SDD 63 §13 | ~20     | Half-day   | Manual      | GO/NO-GO        |
-| 14    | User Acceptance           | SDD 63 §14 | ~15     | Days-Weeks | Manual      | Final GO/NO-GO  |
+| Order | Plan                                    | Document   | Items   | Duration   | Automation  | Gate?                   |
+| ----- | --------------------------------------- | ---------- | ------- | ---------- | ----------- | ----------------------- |
+| 1     | Static Analysis & Linting               | SDD 63 §1  | ~10     | Minutes    | Full CI     | Yes                     |
+| 2     | Unit Testing                            | SDD 63 §2  | ~15     | Minutes    | Full CI     | Yes                     |
+| 3     | Component Integration                   | SDD 63 §3  | ~10     | Minutes    | Full CI     | Yes                     |
+| 4     | API Contract Testing                    | SDD 63 §4  | ~12     | Minutes    | Full CI     | Yes                     |
+| 5     | Data Integrity                          | SDD 63 §5  | ~12     | 10-30 min  | Mostly auto | Yes                     |
+| 6     | Security Testing                        | SDD 63 §6  | ~20     | Hours-Days | Semi-auto   | Critical/High           |
+| 7     | LLM/AI Testing                          | SDD 63 §7  | ~15     | Hours      | Semi-auto   | Safety issues           |
+| 8     | External Integration                    | SDD 63 §8  | ~15     | Hours      | Semi-auto   | Yes                     |
+| 9     | End-to-End Testing                      | SDD 63 §9  | ~15     | Hours      | Semi-auto   | Yes                     |
+| 10    | Performance Testing                     | SDD 63 §10 | ~12     | Hours      | Auto        | Regression only         |
+| 11    | Accessibility (WCAG AA)                 | SDD 63 §11 | ~24     | Hours      | Semi-auto   | Level A                 |
+| 12    | **UI/UX Testing**                       | **SDD 62** | **184** | Hours-Days | Semi-auto   | Render failures         |
+| 13    | Workflow Fidelity & Usability Integrity | SDD 146    | ~34     | 1-2 hours  | Semi-auto   | Yes (release + UX gate) |
+| 14    | Operational Readiness                   | SDD 63 §13 | ~20     | Half-day   | Manual      | GO/NO-GO                |
+| 15    | User Acceptance                         | SDD 63 §14 | ~15     | Days-Weeks | Manual      | Final GO/NO-GO          |
 
-**Total checklist items across all plans: ~379**
+**Total checklist items across all plans: ~413**
 
 ---
 
@@ -47,11 +48,11 @@ Plans 5-9. Total time: 4-8 hours. Mix of automated + manual. Block release on Cr
 
 ### Tier 3: Quality Certification (Run quarterly or before major releases)
 
-Plans 10-12. Total time: 1-3 days. Focus on non-functional quality attributes.
+Plans 10-13. Total time: 1-3 days. Focus on non-functional quality attributes and operator-visible workflow integrity.
 
 ### Tier 4: Launch Gates (Run once before production)
 
-Plans 13-14. Total time: 1-2 weeks. Manual. GO/NO-GO decision.
+Plans 14-15. Total time: 1-2 weeks. Manual. GO/NO-GO decision.
 
 ---
 
@@ -71,8 +72,9 @@ Plans 13-14. Total time: 1-2 weeks. Manual. GO/NO-GO decision.
 | 10. Performance          | **NONE**    | No measurements                    | Entire plan missing                          |
 | 11. Accessibility        | **NONE**    | No a11y testing                    | Entire plan missing                          |
 | 12. UI/UX                | **LOW**     | Manual only                        | SDD 62 not yet executed                      |
-| 13. ORR                  | **PARTIAL** | Council reviews serve this role    | No formal checklist                          |
-| 14. UAT                  | **BLOCKED** | Requires operator + real creds     | Acknowledged blocker                         |
+| 13. Workflow Fidelity    | **PARTIAL** | Sidecar workflow routes exist      | No Ted UI journey automation + theme gates   |
+| 14. ORR                  | **PARTIAL** | Council reviews serve this role    | No formal checklist                          |
+| 15. UAT                  | **BLOCKED** | Requires operator + real creds     | Acknowledged blocker                         |
 
 ---
 
@@ -90,15 +92,18 @@ If implementing incrementally, build these plans first (highest risk-reduction p
 
 5. **Performance Baseline (Plan 10)** — O(n) JSONL scans across 35 ledgers growing over time. Need baselines to know when compaction or indexing becomes necessary.
 
+6. **Workflow Fidelity & Usability Integrity (Plan 13)** — UI-specific journey tests and contrast/interaction gates prevent end-user-visible breakage ("button does nothing", unreadable dark-mode text) from escaping to operators.
+
 ---
 
 ## Document References
 
-| SDD    | Title                              | Items                                                                                                |
-| ------ | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| **62** | UX Quality Assurance Checklist     | 184 items, 16 categories (Nielsen heuristics, WCAG, Material Design, VS Code UX, Baymard, Apple HIG) |
-| **63** | Comprehensive QA Plan Suite        | 14 plans, ~195 items covering static analysis through UAT                                            |
-| **64** | QA Execution Order (this document) | Master index and prioritization                                                                      |
+| SDD     | Title                                     | Items                                                                                                |
+| ------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| **62**  | UX Quality Assurance Checklist            | 184 items, 16 categories (Nielsen heuristics, WCAG, Material Design, VS Code UX, Baymard, Apple HIG) |
+| **63**  | Comprehensive QA Plan Suite               | 14 plans, ~195 items covering static analysis through UAT                                            |
+| **64**  | QA Execution Order (this document)        | Master index and prioritization                                                                      |
+| **146** | Workflow Fidelity and Usability Extension | JTBD-aligned flow simulation, friction attribution gates, and theme/accessibility automation         |
 
 ---
 
@@ -120,8 +125,8 @@ pnpm test                     # Unit tests (Plan 2)
 # Run k6 benchmarks (Plan 10)
 
 # Tier 4: Launch gates
-# Execute ORR checklist (Plan 13)
-# Operator runs Day 1 playbook (Plan 14)
+# Execute ORR checklist (Plan 14)
+# Operator runs Day 1 playbook (Plan 15)
 ```
 
 ---
