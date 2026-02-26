@@ -63,6 +63,8 @@ Planned tasks from SDD 112:
 7. SDD 114 - R0-001 plan inventory
 8. SDD 115 - MR0-001 provider ownership register
 9. SDD 116 - MR0-002 credential checklist
+10. SDD 118 - R0-002 roadmap master artifact
+11. SDD 119 - R0-003 roadmap dependency validation rules
 
 ---
 
@@ -78,3 +80,11 @@ The council began Plan 1 execution in parallel with I0 paperwork to maintain mom
 3. Executed gateway e2e test passes:
    - `src/gateway/openresponses-http.e2e.test.ts`,
    - `src/gateway/openresponses-parity.e2e.test.ts`.
+4. Produced the `R0-002` roadmap master artifact:
+   - `sidecars/ted-engine/config/roadmap_master.json`
+   - Evidence doc: `SDD 118`
+5. Implemented `R0-003` roadmap dependency validation rules:
+   - sidecar startup validation hook,
+   - standalone validator script (`scripts/ted-profile/validate-roadmap-master.mjs`),
+   - validator tests.
+   - Evidence doc: `SDD 119`

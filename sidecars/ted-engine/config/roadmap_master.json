@@ -1,0 +1,981 @@
+{
+  "_config_version": 1,
+  "_artifact": "roadmap_master",
+  "_description": "Unified Phase 3+ roadmap combining onboarding, P0/P1/P2, and SDD99-105 execution waves with one dependency graph.",
+  "_last_updated": "2026-02-26",
+  "owners": {
+    "program": "Council",
+    "execution_governance_owner": "Council (handoff at R4-003)",
+    "operator": "Clint Phillips"
+  },
+  "tracks": [
+    {
+      "track_id": "onboarding_phase_windows",
+      "mode": "configure_only",
+      "source_artifact": "sidecars/ted-engine/config/onboarding_ramp.json",
+      "line_items": [
+        {
+          "item_id": "day_0_setup",
+          "owner": "Operator + platform",
+          "release_window": "Day 0",
+          "depends_on": []
+        },
+        {
+          "item_id": "day_1_observe",
+          "owner": "Operator + platform",
+          "release_window": "Day 1",
+          "depends_on": ["day_0_setup"]
+        },
+        {
+          "item_id": "day_3_drafts",
+          "owner": "Operator + platform",
+          "release_window": "Day 3",
+          "depends_on": ["day_1_observe"]
+        },
+        {
+          "item_id": "day_7_adaptive",
+          "owner": "Operator + platform",
+          "release_window": "Day 7",
+          "depends_on": ["day_3_drafts"]
+        },
+        {
+          "item_id": "day_14_governed_autonomy",
+          "owner": "Operator + platform",
+          "release_window": "Day 14",
+          "depends_on": ["day_7_adaptive"]
+        },
+        {
+          "item_id": "day_30_scale_review",
+          "owner": "Council",
+          "release_window": "Day 30",
+          "depends_on": ["day_14_governed_autonomy"]
+        }
+      ]
+    },
+    {
+      "track_id": "alpha_stabilization_p0_p2",
+      "mode": "build_cycle",
+      "source_artifact": "docs/ted-profile/sdd-pack/76_COUNCIL_PROJECT_REVIEW_NEXT_STEPS.md",
+      "line_items": [
+        {
+          "item_id": "P0_merge_branch",
+          "owner": "Platform engineering",
+          "release_window": "Immediate",
+          "depends_on": []
+        },
+        {
+          "item_id": "P0_azure_ad_setup",
+          "owner": "Operator + platform",
+          "release_window": "Immediate",
+          "depends_on": ["P0_merge_branch"]
+        },
+        {
+          "item_id": "P0_live_smoke",
+          "owner": "Council + operator",
+          "release_window": "Immediate",
+          "depends_on": ["P0_azure_ad_setup"]
+        },
+        {
+          "item_id": "P1_decompose_monolith",
+          "owner": "Platform engineering",
+          "release_window": "Next sprint",
+          "depends_on": ["P0_live_smoke"]
+        },
+        {
+          "item_id": "P1_ci_pipeline",
+          "owner": "Platform engineering",
+          "release_window": "Next sprint",
+          "depends_on": ["P0_merge_branch"]
+        },
+        {
+          "item_id": "P1_dependency_hardening",
+          "owner": "Platform engineering",
+          "release_window": "Next sprint",
+          "depends_on": ["P1_ci_pipeline"]
+        },
+        {
+          "item_id": "P2_backlog_expansion",
+          "owner": "Council",
+          "release_window": "Backlog",
+          "depends_on": ["P1_dependency_hardening"]
+        }
+      ]
+    },
+    {
+      "track_id": "boardroom_sdd99_105",
+      "mode": "configure_only",
+      "source_artifact": "docs/ted-profile/sdd-pack/106_COUNCIL_BOARDROOM_BRIEFING_SDD99_105.md",
+      "line_items": [
+        {
+          "item_id": "SDD99_transport_decision",
+          "owner": "Council",
+          "release_window": "Wave I4",
+          "depends_on": ["I3"]
+        },
+        {
+          "item_id": "SDD100_context_truthfulness",
+          "owner": "Council",
+          "release_window": "Wave I1-I3",
+          "depends_on": ["I0"]
+        },
+        {
+          "item_id": "SDD101_mobile_governance",
+          "owner": "Council",
+          "release_window": "Wave I5-I11",
+          "depends_on": ["I4"]
+        },
+        {
+          "item_id": "SDD102_roadmap_contract",
+          "owner": "Council",
+          "release_window": "Wave I0-I2",
+          "depends_on": ["I0"]
+        },
+        {
+          "item_id": "SDD103_monday_rightsignature",
+          "owner": "Council + operator",
+          "release_window": "Wave I0-I11",
+          "depends_on": ["I0"]
+        },
+        {
+          "item_id": "SDD104_dependency_corrections",
+          "owner": "Council",
+          "release_window": "Completed",
+          "depends_on": []
+        },
+        {
+          "item_id": "SDD105_targeted_research",
+          "owner": "Council",
+          "release_window": "Completed",
+          "depends_on": []
+        }
+      ]
+    }
+  ],
+  "waves": [
+    {
+      "wave_id": "I0",
+      "title": "Program mobilization",
+      "depends_on": [],
+      "source_sdds": [110, 111],
+      "release_window": "2026-Q1"
+    },
+    {
+      "wave_id": "I1",
+      "title": "Core truthfulness foundation",
+      "depends_on": ["I0"],
+      "source_sdds": [107, 110],
+      "release_window": "2026-Q1"
+    },
+    {
+      "wave_id": "I2",
+      "title": "Context semantics implementation",
+      "depends_on": ["I1"],
+      "source_sdds": [107, 110],
+      "release_window": "2026-Q1"
+    },
+    {
+      "wave_id": "I3",
+      "title": "Context validation and release gate",
+      "depends_on": ["I2"],
+      "source_sdds": [107],
+      "release_window": "2026-Q1"
+    },
+    {
+      "wave_id": "I4",
+      "title": "Transport baseline and lifecycle foundations",
+      "depends_on": ["I3"],
+      "source_sdds": [108, 110, 111],
+      "release_window": "2026-Q1"
+    },
+    {
+      "wave_id": "I5",
+      "title": "Transport policy and mobile policy foundation",
+      "depends_on": ["I4"],
+      "source_sdds": [108, 109],
+      "release_window": "2026-Q2"
+    },
+    {
+      "wave_id": "I6",
+      "title": "Controlled transport enablement and mobile routing",
+      "depends_on": ["I5"],
+      "source_sdds": [108, 109],
+      "release_window": "2026-Q2"
+    },
+    {
+      "wave_id": "I7",
+      "title": "KPI and evidence gate infrastructure",
+      "depends_on": ["I6"],
+      "source_sdds": [109, 110],
+      "release_window": "2026-Q2"
+    },
+    {
+      "wave_id": "I8",
+      "title": "Validation and UX readiness",
+      "depends_on": ["I7"],
+      "source_sdds": [108, 109],
+      "release_window": "2026-Q2"
+    },
+    {
+      "wave_id": "I9",
+      "title": "Connector build track (production-gated)",
+      "depends_on": ["I4", "I7"],
+      "source_sdds": [111],
+      "release_window": "2026-Q3"
+    },
+    {
+      "wave_id": "I10",
+      "title": "Scale and personal-module governance",
+      "depends_on": ["I7"],
+      "source_sdds": [110],
+      "release_window": "2026-Q3"
+    },
+    {
+      "wave_id": "I11",
+      "title": "Connector write and productization (post P0-4)",
+      "depends_on": ["I9", "I10"],
+      "external_gates": ["P0-4_GATE"],
+      "source_sdds": [109, 111],
+      "release_window": "2026-Q3-Q4"
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "R0-001",
+      "wave_id": "I0",
+      "title": "Execute R0-001 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR0-001",
+      "wave_id": "I0",
+      "title": "Execute MR0-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["R0-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR0-002",
+      "wave_id": "I0",
+      "title": "Execute MR0-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["MR0-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C0-001",
+      "wave_id": "I1",
+      "title": "Execute C0-001 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "configure_only",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C0-002",
+      "wave_id": "I1",
+      "title": "Execute C0-002 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "configure_only",
+      "depends_on": ["C0-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C0-003",
+      "wave_id": "I1",
+      "title": "Execute C0-003 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "configure_only",
+      "depends_on": ["C0-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R0-002",
+      "wave_id": "I1",
+      "title": "Execute R0-002 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["C0-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C1-001",
+      "wave_id": "I2",
+      "title": "Execute C1-001 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C1-002",
+      "wave_id": "I2",
+      "title": "Execute C1-002 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": ["C1-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C1-003",
+      "wave_id": "I2",
+      "title": "Execute C1-003 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": ["C1-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C1-004",
+      "wave_id": "I2",
+      "title": "Execute C1-004 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": ["C1-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R0-003",
+      "wave_id": "I2",
+      "title": "Execute R0-003 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["C1-004"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C2-001",
+      "wave_id": "I3",
+      "title": "Execute C2-001 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C2-002",
+      "wave_id": "I3",
+      "title": "Execute C2-002 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": ["C2-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C2-003",
+      "wave_id": "I3",
+      "title": "Execute C2-003 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": ["C2-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C2-004",
+      "wave_id": "I3",
+      "title": "Execute C2-004 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "build_cycle",
+      "depends_on": ["C2-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C3-001",
+      "wave_id": "I3",
+      "title": "Execute C3-001 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "configure_only",
+      "depends_on": ["C2-004"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C3-002",
+      "wave_id": "I3",
+      "title": "Execute C3-002 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "configure_only",
+      "depends_on": ["C3-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "C3-003",
+      "wave_id": "I3",
+      "title": "Execute C3-003 per governing SDD task board",
+      "owner": "Gateway council owners",
+      "mode": "configure_only",
+      "depends_on": ["C3-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T0-001",
+      "wave_id": "I4",
+      "title": "Execute T0-001 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "configure_only",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T0-002",
+      "wave_id": "I4",
+      "title": "Execute T0-002 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["T0-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T0-003",
+      "wave_id": "I4",
+      "title": "Execute T0-003 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["T0-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R1-001",
+      "wave_id": "I4",
+      "title": "Execute R1-001 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["T0-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R1-002",
+      "wave_id": "I4",
+      "title": "Execute R1-002 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R1-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R1-003",
+      "wave_id": "I4",
+      "title": "Execute R1-003 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R1-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R1-004",
+      "wave_id": "I4",
+      "title": "Execute R1-004 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R1-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR0-003",
+      "wave_id": "I4",
+      "title": "Execute MR0-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["R1-004"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR0-004",
+      "wave_id": "I4",
+      "title": "Execute MR0-004 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["MR0-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR0-005",
+      "wave_id": "I4",
+      "title": "Execute MR0-005 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["MR0-004"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T1-001",
+      "wave_id": "I5",
+      "title": "Execute T1-001 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "configure_only",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T1-002",
+      "wave_id": "I5",
+      "title": "Execute T1-002 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["T1-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T1-003",
+      "wave_id": "I5",
+      "title": "Execute T1-003 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["T1-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M0-001",
+      "wave_id": "I5",
+      "title": "Execute M0-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["T1-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M0-002",
+      "wave_id": "I5",
+      "title": "Execute M0-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["M0-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M0-003",
+      "wave_id": "I5",
+      "title": "Execute M0-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "configure_only",
+      "depends_on": ["M0-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T2-001",
+      "wave_id": "I6",
+      "title": "Execute T2-001 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "build_cycle",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T2-002",
+      "wave_id": "I6",
+      "title": "Execute T2-002 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["T2-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T2-003",
+      "wave_id": "I6",
+      "title": "Execute T2-003 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["T2-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T2-004",
+      "wave_id": "I6",
+      "title": "Execute T2-004 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["T2-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M1-001",
+      "wave_id": "I6",
+      "title": "Execute M1-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["T2-004"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M1-002",
+      "wave_id": "I6",
+      "title": "Execute M1-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M1-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M1-003",
+      "wave_id": "I6",
+      "title": "Execute M1-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M1-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M1-004",
+      "wave_id": "I6",
+      "title": "Execute M1-004 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M1-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R2-001",
+      "wave_id": "I7",
+      "title": "Execute R2-001 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R2-002",
+      "wave_id": "I7",
+      "title": "Execute R2-002 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R2-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R2-003",
+      "wave_id": "I7",
+      "title": "Execute R2-003 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R2-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M2-001",
+      "wave_id": "I7",
+      "title": "Execute M2-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["R2-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M2-002",
+      "wave_id": "I7",
+      "title": "Execute M2-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M2-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M2-003",
+      "wave_id": "I7",
+      "title": "Execute M2-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M2-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T3-001",
+      "wave_id": "I8",
+      "title": "Execute T3-001 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "build_cycle",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T3-002",
+      "wave_id": "I8",
+      "title": "Execute T3-002 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["T3-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "T3-003",
+      "wave_id": "I8",
+      "title": "Execute T3-003 per governing SDD task board",
+      "owner": "Gateway/platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["T3-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M3-001",
+      "wave_id": "I8",
+      "title": "Execute M3-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["T3-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M3-002",
+      "wave_id": "I8",
+      "title": "Execute M3-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M3-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M3-003",
+      "wave_id": "I8",
+      "title": "Execute M3-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M3-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M3-004",
+      "wave_id": "I8",
+      "title": "Execute M3-004 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M3-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR1-001",
+      "wave_id": "I9",
+      "title": "Execute MR1-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR1-002",
+      "wave_id": "I9",
+      "title": "Execute MR1-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR1-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR1-003",
+      "wave_id": "I9",
+      "title": "Execute MR1-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR1-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR1-004",
+      "wave_id": "I9",
+      "title": "Execute MR1-004 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR1-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR1-005",
+      "wave_id": "I9",
+      "title": "Execute MR1-005 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR1-004"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR2-001",
+      "wave_id": "I9",
+      "title": "Execute MR2-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR1-005"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR2-002",
+      "wave_id": "I9",
+      "title": "Execute MR2-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR2-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR2-003",
+      "wave_id": "I9",
+      "title": "Execute MR2-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR2-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR2-004",
+      "wave_id": "I9",
+      "title": "Execute MR2-004 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR2-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR2-005",
+      "wave_id": "I9",
+      "title": "Execute MR2-005 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR2-004"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R3-001",
+      "wave_id": "I10",
+      "title": "Execute R3-001 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": [],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R3-002",
+      "wave_id": "I10",
+      "title": "Execute R3-002 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R3-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R3-003",
+      "wave_id": "I10",
+      "title": "Execute R3-003 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R3-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R4-001",
+      "wave_id": "I10",
+      "title": "Execute R4-001 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R3-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R4-002",
+      "wave_id": "I10",
+      "title": "Execute R4-002 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R4-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "R4-003",
+      "wave_id": "I10",
+      "title": "Execute R4-003 per governing SDD task board",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": ["R4-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "P0-4_GATE",
+      "wave_id": "I11",
+      "title": "Verify P0-4 production activation gate signed",
+      "owner": "Council governance owners",
+      "mode": "configure_only",
+      "depends_on": [],
+      "readiness_gate": "operator_signoff_required"
+    },
+    {
+      "task_id": "MR3-001",
+      "wave_id": "I11",
+      "title": "Execute MR3-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["P0-4_GATE"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR3-002",
+      "wave_id": "I11",
+      "title": "Execute MR3-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR3-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR3-003",
+      "wave_id": "I11",
+      "title": "Execute MR3-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR3-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR4-001",
+      "wave_id": "I11",
+      "title": "Execute MR4-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR3-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR4-002",
+      "wave_id": "I11",
+      "title": "Execute MR4-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR4-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "MR4-003",
+      "wave_id": "I11",
+      "title": "Execute MR4-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR4-002"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M4-001",
+      "wave_id": "I11",
+      "title": "Execute M4-001 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["MR4-003"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M4-002",
+      "wave_id": "I11",
+      "title": "Execute M4-002 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M4-001"],
+      "readiness_gate": "standard_wave_gate"
+    },
+    {
+      "task_id": "M4-003",
+      "wave_id": "I11",
+      "title": "Execute M4-003 per governing SDD task board",
+      "owner": "Council + platform engineering",
+      "mode": "build_cycle",
+      "depends_on": ["M4-002"],
+      "readiness_gate": "standard_wave_gate"
+    }
+  ]
+}

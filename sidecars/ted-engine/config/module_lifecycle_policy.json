@@ -1,0 +1,103 @@
+{
+  "_config_version": 1,
+  "_artifact": "module_lifecycle_policy",
+  "_description": "Admission, precedence, promotion, and rollback policy for new modules and connectors.",
+  "_last_updated": "2026-02-26",
+  "module_classes": {
+    "policy": {
+      "admission_requirements": [
+        "plane_mapping",
+        "ledger_read_write_map",
+        "conflict_resolution_rules",
+        "startup_validation_contract"
+      ],
+      "promotion_requirements": [
+        "policy_preview_diff",
+        "validation_pass",
+        "operator_acknowledgement"
+      ],
+      "rollback_triggers": ["startup_validation_failure", "safety_conflict"]
+    },
+    "workflow": {
+      "admission_requirements": [
+        "jtbd_statement",
+        "entity_scope",
+        "data_sensitivity",
+        "success_metrics",
+        "replay_fixture_plan"
+      ],
+      "promotion_requirements": ["replay_pass", "kpi_gate_pass", "operator_dry_run_pass"],
+      "rollback_triggers": ["replay_regression", "high_override_rate", "policy_bypass"]
+    },
+    "connector": {
+      "admission_requirements": [
+        "provider_ownership_confirmed",
+        "credential_checklist_complete",
+        "auth_mode_decision",
+        "admission_policy_defined"
+      ],
+      "promotion_requirements": [
+        "read_only_replay_pass",
+        "admission_revalidation_pass",
+        "auth_failure_rate_within_threshold",
+        "p0_4_gate_signoff"
+      ],
+      "rollback_triggers": [
+        "auth_failure_spike",
+        "callback_integrity_failure",
+        "throughput_guardrail_violation"
+      ]
+    },
+    "domain_engine": {
+      "admission_requirements": [
+        "domain_contract",
+        "state_machine_definition",
+        "threat_review",
+        "evaluation_plan",
+        "operator_review_path"
+      ],
+      "promotion_requirements": [
+        "contract_tests_pass",
+        "evaluation_gate_pass",
+        "incident_runbook_ready"
+      ],
+      "rollback_triggers": ["state_violation", "contract_break", "critical_incident"]
+    }
+  },
+  "policy_precedence": [
+    "safety_compliance",
+    "connector_admission",
+    "context_lifecycle",
+    "transport_optimization",
+    "experience_routing"
+  ],
+  "conflict_resolution": {
+    "mode": "fail_closed",
+    "requires_audit_event": true,
+    "audit_event_type": "policy.conflict.resolved"
+  },
+  "intake_template_required_fields": [
+    "requester",
+    "jtbd",
+    "entities",
+    "data_sensitivity",
+    "permissions",
+    "success_metrics",
+    "plane_mapping",
+    "ledger_read_write_map",
+    "rollout_plan",
+    "rollback_plan"
+  ],
+  "release_gate": {
+    "kpis": [
+      "latency_p95",
+      "context_overflow_rate",
+      "alert_ack_sla",
+      "auth_failure_rate",
+      "operator_override_rate",
+      "time_to_first_value"
+    ],
+    "override_authority": "operator_and_council_joint",
+    "requires_written_override_reason": true
+  }
+}

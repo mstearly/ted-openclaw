@@ -5,6 +5,10 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  validateModuleLifecyclePolicy,
+  validateRoadmapMaster,
+} from "./modules/roadmap_governance.mjs";
+import {
   createSchedulerHandlers,
   createSchedulerCore,
   dispatchSchedulerRoute,
@@ -131,6 +135,12 @@ const memoryPolicyConfigPath = path.join(__dirname, "config", "memory_policy.jso
 const mcpTrustPolicyConfigPath = path.join(__dirname, "config", "mcp_trust_policy.json");
 const evalMatrixConfigPath = path.join(__dirname, "config", "eval_matrix.json");
 const graphSyncStrategyConfigPath = path.join(__dirname, "config", "graph_sync_strategy.json");
+const roadmapMasterConfigPath = path.join(__dirname, "config", "roadmap_master.json");
+const moduleLifecyclePolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "module_lifecycle_policy.json",
+);
 const outputContractsConfigPath = path.join(__dirname, "config", "output_contracts.json");
 const evaluationGradersConfigPath = path.join(__dirname, "config", "evaluation_graders.json");
 const syntheticCanariesConfigPath = path.join(__dirname, "config", "synthetic_canaries.json");
@@ -352,6 +362,8 @@ const MONITORED_CONFIGS = [
   "eval_matrix.json",
   "replay_corpus.json",
   "graph_sync_strategy.json",
+  "roadmap_master.json",
+  "module_lifecycle_policy.json",
 ];
 
 function hashConfigFile(filePath) {
@@ -1126,6 +1138,8 @@ function validateStartupIntegrity() {
     operatorProfileConfigPath,
     graphProfilesConfigPath,
     llmProviderConfigPath,
+    roadmapMasterConfigPath,
+    moduleLifecyclePolicyConfigPath,
   ]);
   const allConfigPaths = [
     operatorProfileConfigPath,
@@ -1139,6 +1153,8 @@ function validateStartupIntegrity() {
     evalMatrixConfigPath,
     replayCorpusConfigPath,
     graphSyncStrategyConfigPath,
+    roadmapMasterConfigPath,
+    moduleLifecyclePolicyConfigPath,
     hardBansConfigPath,
     briefConfigPath,
     urgencyRulesConfigPath,
@@ -1168,13 +1184,50 @@ function validateStartupIntegrity() {
     try {
       const raw = fs.readFileSync(cp, "utf8");
       const parsed = JSON.parse(raw);
+      let configValid = true;
       if (typeof parsed._config_version !== "number" || parsed._config_version < 1) {
         results.errors.push({
           type: "config",
           path: cp,
           error: "missing or invalid _config_version",
+          critical: criticalConfigs.has(cp),
         });
-      } else {
+        configValid = false;
+      }
+
+      if (cp === roadmapMasterConfigPath) {
+        const roadmapValidation = validateRoadmapMaster(parsed);
+        if (!roadmapValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `roadmap_master validation failed: ${roadmapValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: roadmapValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === moduleLifecyclePolicyConfigPath) {
+        const policyValidation = validateModuleLifecyclePolicy(parsed);
+        if (!policyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `module_lifecycle_policy validation failed: ${policyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: policyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (configValid) {
         results.configs_ok++;
       }
     } catch (err) {

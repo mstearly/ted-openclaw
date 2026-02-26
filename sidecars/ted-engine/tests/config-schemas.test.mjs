@@ -12,6 +12,10 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
+import {
+  validateModuleLifecyclePolicy,
+  validateRoadmapMaster,
+} from "../modules/roadmap_governance.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const configDir = resolve(__dirname, "../config");
@@ -44,9 +48,9 @@ describe("Config files — valid JSON", () => {
     expect(typeof parsed).toBe("object");
   });
 
-  test("config directory has expected number of files (28-40)", () => {
+  test("config directory has expected number of files (28-80)", () => {
     expect(configFiles.length).toBeGreaterThanOrEqual(28);
-    expect(configFiles.length).toBeLessThanOrEqual(40);
+    expect(configFiles.length).toBeLessThanOrEqual(80);
   });
 });
 
@@ -311,7 +315,27 @@ describe("route_contracts.json — structure", () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// Section 8: Key config files exist
+// Section 8: roadmap and lifecycle policy validation
+// ─────────────────────────────────────────────────────────
+
+describe("roadmap and lifecycle governance configs", () => {
+  test("roadmap_master.json passes dependency validation", () => {
+    const roadmap = configs.get("roadmap_master.json");
+    const result = validateRoadmapMaster(roadmap);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("module_lifecycle_policy.json passes structural validation", () => {
+    const policy = configs.get("module_lifecycle_policy.json");
+    const result = validateModuleLifecyclePolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────
+// Section 9: Key config files exist
 // ─────────────────────────────────────────────────────────
 
 describe("Required config files exist", () => {
@@ -333,6 +357,8 @@ describe("Required config files exist", () => {
     "migration_state.json",
     "ted_constitution.json",
     "ted_agent.json",
+    "roadmap_master.json",
+    "module_lifecycle_policy.json",
   ];
 
   test.each(requiredConfigs)("%s exists in config directory", (file) => {
@@ -341,7 +367,7 @@ describe("Required config files exist", () => {
 });
 
 // ─────────────────────────────────────────────────────────
-// Section 9: Cross-config consistency
+// Section 10: Cross-config consistency
 // ─────────────────────────────────────────────────────────
 
 describe("Cross-config consistency", () => {
