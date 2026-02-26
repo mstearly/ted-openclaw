@@ -82,7 +82,7 @@
         "max_duration_ms": 18000
       },
       "simulated": {
-        "actual_output": "Agenda attached.\nDecision points and open questions listed.",
+        "actual_output": "Agenda attached.\nDecision points and Open questions listed.",
         "actual_steps": [
           "collect_meeting_context",
           "summarize_entities",
@@ -163,7 +163,7 @@
         "max_duration_ms": 14000
       },
       "simulated": {
-        "actual_output": "workflow_snapshot_ref and definition_hash persisted for run.",
+        "actual_output": "workflow_snapshot_ref, definition_hash, and workflow_version persisted for run.",
         "actual_steps": [
           "resolve_workflow_version",
           "pin_snapshot",

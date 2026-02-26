@@ -236,6 +236,34 @@ jobs:
             ${{ env.OPENCLAW_VITEST_REPORT_DIR }}
             ${{ runner.temp }}/vitest-slowest.md
 
+  replay-release-gate:
+    name: "replay-release-gate"
+    needs: [docs-scope, changed-scope, check]
+    if: needs.docs-scope.outputs.docs_only != 'true' && (github.event_name == 'push' || needs.changed-scope.outputs.run_node == 'true')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Setup Node environment
+        uses: ./.github/actions/setup-node-env
+        with:
+          install-bun: "false"
+
+      - name: Run replay + rollout release gate
+        run: |
+          node scripts/ted-profile/ci-replay-rollout-gate.mjs --output "$RUNNER_TEMP/replay-release-gate/summary.json"
+
+      - name: Upload replay release gate artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: replay-release-gate
+          path: ${{ runner.temp }}/replay-release-gate/
+          retention-days: 14
+
   # Types, lint, and format check.
   check:
     name: "check"
