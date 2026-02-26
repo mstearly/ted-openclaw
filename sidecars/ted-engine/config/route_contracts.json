@@ -39,6 +39,16 @@
       "required_fields": ["checks", "issues", "blocking_issues", "ready"],
       "content_type": "application/json"
     },
+    "GET /ops/setup/state": {
+      "status_codes": [200],
+      "required_fields": ["checks", "issues", "profiles", "ready_for_live_graph"],
+      "content_type": "application/json"
+    },
+    "POST /ops/setup/graph-profile": {
+      "status_codes": [200, 400, 403],
+      "required_fields": ["ok", "profile_id", "delegated_scopes_count"],
+      "content_type": "application/json"
+    },
     "GET /ops/scheduler": {
       "status_codes": [200],
       "required_fields": [
@@ -99,6 +109,21 @@
     "POST /ops/mcp/external/servers/tools/list": {
       "status_codes": [200, 400],
       "required_fields": ["tools", "total_count", "errors"],
+      "content_type": "application/json"
+    },
+    "GET /ops/mcp/external/servers/admission": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "admissions", "total_count", "ready_count"],
+      "content_type": "application/json"
+    },
+    "POST /ops/mcp/external/servers/revalidate": {
+      "status_codes": [200, 400],
+      "required_fields": ["ok", "summary", "checks"],
+      "content_type": "application/json"
+    },
+    "GET /ops/mcp/external/servers/revalidate/status": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "has_run", "last_run"],
       "content_type": "application/json"
     },
     "GET /ops/llm-provider": {

@@ -18,6 +18,7 @@ import type {
   TedMemoryPreferencesResponse,
   TedMemoryExportResponse,
   TedMcpTrustPolicy,
+  TedSetupStateResponse,
   TedGraphDeltaStatusResponse,
   TedGraphDeltaRunResponse,
   TedEvalMatrixConfigResponse,
@@ -61,6 +62,8 @@ import type {
   TedExternalMcpServersResponse,
   TedExternalMcpToolsResponse,
   TedExternalMcpServerTestResponse,
+  TedMcpExternalAdmissionResponse,
+  TedMcpExternalRevalidationStatusResponse,
 } from "../types.ts";
 
 const TED_REQUEST_TIMEOUT_MS = 12_000;
@@ -209,6 +212,21 @@ export type TedWorkbenchState = {
   tedMcpToolPolicyBusy: boolean;
   tedMcpToolPolicyError: string | null;
   tedMcpToolPolicyResult: string | null;
+  tedSetupState: TedSetupStateResponse | null;
+  tedSetupStateLoading: boolean;
+  tedSetupStateError: string | null;
+  tedSetupSaveBusy: boolean;
+  tedSetupSaveError: string | null;
+  tedSetupSaveResult: string | null;
+  tedMcpExternalAdmission: TedMcpExternalAdmissionResponse | null;
+  tedMcpExternalAdmissionLoading: boolean;
+  tedMcpExternalAdmissionError: string | null;
+  tedMcpExternalRevalidationStatus: TedMcpExternalRevalidationStatusResponse | null;
+  tedMcpExternalRevalidationStatusLoading: boolean;
+  tedMcpExternalRevalidationStatusError: string | null;
+  tedMcpExternalRevalidateBusy: boolean;
+  tedMcpExternalRevalidateError: string | null;
+  tedMcpExternalRevalidateResult: Record<string, unknown> | null;
   tedGraphDeltaStatus: TedGraphDeltaStatusResponse | null;
   tedGraphDeltaStatusLoading: boolean;
   tedGraphDeltaStatusError: string | null;
@@ -1571,6 +1589,57 @@ export async function setTedMcpToolPolicy(
   }
 }
 
+export async function loadTedSetupState(state: TedWorkbenchState): Promise<void> {
+  if (!state.client || !state.connected || state.tedSetupStateLoading) {
+    return;
+  }
+  state.tedSetupStateLoading = true;
+  state.tedSetupStateError = null;
+  try {
+    const result = await requestTedWithTimeout<TedSetupStateResponse>(
+      state.client,
+      "ted.ops.setup.state",
+      {},
+    );
+    state.tedSetupState = result;
+  } catch (err) {
+    state.tedSetupStateError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedSetupStateLoading = false;
+  }
+}
+
+export async function saveTedSetupGraphProfile(
+  state: TedWorkbenchState,
+  payload: {
+    profile_id: "olumie" | "everest";
+    tenant_id: string;
+    client_id: string;
+    delegated_scopes: string[];
+    clear_auth?: boolean;
+  },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedSetupSaveBusy) {
+    return;
+  }
+  state.tedSetupSaveBusy = true;
+  state.tedSetupSaveError = null;
+  state.tedSetupSaveResult = null;
+  try {
+    await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.setup.graph_profile.set",
+      payload,
+    );
+    state.tedSetupSaveResult = `Saved setup profile ${payload.profile_id}`;
+    await loadTedSetupState(state);
+  } catch (err) {
+    state.tedSetupSaveError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedSetupSaveBusy = false;
+  }
+}
+
 export async function loadTedGraphDeltaStatus(
   state: TedWorkbenchState,
   params?: { profile_id?: string; workload?: string },
@@ -2684,6 +2753,77 @@ export async function triggerTedDiscovery(
   }
 }
 
+export async function loadTedMcpExternalAdmission(
+  state: TedWorkbenchState,
+  serverId?: string,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMcpExternalAdmissionLoading) {
+    return;
+  }
+  state.tedMcpExternalAdmissionLoading = true;
+  state.tedMcpExternalAdmissionError = null;
+  try {
+    const result = await requestTedWithTimeout<TedMcpExternalAdmissionResponse>(
+      state.client,
+      "ted.ops.mcp.external.admission",
+      serverId ? { server_id: serverId } : {},
+    );
+    state.tedMcpExternalAdmission = result;
+  } catch (err) {
+    state.tedMcpExternalAdmissionError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMcpExternalAdmissionLoading = false;
+  }
+}
+
+export async function loadTedMcpExternalRevalidationStatus(
+  state: TedWorkbenchState,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMcpExternalRevalidationStatusLoading) {
+    return;
+  }
+  state.tedMcpExternalRevalidationStatusLoading = true;
+  state.tedMcpExternalRevalidationStatusError = null;
+  try {
+    const result = await requestTedWithTimeout<TedMcpExternalRevalidationStatusResponse>(
+      state.client,
+      "ted.ops.mcp.external.revalidate.status",
+      {},
+    );
+    state.tedMcpExternalRevalidationStatus = result;
+  } catch (err) {
+    state.tedMcpExternalRevalidationStatusError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMcpExternalRevalidationStatusLoading = false;
+  }
+}
+
+export async function runTedMcpExternalRevalidate(
+  state: TedWorkbenchState,
+  serverId?: string,
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedMcpExternalRevalidateBusy) {
+    return;
+  }
+  state.tedMcpExternalRevalidateBusy = true;
+  state.tedMcpExternalRevalidateError = null;
+  state.tedMcpExternalRevalidateResult = null;
+  try {
+    const result = await requestTedWithTimeout<Record<string, unknown>>(
+      state.client,
+      "ted.ops.mcp.external.revalidate",
+      serverId ? { server_id: serverId } : {},
+    );
+    state.tedMcpExternalRevalidateResult = result;
+    await loadTedMcpExternalRevalidationStatus(state);
+    await loadTedMcpExternalAdmission(state, serverId);
+  } catch (err) {
+    state.tedMcpExternalRevalidateError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedMcpExternalRevalidateBusy = false;
+  }
+}
+
 export async function loadTedExternalMcpServers(state: TedWorkbenchState): Promise<void> {
   if (!state.client || !state.connected || state.tedExternalMcpServersLoading) {
     return;
@@ -2697,6 +2837,8 @@ export async function loadTedExternalMcpServers(state: TedWorkbenchState): Promi
       {},
     );
     state.tedExternalMcpServers = result;
+    await loadTedMcpExternalAdmission(state);
+    await loadTedMcpExternalRevalidationStatus(state);
   } catch (err) {
     state.tedExternalMcpServersError = err instanceof Error ? err.message : String(err);
   } finally {
@@ -2751,6 +2893,7 @@ export async function testTedExternalMcpServer(
       { server_id: serverId },
     );
     state.tedExternalMcpTestResult = result;
+    await loadTedMcpExternalAdmission(state, serverId);
   } catch (err) {
     state.tedExternalMcpTestError = err instanceof Error ? err.message : String(err);
   } finally {
@@ -2771,6 +2914,9 @@ export async function upsertTedExternalMcpServer(
     trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
+    attestation_status?: "pending" | "attested" | "revoked";
+    attested_at?: string;
+    scope_verified?: string[];
   },
 ): Promise<void> {
   if (!state.client || !state.connected || state.tedExternalMcpMutationBusy) {

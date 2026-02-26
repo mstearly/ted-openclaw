@@ -1039,6 +1039,45 @@ export interface TedMcpTrustPolicy {
   tool_policies: Record<string, "read_only" | "approval_required" | "deny">;
 }
 
+export interface TedSetupStateResponse {
+  generated_at: string;
+  checks: Record<string, string>;
+  issues: Array<{
+    severity: "error" | "warning" | "info";
+    message: string;
+    profile_id?: string;
+  }>;
+  blocking_issues: Array<{
+    severity: "error" | "warning" | "info";
+    message: string;
+    profile_id?: string;
+  }>;
+  ready: boolean;
+  ready_for_live_graph: boolean;
+  profiles: Array<{
+    profile_id: string;
+    configured: boolean;
+    authenticated: boolean;
+    tenant_id_present: boolean;
+    client_id_present: boolean;
+    tenant_id_masked: string | null;
+    client_id_masked: string | null;
+    delegated_scopes_count: number;
+    delegated_scopes: string[];
+    has_placeholder_values: boolean;
+    missing: string[];
+    next_action: string;
+  }>;
+  providers: Array<{
+    provider: string;
+    enabled: boolean;
+    api_key_env: string | null;
+    api_key_set: boolean | null;
+    endpoint_env: string | null;
+    endpoint_set: boolean | null;
+  }>;
+}
+
 export interface TedGraphDeltaStatusResponse {
   strategy: Record<string, unknown>;
   entries: Array<{
@@ -1723,6 +1762,12 @@ export interface TedExternalMcpServer {
   description?: string;
   allow_tools: string[];
   deny_tools: string[];
+  attestation_status?: "pending" | "attested" | "revoked";
+  attested_at?: string | null;
+  scope_verified?: string[];
+  last_tested_at?: string | null;
+  last_test_ok?: boolean | null;
+  last_tool_count?: number | null;
 }
 
 export interface TedExternalMcpServersResponse {
@@ -1752,6 +1797,57 @@ export interface TedExternalMcpServerTestResponse {
   tool_count?: number;
   tools_preview?: Array<{ local_name: string; remote_name: string }>;
   error?: string;
+}
+
+export interface TedMcpExternalAdmissionResponse {
+  generated_at: string;
+  server_id: string | null;
+  admissions: Array<{
+    server_id: string;
+    enabled: boolean;
+    trust_tier: "sandboxed" | "trusted_read" | "trusted_write";
+    attestation_status: "pending" | "attested" | "revoked";
+    attested_at: string | null;
+    scope_verified: string[];
+    auth: {
+      token_env: string | null;
+      token_configured: boolean;
+    };
+    test_evidence: {
+      last_tested_at: string | null;
+      last_test_ok: boolean | null;
+      last_tool_count: number | null;
+    };
+    production_ready: boolean;
+    blocking_reasons: string[];
+    next_actions: string[];
+  }>;
+  total_count: number;
+  ready_count: number;
+  blocked_count: number;
+}
+
+export interface TedMcpExternalRevalidationStatusResponse {
+  generated_at: string;
+  has_run: boolean;
+  last_run: {
+    kind: string;
+    at: string;
+    server_id: string | null;
+    summary: {
+      total_servers: number;
+      ok: number;
+      blocked: number;
+      stale_test: number;
+    };
+    checks: Array<{
+      server_id: string;
+      status: "ok" | "blocked" | "stale_test";
+      production_ready: boolean;
+      last_test_age_hours: number | null;
+      blocking_reasons: string[];
+    }>;
+  } | null;
 }
 
 // ─── SharePoint Types ───

@@ -143,6 +143,9 @@ import {
   testTedExternalMcpServer,
   upsertTedExternalMcpServer,
   removeTedExternalMcpServer,
+  loadTedMcpExternalAdmission,
+  loadTedMcpExternalRevalidationStatus,
+  runTedMcpExternalRevalidate,
   saveTedLlmRoutingPolicy,
   testTedLlmProvider,
   loadTedWorkflowRegistry,
@@ -157,6 +160,8 @@ import {
   loadTedMcpTrustPolicy,
   saveTedMcpTrustPolicy,
   setTedMcpToolPolicy,
+  loadTedSetupState,
+  saveTedSetupGraphProfile,
   loadTedGraphDeltaStatus,
   runTedGraphDelta,
   loadTedEvalMatrix,
@@ -559,6 +564,12 @@ export class OpenClawApp extends LitElement {
   @state() tedMcpToolPolicyBusy = false;
   @state() tedMcpToolPolicyError: string | null = null;
   @state() tedMcpToolPolicyResult: string | null = null;
+  @state() tedSetupState: import("./types.ts").TedSetupStateResponse | null = null;
+  @state() tedSetupStateLoading = false;
+  @state() tedSetupStateError: string | null = null;
+  @state() tedSetupSaveBusy = false;
+  @state() tedSetupSaveError: string | null = null;
+  @state() tedSetupSaveResult: string | null = null;
   @state() tedGraphDeltaStatus: import("./types.ts").TedGraphDeltaStatusResponse | null = null;
   @state() tedGraphDeltaStatusLoading = false;
   @state() tedGraphDeltaStatusError: string | null = null;
@@ -720,6 +731,18 @@ export class OpenClawApp extends LitElement {
   @state() tedExternalMcpMutationBusy = false;
   @state() tedExternalMcpMutationError: string | null = null;
   @state() tedExternalMcpMutationResult: string | null = null;
+  @state() tedMcpExternalAdmission: import("./types.ts").TedMcpExternalAdmissionResponse | null =
+    null;
+  @state() tedMcpExternalAdmissionLoading = false;
+  @state() tedMcpExternalAdmissionError: string | null = null;
+  @state() tedMcpExternalRevalidationStatus:
+    | import("./types.ts").TedMcpExternalRevalidationStatusResponse
+    | null = null;
+  @state() tedMcpExternalRevalidationStatusLoading = false;
+  @state() tedMcpExternalRevalidationStatusError: string | null = null;
+  @state() tedMcpExternalRevalidateBusy = false;
+  @state() tedMcpExternalRevalidateError: string | null = null;
+  @state() tedMcpExternalRevalidateResult: Record<string, unknown> | null = null;
   // SharePoint state
   @state() tedSharePointSites: Array<{
     id: string;
@@ -1125,6 +1148,20 @@ export class OpenClawApp extends LitElement {
     await setTedMcpToolPolicy(this, toolAlias, action);
   }
 
+  async loadTedSetupState() {
+    await loadTedSetupState(this);
+  }
+
+  async saveTedSetupGraphProfile(payload: {
+    profile_id: "olumie" | "everest";
+    tenant_id: string;
+    client_id: string;
+    delegated_scopes: string[];
+    clear_auth?: boolean;
+  }) {
+    await saveTedSetupGraphProfile(this, payload);
+  }
+
   async loadTedGraphDeltaStatus(params?: { profile_id?: string; workload?: string }) {
     await loadTedGraphDeltaStatus(this, params);
   }
@@ -1381,6 +1418,26 @@ export class OpenClawApp extends LitElement {
     );
   }
 
+  async loadTedMcpExternalAdmission(serverId?: string) {
+    await loadTedMcpExternalAdmission(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      serverId,
+    );
+  }
+
+  async loadTedMcpExternalRevalidationStatus() {
+    await loadTedMcpExternalRevalidationStatus(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+    );
+  }
+
+  async runTedMcpExternalRevalidate(serverId?: string) {
+    await runTedMcpExternalRevalidate(
+      this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
+      serverId,
+    );
+  }
+
   async loadTedExternalMcpTools(params?: { server_id?: string; refresh?: boolean }) {
     await loadTedExternalMcpTools(
       this as unknown as import("./controllers/ted.ts").TedWorkbenchState,
@@ -1406,6 +1463,9 @@ export class OpenClawApp extends LitElement {
     trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
+    attestation_status?: "pending" | "attested" | "revoked";
+    attested_at?: string;
+    scope_verified?: string[];
   }) {
     await upsertTedExternalMcpServer(
       this as unknown as import("./controllers/ted.ts").TedWorkbenchState,

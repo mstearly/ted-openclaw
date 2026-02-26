@@ -22,6 +22,7 @@ import type {
   TedMemoryPreferencesResponse,
   TedMeetingUpcomingResponse,
   TedMcpTrustPolicy,
+  TedSetupStateResponse,
   TedCommitmentsListResponse,
   TedActionsListResponse,
   TedWaitingForListResponse,
@@ -51,6 +52,8 @@ import type {
   TedExternalMcpServersResponse,
   TedExternalMcpToolsResponse,
   TedExternalMcpServerTestResponse,
+  TedMcpExternalAdmissionResponse,
+  TedMcpExternalRevalidationStatusResponse,
   TedWorkflowRegistryResponse,
   TedWorkflowRunsResponse,
 } from "../types.ts";
@@ -248,6 +251,12 @@ export type TedViewProps = {
   mcpToolPolicyBusy: boolean;
   mcpToolPolicyError: string | null;
   mcpToolPolicyResult: string | null;
+  setupState: TedSetupStateResponse | null;
+  setupStateLoading: boolean;
+  setupStateError: string | null;
+  setupSaveBusy: boolean;
+  setupSaveError: string | null;
+  setupSaveResult: string | null;
   graphDeltaStatus: TedGraphDeltaStatusResponse | null;
   graphDeltaStatusLoading: boolean;
   graphDeltaStatusError: string | null;
@@ -301,6 +310,14 @@ export type TedViewProps = {
     toolAlias: string,
     action: "read_only" | "approval_required" | "deny",
   ) => void;
+  onLoadSetupState: () => void;
+  onSaveSetupGraphProfile: (payload: {
+    profile_id: "olumie" | "everest";
+    tenant_id: string;
+    client_id: string;
+    delegated_scopes: string[];
+    clear_auth?: boolean;
+  }) => void;
   onLoadGraphDeltaStatus: (params?: { profile_id?: string; workload?: string }) => void;
   onRunGraphDelta: (payload: { profile_id?: string; workload?: string }) => void;
   onLoadEvalMatrix: () => void;
@@ -486,7 +503,19 @@ export type TedViewProps = {
   externalMcpMutationBusy: boolean;
   externalMcpMutationError: string | null;
   externalMcpMutationResult: string | null;
+  mcpExternalAdmission: TedMcpExternalAdmissionResponse | null;
+  mcpExternalAdmissionLoading: boolean;
+  mcpExternalAdmissionError: string | null;
+  mcpExternalRevalidationStatus: TedMcpExternalRevalidationStatusResponse | null;
+  mcpExternalRevalidationStatusLoading: boolean;
+  mcpExternalRevalidationStatusError: string | null;
+  mcpExternalRevalidateBusy: boolean;
+  mcpExternalRevalidateError: string | null;
+  mcpExternalRevalidateResult: Record<string, unknown> | null;
   onLoadExternalMcpServers: () => void;
+  onLoadMcpExternalAdmission: (serverId?: string) => void;
+  onLoadMcpExternalRevalidationStatus: () => void;
+  onRunMcpExternalRevalidate: (serverId?: string) => void;
   onLoadExternalMcpTools: (serverId?: string, refresh?: boolean) => void;
   onTestExternalMcpServer: (serverId: string) => void;
   onUpsertExternalMcpServer: (payload: {
@@ -500,6 +529,9 @@ export type TedViewProps = {
     trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
+    attestation_status?: "pending" | "attested" | "revoked";
+    attested_at?: string;
+    scope_verified?: string[];
   }) => void;
   onRemoveExternalMcpServer: (serverId: string) => void;
   // SharePoint
@@ -2251,6 +2283,11 @@ function renderExternalMcpConnectionsCard(
   const loadingTools = props.externalMcpToolsLoading;
   const mutationBusy = props.externalMcpMutationBusy;
   const testingServer = props.externalMcpTestBusyServerId;
+  const admissionLoading = props.mcpExternalAdmissionLoading;
+  const revalidationBusy = props.mcpExternalRevalidateBusy;
+  const admissionByServer = new Map(
+    (props.mcpExternalAdmission?.admissions || []).map((entry) => [entry.server_id, entry]),
+  );
 
   const readInput = (id: string): string => {
     const el = document.getElementById(id);
@@ -2322,6 +2359,9 @@ function renderExternalMcpConnectionsCard(
     setInputValue("ted-mcp-auth-header-name", "");
     setInputValue("ted-mcp-description", "");
     setSelectValue("ted-mcp-trust-tier", "sandboxed");
+    setSelectValue("ted-mcp-attestation-status", "pending");
+    setInputValue("ted-mcp-attested-at", "");
+    setInputValue("ted-mcp-scope-verified", "");
     setInputValue("ted-mcp-allow-tools", "");
     setInputValue("ted-mcp-deny-tools", "");
     setFormError(null);
@@ -2336,6 +2376,9 @@ function renderExternalMcpConnectionsCard(
     setInputValue("ted-mcp-auth-header-name", server.auth_header_name || "");
     setInputValue("ted-mcp-description", server.description || "");
     setSelectValue("ted-mcp-trust-tier", server.trust_tier || "sandboxed");
+    setSelectValue("ted-mcp-attestation-status", server.attestation_status || "pending");
+    setInputValue("ted-mcp-attested-at", server.attested_at || "");
+    setInputValue("ted-mcp-scope-verified", (server.scope_verified || []).join("\n"));
     setInputValue("ted-mcp-allow-tools", (server.allow_tools || []).join("\n"));
     setInputValue("ted-mcp-deny-tools", (server.deny_tools || []).join("\n"));
     setFormError(null);
@@ -2372,6 +2415,11 @@ function renderExternalMcpConnectionsCard(
       auth_header_name: readInput("ted-mcp-auth-header-name") || undefined,
       description: readInput("ted-mcp-description") || undefined,
       trust_tier: trustTier,
+      attestation_status:
+        (readInput("ted-mcp-attestation-status") as "pending" | "attested" | "revoked") ||
+        "pending",
+      attested_at: readInput("ted-mcp-attested-at") || undefined,
+      scope_verified: parseToolList(readInput("ted-mcp-scope-verified")),
       allow_tools: parseToolList(readInput("ted-mcp-allow-tools")),
       deny_tools: parseToolList(readInput("ted-mcp-deny-tools")),
     });
@@ -2398,6 +2446,30 @@ function renderExternalMcpConnectionsCard(
           >
             ${loadingTools ? "Loading..." : "Refresh Tools"}
           </button>
+          <button
+            class="btn btn--sm ghost"
+            aria-label="Refresh connector admission checklist"
+            ?disabled=${admissionLoading}
+            @click=${() => props.onLoadMcpExternalAdmission()}
+          >
+            ${admissionLoading ? "Loading..." : "Admission"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            aria-label="Run connector revalidation"
+            ?disabled=${revalidationBusy}
+            @click=${() => props.onRunMcpExternalRevalidate()}
+          >
+            ${revalidationBusy ? "Running..." : "Revalidate"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            aria-label="Refresh revalidation status"
+            ?disabled=${props.mcpExternalRevalidationStatusLoading}
+            @click=${() => props.onLoadMcpExternalRevalidationStatus()}
+          >
+            ${props.mcpExternalRevalidationStatusLoading ? "Loading..." : "Revalidation Status"}
+          </button>
         </div>
       </div>
       <div class="card-sub">
@@ -2408,7 +2480,26 @@ function renderExternalMcpConnectionsCard(
       ${props.externalMcpMutationError ? html`<div class="callout danger" style="margin-top: 8px;">${props.externalMcpMutationError}</div>` : nothing}
       ${props.externalMcpTestError ? html`<div class="callout danger" style="margin-top: 8px;">${props.externalMcpTestError}</div>` : nothing}
       ${props.externalMcpToolsError ? html`<div class="callout danger" style="margin-top: 8px;">${props.externalMcpToolsError}</div>` : nothing}
+      ${props.mcpExternalAdmissionError ? html`<div class="callout danger" style="margin-top: 8px;">${props.mcpExternalAdmissionError}</div>` : nothing}
+      ${props.mcpExternalRevalidationStatusError ? html`<div class="callout danger" style="margin-top: 8px;">${props.mcpExternalRevalidationStatusError}</div>` : nothing}
+      ${props.mcpExternalRevalidateError ? html`<div class="callout danger" style="margin-top: 8px;">${props.mcpExternalRevalidateError}</div>` : nothing}
       ${props.externalMcpMutationResult ? html`<div class="callout" style="margin-top: 8px;">${props.externalMcpMutationResult}</div>` : nothing}
+      ${
+        props.mcpExternalRevalidateResult
+          ? html`
+              <div class="callout" style="margin-top: 8px">Revalidation run completed.</div>
+            `
+          : nothing
+      }
+      ${
+        props.mcpExternalAdmission
+          ? html`
+              <div class="callout" style="margin-top: 8px;">
+                admission: ready ${props.mcpExternalAdmission.ready_count}/${props.mcpExternalAdmission.total_count} · blocked ${props.mcpExternalAdmission.blocked_count}
+              </div>
+            `
+          : nothing
+      }
 
       <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <label>
@@ -2451,6 +2542,24 @@ function renderExternalMcpConnectionsCard(
           <option value="trusted_read">trusted_read</option>
           <option value="trusted_write">trusted_write</option>
         </select>
+      </div>
+      <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <label>
+          <div class="card-sub">Attestation Status</div>
+          <select id="ted-mcp-attestation-status" class="input">
+            <option value="pending">pending</option>
+            <option value="attested">attested</option>
+            <option value="revoked">revoked</option>
+          </select>
+        </label>
+        <label>
+          <div class="card-sub">Attested At (ISO)</div>
+          <input id="ted-mcp-attested-at" class="input mono" placeholder="2026-02-26T12:00:00.000Z" />
+        </label>
+      </div>
+      <div style="margin-top: 10px;">
+        <div class="card-sub">Scope Verified (newline or comma separated)</div>
+        <textarea id="ted-mcp-scope-verified" class="input mono" style="min-height: 70px;"></textarea>
       </div>
       <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <label>
@@ -2540,9 +2649,9 @@ function renderExternalMcpConnectionsCard(
                     </tr>
                   </thead>
                   <tbody>
-                    ${servers.map(
-                      (server) => html`
-                        <tr style="border-bottom:1px solid var(--border-color,#333);">
+                    ${servers.map((server) => {
+                      const admission = admissionByServer.get(server.server_id);
+                      return html`<tr style="border-bottom:1px solid var(--border-color,#333);">
                           <td style="padding:4px 8px;">
                             <div class="mono">${server.server_id}</div>
                             <div class="muted" style="font-size: 11px;">timeout ${server.timeout_ms}ms</div>
@@ -2550,6 +2659,21 @@ function renderExternalMcpConnectionsCard(
                           <td style="padding:4px 8px;">
                             <span class="pill ${server.enabled ? "" : "warn"}">${server.enabled ? "enabled" : "disabled"}</span>
                             <div class="muted" style="font-size: 11px; margin-top: 4px">${server.trust_tier || "sandboxed"}</div>
+                            <div class="muted" style="font-size: 11px; margin-top: 4px">
+                              ${server.attestation_status || "pending"}${server.last_test_ok === true ? " · test ok" : server.last_test_ok === false ? " · test failed" : ""}
+                            </div>
+                            ${
+                              admission
+                                ? html`
+                                    <div
+                                      class="muted"
+                                      style="font-size: 11px; margin-top: 2px; color: ${admission.production_ready ? "var(--color-success, #0a7d33)" : "var(--color-warning, #a15c00)"}"
+                                    >
+                                      ${admission.production_ready ? "production-ready" : `blocked (${admission.blocking_reasons[0] || "policy"})`}
+                                    </div>
+                                  `
+                                : nothing
+                            }
                           </td>
                           <td style="padding:4px 8px;" class="mono">${server.url}</td>
                           <td style="padding:4px 8px;" class="mono">${server.auth_token_env || "none"}</td>
@@ -2570,16 +2694,32 @@ function renderExternalMcpConnectionsCard(
                               >
                                 Tools
                               </button>
+                              <button
+                                class="btn btn--sm ghost"
+                                ?disabled=${revalidationBusy}
+                                @click=${() => props.onRunMcpExternalRevalidate(server.server_id)}
+                              >
+                                Revalidate
+                              </button>
                             </div>
                           </td>
-                        </tr>
-                      `,
-                    )}
+                        </tr>`;
+                    })}
                   </tbody>
                 </table>
               `
         }
       </div>
+
+      ${
+        props.mcpExternalRevalidationStatus?.has_run && props.mcpExternalRevalidationStatus.last_run
+          ? html`
+              <div class="callout" style="margin-top: 10px;">
+                last revalidation: ${props.mcpExternalRevalidationStatus.last_run.at} · ok ${props.mcpExternalRevalidationStatus.last_run.summary.ok}/${props.mcpExternalRevalidationStatus.last_run.summary.total_servers}
+              </div>
+            `
+          : nothing
+      }
 
       ${
         props.externalMcpTestResult
@@ -3060,6 +3200,74 @@ function renderExecutionWavesControlCard(
             ${props.mcpTrustPolicyLoading ? "Loading..." : "Refresh"}
           </button>
         </div>
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Setup Wizard (Post-Install)</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <select id="ted-wave-setup-profile" class="input">
+            <option value="olumie">olumie</option>
+            <option value="everest">everest</option>
+          </select>
+          <input id="ted-wave-setup-tenant-id" class="input mono" placeholder="tenant_id GUID" />
+          <input id="ted-wave-setup-client-id" class="input mono" placeholder="client_id GUID" />
+        </div>
+        <textarea
+          id="ted-wave-setup-scopes"
+          class="input mono"
+          style="margin-top:8px; min-height:72px;"
+          placeholder="delegated scopes, one per line (or comma separated)"
+        ></textarea>
+        <label class="row" style="gap:8px; align-items:center; margin-top:8px;">
+          <input id="ted-wave-setup-clear-auth" type="checkbox" />
+          <span class="muted">Clear saved auth token after profile update</span>
+        </label>
+        <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn--sm ghost" ?disabled=${props.setupStateLoading} @click=${() => props.onLoadSetupState()}>
+            ${props.setupStateLoading ? "Loading..." : "Load Setup State"}
+          </button>
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.setupSaveBusy}
+            @click=${() => {
+              const profileId = readValue("ted-wave-setup-profile");
+              const tenantId = readValue("ted-wave-setup-tenant-id");
+              const clientId = readValue("ted-wave-setup-client-id");
+              const scopesRaw = readValue("ted-wave-setup-scopes");
+              const scopes = scopesRaw
+                .split(/[\n,]/)
+                .map((part) => part.trim())
+                .filter(Boolean);
+              if (!profileId || !tenantId || !clientId || scopes.length === 0) {
+                alert("profile_id, tenant_id, client_id, and delegated scopes are required.");
+                return;
+              }
+              const clearAuthEl = document.getElementById("ted-wave-setup-clear-auth");
+              const clearAuth = clearAuthEl instanceof HTMLInputElement && clearAuthEl.checked;
+              props.onSaveSetupGraphProfile({
+                profile_id: profileId as "olumie" | "everest",
+                tenant_id: tenantId,
+                client_id: clientId,
+                delegated_scopes: scopes,
+                clear_auth: clearAuth,
+              });
+            }}
+          >
+            ${props.setupSaveBusy ? "Saving..." : "Save Profile"}
+          </button>
+        </div>
+        ${props.setupStateError ? html`<div class="callout danger" style="margin-top:8px;">${props.setupStateError}</div>` : nothing}
+        ${props.setupSaveError ? html`<div class="callout danger" style="margin-top:8px;">${props.setupSaveError}</div>` : nothing}
+        ${props.setupSaveResult ? html`<div class="callout" style="margin-top:8px;">${props.setupSaveResult}</div>` : nothing}
+        ${
+          props.setupState
+            ? html`
+                <div class="callout ${props.setupState.ready_for_live_graph ? "" : "warn"}" style="margin-top:8px;">
+                  ready_for_live_graph=${String(props.setupState.ready_for_live_graph)} · issues=${props.setupState.issues.length} · blocking=${props.setupState.blocking_issues.length}
+                </div>
+              `
+            : nothing
+        }
       </div>
 
       <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">

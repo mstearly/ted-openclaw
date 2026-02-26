@@ -61,6 +61,8 @@ import type {
   TedExternalMcpServersResponse,
   TedExternalMcpToolsResponse,
   TedExternalMcpServerTestResponse,
+  TedMcpExternalAdmissionResponse,
+  TedMcpExternalRevalidationStatusResponse,
   SkillStatusReport,
   StatusSummary,
 } from "./types.ts";
@@ -363,6 +365,12 @@ export type AppViewState = {
   tedMcpToolPolicyBusy: boolean;
   tedMcpToolPolicyError: string | null;
   tedMcpToolPolicyResult: string | null;
+  tedSetupState: import("./types.ts").TedSetupStateResponse | null;
+  tedSetupStateLoading: boolean;
+  tedSetupStateError: string | null;
+  tedSetupSaveBusy: boolean;
+  tedSetupSaveError: string | null;
+  tedSetupSaveResult: string | null;
   tedGraphDeltaStatus: import("./types.ts").TedGraphDeltaStatusResponse | null;
   tedGraphDeltaStatusLoading: boolean;
   tedGraphDeltaStatusError: string | null;
@@ -378,6 +386,21 @@ export type AppViewState = {
   tedEvalMatrixRunBusy: boolean;
   tedEvalMatrixRunError: string | null;
   tedEvalMatrixRunResult: import("./types.ts").TedEvalMatrixRunResponse | null;
+  tedFrictionSummary: import("./types.ts").TedFrictionSummaryResponse | null;
+  tedFrictionSummaryLoading: boolean;
+  tedFrictionSummaryError: string | null;
+  tedFrictionRuns: import("./types.ts").TedFrictionRunsResponse | null;
+  tedFrictionRunsLoading: boolean;
+  tedFrictionRunsError: string | null;
+  tedOutcomesDashboard: import("./types.ts").TedOutcomesDashboardResponse | null;
+  tedOutcomesDashboardLoading: boolean;
+  tedOutcomesDashboardError: string | null;
+  tedOutcomesFrictionTrends: import("./types.ts").TedOutcomesFrictionTrendsResponse | null;
+  tedOutcomesFrictionTrendsLoading: boolean;
+  tedOutcomesFrictionTrendsError: string | null;
+  tedOutcomesJob: import("./types.ts").TedOutcomesJobResponse | null;
+  tedOutcomesJobLoading: boolean;
+  tedOutcomesJobError: string | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -542,11 +565,23 @@ export type AppViewState = {
   tedExternalMcpMutationBusy: boolean;
   tedExternalMcpMutationError: string | null;
   tedExternalMcpMutationResult: string | null;
+  tedMcpExternalAdmission: TedMcpExternalAdmissionResponse | null;
+  tedMcpExternalAdmissionLoading: boolean;
+  tedMcpExternalAdmissionError: string | null;
+  tedMcpExternalRevalidationStatus: TedMcpExternalRevalidationStatusResponse | null;
+  tedMcpExternalRevalidationStatusLoading: boolean;
+  tedMcpExternalRevalidationStatusError: string | null;
+  tedMcpExternalRevalidateBusy: boolean;
+  tedMcpExternalRevalidateError: string | null;
+  tedMcpExternalRevalidateResult: Record<string, unknown> | null;
   loadTedIngestionStatus: () => Promise<void>;
   triggerTedIngestion: () => Promise<void>;
   loadTedDiscoveryStatus: () => Promise<void>;
   triggerTedDiscovery: (profileId: string) => Promise<void>;
   loadTedExternalMcpServers: () => Promise<void>;
+  loadTedMcpExternalAdmission: (serverId?: string) => Promise<void>;
+  loadTedMcpExternalRevalidationStatus: () => Promise<void>;
+  runTedMcpExternalRevalidate: (serverId?: string) => Promise<void>;
   loadTedExternalMcpTools: (params?: { server_id?: string; refresh?: boolean }) => Promise<void>;
   testTedExternalMcpServer: (serverId: string) => Promise<void>;
   upsertTedExternalMcpServer: (payload: {
@@ -560,6 +595,9 @@ export type AppViewState = {
     trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
     allow_tools?: string[];
     deny_tools?: string[];
+    attestation_status?: "pending" | "attested" | "revoked";
+    attested_at?: string;
+    scope_verified?: string[];
   }) => Promise<void>;
   removeTedExternalMcpServer: (serverId: string) => Promise<void>;
   // Self-Healing Dashboard
@@ -756,11 +794,37 @@ export type AppViewState = {
     toolAlias: string,
     action: "read_only" | "approval_required" | "deny",
   ) => Promise<void>;
+  loadTedSetupState: () => Promise<void>;
+  saveTedSetupGraphProfile: (payload: {
+    profile_id: "olumie" | "everest";
+    tenant_id: string;
+    client_id: string;
+    delegated_scopes: string[];
+    clear_auth?: boolean;
+  }) => Promise<void>;
   loadTedGraphDeltaStatus: (params?: { profile_id?: string; workload?: string }) => Promise<void>;
   runTedGraphDelta: (payload: { profile_id?: string; workload?: string }) => Promise<void>;
   loadTedEvalMatrix: () => Promise<void>;
   saveTedEvalMatrix: (payload: Record<string, unknown>) => Promise<void>;
   runTedEvalMatrix: (payload?: Record<string, unknown>) => Promise<void>;
+  loadTedFrictionSummary: (params?: {
+    workflow_id?: string;
+    run_id?: string;
+    trace_id?: string;
+    limit?: number;
+  }) => Promise<void>;
+  loadTedFrictionRuns: (params?: {
+    workflow_id?: string;
+    run_id?: string;
+    trace_id?: string;
+    limit?: number;
+  }) => Promise<void>;
+  loadTedOutcomesDashboard: (params?: { workflow_id?: string; limit?: number }) => Promise<void>;
+  loadTedOutcomesFrictionTrends: (params?: {
+    workflow_id?: string;
+    days?: number;
+  }) => Promise<void>;
+  loadTedOutcomesJob: (params: { job_id: string; limit?: number }) => Promise<void>;
   loadTedMeetingsUpcoming: () => Promise<void>;
   loadTedCommitments: () => Promise<void>;
   loadTedActions: () => Promise<void>;

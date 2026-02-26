@@ -532,6 +532,12 @@ export function renderApp(state: AppViewState) {
                 mcpToolPolicyBusy: state.tedMcpToolPolicyBusy,
                 mcpToolPolicyError: state.tedMcpToolPolicyError,
                 mcpToolPolicyResult: state.tedMcpToolPolicyResult,
+                setupState: state.tedSetupState,
+                setupStateLoading: state.tedSetupStateLoading,
+                setupStateError: state.tedSetupStateError,
+                setupSaveBusy: state.tedSetupSaveBusy,
+                setupSaveError: state.tedSetupSaveError,
+                setupSaveResult: state.tedSetupSaveResult,
                 graphDeltaStatus: state.tedGraphDeltaStatus,
                 graphDeltaStatusLoading: state.tedGraphDeltaStatusLoading,
                 graphDeltaStatusError: state.tedGraphDeltaStatusError,
@@ -594,6 +600,14 @@ export function renderApp(state: AppViewState) {
                   toolAlias: string,
                   action: "read_only" | "approval_required" | "deny",
                 ) => void state.setTedMcpToolPolicy(toolAlias, action),
+                onLoadSetupState: () => void state.loadTedSetupState(),
+                onSaveSetupGraphProfile: (payload: {
+                  profile_id: "olumie" | "everest";
+                  tenant_id: string;
+                  client_id: string;
+                  delegated_scopes: string[];
+                  clear_auth?: boolean;
+                }) => void state.saveTedSetupGraphProfile(payload),
                 onLoadGraphDeltaStatus: (params?: { profile_id?: string; workload?: string }) =>
                   void state.loadTedGraphDeltaStatus(params),
                 onRunGraphDelta: (payload: { profile_id?: string; workload?: string }) =>
@@ -831,7 +845,22 @@ export function renderApp(state: AppViewState) {
                 externalMcpMutationBusy: state.tedExternalMcpMutationBusy,
                 externalMcpMutationError: state.tedExternalMcpMutationError,
                 externalMcpMutationResult: state.tedExternalMcpMutationResult,
+                mcpExternalAdmission: state.tedMcpExternalAdmission,
+                mcpExternalAdmissionLoading: state.tedMcpExternalAdmissionLoading,
+                mcpExternalAdmissionError: state.tedMcpExternalAdmissionError,
+                mcpExternalRevalidationStatus: state.tedMcpExternalRevalidationStatus,
+                mcpExternalRevalidationStatusLoading: state.tedMcpExternalRevalidationStatusLoading,
+                mcpExternalRevalidationStatusError: state.tedMcpExternalRevalidationStatusError,
+                mcpExternalRevalidateBusy: state.tedMcpExternalRevalidateBusy,
+                mcpExternalRevalidateError: state.tedMcpExternalRevalidateError,
+                mcpExternalRevalidateResult: state.tedMcpExternalRevalidateResult,
                 onLoadExternalMcpServers: () => void state.loadTedExternalMcpServers(),
+                onLoadMcpExternalAdmission: (serverId?: string) =>
+                  void state.loadTedMcpExternalAdmission(serverId),
+                onLoadMcpExternalRevalidationStatus: () =>
+                  void state.loadTedMcpExternalRevalidationStatus(),
+                onRunMcpExternalRevalidate: (serverId?: string) =>
+                  void state.runTedMcpExternalRevalidate(serverId),
                 onLoadExternalMcpTools: (serverId?: string, refresh?: boolean) =>
                   void state.loadTedExternalMcpTools({ server_id: serverId, refresh }),
                 onTestExternalMcpServer: (serverId: string) =>
@@ -847,6 +876,9 @@ export function renderApp(state: AppViewState) {
                   trust_tier?: "sandboxed" | "trusted_read" | "trusted_write";
                   allow_tools?: string[];
                   deny_tools?: string[];
+                  attestation_status?: "pending" | "attested" | "revoked";
+                  attested_at?: string;
+                  scope_verified?: string[];
                 }) => void state.upsertTedExternalMcpServer(payload),
                 onRemoveExternalMcpServer: (serverId: string) =>
                   void state.removeTedExternalMcpServer(serverId),

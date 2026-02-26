@@ -145,7 +145,10 @@
     },
     "mcp": {
       "mcp.request": "MCP JSON-RPC request received",
-      "mcp.tool.called": "MCP tool invoked"
+      "mcp.tool.called": "MCP tool invoked",
+      "mcp.external.admission.queried": "Operator queried MCP connector admission checklist",
+      "mcp.external.revalidation.run": "MCP connector revalidation scaffold executed",
+      "mcp.external.revalidation.status.queried": "Operator queried MCP revalidation run status"
     },
     "policy": {
       "policy.config.changed": "Policy config changed (hard_bans, autonomy, urgency, etc.)",
@@ -260,7 +263,9 @@
       "onboarding.activated": "Operator onboarding activated"
     },
     "setup": {
-      "setup.validated": "Setup validation checks executed"
+      "setup.validated": "Setup validation checks executed",
+      "setup.state.queried": "Setup state snapshot queried for onboarding readiness",
+      "setup.graph_profile.updated": "Graph profile credentials/scopes updated through setup flow"
     },
     "delivery": {
       "delivery.acknowledged": "Scheduled delivery acknowledged by operator"

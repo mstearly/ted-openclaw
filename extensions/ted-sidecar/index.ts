@@ -5924,6 +5924,79 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
     },
   );
 
+  api.registerGatewayMethod(
+    "ted.ops.setup.state",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/setup/state");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted setup state failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.setup.graph_profile.set",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                profile_id?: unknown;
+                tenant_id?: unknown;
+                client_id?: unknown;
+                delegated_scopes?: unknown;
+                clear_auth?: unknown;
+              })
+            : {};
+        const profileId =
+          typeof payloadIn.profile_id === "string" ? payloadIn.profile_id.trim() : "";
+        const tenantId = typeof payloadIn.tenant_id === "string" ? payloadIn.tenant_id.trim() : "";
+        const clientId = typeof payloadIn.client_id === "string" ? payloadIn.client_id.trim() : "";
+        if (!profileId || !tenantId || !clientId) {
+          respond(false, {
+            error: "profile_id, tenant_id, and client_id are required",
+          });
+          return;
+        }
+        const body: Record<string, unknown> = {
+          profile_id: profileId,
+          tenant_id: tenantId,
+          client_id: clientId,
+        };
+        if (Array.isArray(payloadIn.delegated_scopes)) {
+          body.delegated_scopes = payloadIn.delegated_scopes.filter(
+            (value): value is string => typeof value === "string" && value.trim().length > 0,
+          );
+        }
+        if (payloadIn.clear_auth === true) {
+          body.clear_auth = true;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/setup/graph-profile",
+          body,
+          { "x-ted-approval-source": "operator" },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted setup graph profile set failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
   // --- MF-10: Onboarding activate gateway ---
 
   api.registerGatewayMethod(
@@ -6146,6 +6219,9 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
                 trust_tier?: unknown;
                 allow_tools?: unknown;
                 deny_tools?: unknown;
+                attestation_status?: unknown;
+                attested_at?: unknown;
+                scope_verified?: unknown;
               })
             : {};
         const serverId = typeof payloadIn.server_id === "string" ? payloadIn.server_id.trim() : "";
@@ -6190,6 +6266,20 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
             (value): value is string => typeof value === "string" && value.trim().length > 0,
           );
         }
+        if (
+          typeof payloadIn.attestation_status === "string" &&
+          payloadIn.attestation_status.trim().length > 0
+        ) {
+          body.attestation_status = payloadIn.attestation_status.trim();
+        }
+        if (typeof payloadIn.attested_at === "string" && payloadIn.attested_at.trim().length > 0) {
+          body.attested_at = payloadIn.attested_at.trim();
+        }
+        if (Array.isArray(payloadIn.scope_verified)) {
+          body.scope_verified = payloadIn.scope_verified.filter(
+            (value): value is string => typeof value === "string" && value.trim().length > 0,
+          );
+        }
         const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
         const baseUrl = resolveBaseUrl(pluginConfig);
         const timeoutMs = resolveTimeoutMs(pluginConfig);
@@ -6204,6 +6294,87 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         api.logger.warn(`ted external mcp server upsert failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.admission",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { server_id?: unknown })
+            : {};
+        const serverId = typeof payloadIn.server_id === "string" ? payloadIn.server_id.trim() : "";
+        const qs = new URLSearchParams();
+        if (serverId) {
+          qs.set("server_id", serverId);
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          `/ops/mcp/external/servers/admission${qs.toString() ? `?${qs.toString()}` : ""}`,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp admission failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.revalidate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { server_id?: unknown })
+            : {};
+        const body: Record<string, unknown> = {};
+        if (typeof payloadIn.server_id === "string" && payloadIn.server_id.trim().length > 0) {
+          body.server_id = payloadIn.server_id.trim();
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/external/servers/revalidate",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp revalidate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.external.revalidate.status",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/external/servers/revalidate/status",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted external mcp revalidate status failed: ${message}`);
         respond(false, { error: message });
       }
     },

@@ -186,6 +186,7 @@ const syncDir = path.join(artifactsDir, "sync");
 const syncLedgerPath = path.join(syncDir, "sync_proposals.jsonl");
 const externalMcpDir = path.join(artifactsDir, "external_mcp");
 const externalMcpLedgerPath = path.join(externalMcpDir, "external_mcp.jsonl");
+const externalMcpRevalidationPath = path.join(externalMcpDir, "revalidation.jsonl");
 const workflowRunsDir = path.join(artifactsDir, "workflows");
 const workflowRunsPath = path.join(workflowRunsDir, "workflow_runs.jsonl");
 const memoryDir = path.join(artifactsDir, "memory");
@@ -1076,6 +1077,7 @@ function validateStartupIntegrity() {
     todoLedgerPath,
     syncLedgerPath,
     externalMcpLedgerPath,
+    externalMcpRevalidationPath,
     workflowRunsPath,
     memoryLedgerPath,
     jobFrictionLedgerPath,
@@ -1647,6 +1649,8 @@ executionBoundaryPolicy.set("/ops/onboarding/discovery-status", "WORKFLOW_ONLY")
 // C11-010: Missing route boundary policies
 executionBoundaryPolicy.set("/ops/onboarding/activate", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/setup/validate", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/setup/state", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/setup/graph-profile", "APPROVAL_FIRST");
 executionBoundaryPolicy.set("/ops/llm-provider", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/notification-budget", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/meeting/upcoming", "WORKFLOW_ONLY");
@@ -1734,6 +1738,9 @@ executionBoundaryPolicy.set("/ops/mcp/external/servers/upsert", "WORKFLOW_ONLY")
 executionBoundaryPolicy.set("/ops/mcp/external/servers/remove", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/mcp/external/servers/test", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/mcp/external/servers/tools/list", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers/admission", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers/revalidate", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/mcp/external/servers/revalidate/status", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/mcp/trust-policy", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/mcp/tool-policy", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/llm-routing-policy", "WORKFLOW_ONLY");
@@ -5172,6 +5179,29 @@ function uniqueStringList(raw, maxItems = 512) {
   return out;
 }
 
+function normalizeIsoTimestamp(rawValue) {
+  if (typeof rawValue !== "string") {
+    return null;
+  }
+  const trimmed = rawValue.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isFinite(parsed.getTime())) {
+    return null;
+  }
+  return parsed.toISOString();
+}
+
+function normalizeExternalMcpAttestationStatus(rawValue) {
+  const value = typeof rawValue === "string" ? rawValue.trim().toLowerCase() : "";
+  if (value === "attested" || value === "revoked") {
+    return value;
+  }
+  return "pending";
+}
+
 function normalizeExternalMcpServerConfig(serverId, rawServer) {
   if (!isSlugSafe(serverId)) {
     return null;
@@ -5210,6 +5240,14 @@ function normalizeExternalMcpServerConfig(serverId, rawServer) {
     trustTierRaw === "trusted_read" || trustTierRaw === "trusted_write"
       ? trustTierRaw
       : "sandboxed";
+  const attestationStatus = normalizeExternalMcpAttestationStatus(rawServer.attestation_status);
+  const attestedAt = normalizeIsoTimestamp(rawServer.attested_at);
+  const scopeVerified = uniqueStringList(rawServer.scope_verified, 128);
+  const lastTestedAt = normalizeIsoTimestamp(rawServer.last_tested_at);
+  const lastTestOk = typeof rawServer.last_test_ok === "boolean" ? rawServer.last_test_ok : null;
+  const lastToolCountRaw = Number.parseInt(String(rawServer.last_tool_count || ""), 10);
+  const lastToolCount =
+    Number.isFinite(lastToolCountRaw) && lastToolCountRaw >= 0 ? lastToolCountRaw : null;
 
   return {
     server_id: serverId,
@@ -5223,6 +5261,12 @@ function normalizeExternalMcpServerConfig(serverId, rawServer) {
     trust_tier: trustTier,
     allow_tools: uniqueStringList(rawServer.allow_tools),
     deny_tools: uniqueStringList(rawServer.deny_tools),
+    attestation_status: attestationStatus,
+    attested_at: attestedAt,
+    scope_verified: scopeVerified,
+    last_tested_at: lastTestedAt,
+    last_test_ok: lastTestOk,
+    last_tool_count: lastToolCount,
   };
 }
 
@@ -5240,11 +5284,11 @@ function getExternalMcpConfig() {
     }
     servers[serverId] = normalized;
   }
-  return { _config_version: 1, servers };
+  return { _config_version: 2, servers };
 }
 
 function writeExternalMcpConfig(nextConfig) {
-  const payload = { _config_version: 1, servers: {} };
+  const payload = { _config_version: 2, servers: {} };
   const inputServers =
     nextConfig && typeof nextConfig === "object" && nextConfig.servers ? nextConfig.servers : {};
   for (const [serverId, serverCfg] of Object.entries(inputServers)) {
@@ -5263,6 +5307,13 @@ function writeExternalMcpConfig(nextConfig) {
       trust_tier: normalized.trust_tier || "sandboxed",
       allow_tools: normalized.allow_tools || [],
       deny_tools: normalized.deny_tools || [],
+      attestation_status: normalized.attestation_status || "pending",
+      attested_at: normalized.attested_at || null,
+      scope_verified: normalized.scope_verified || [],
+      last_tested_at: normalized.last_tested_at || null,
+      last_test_ok: typeof normalized.last_test_ok === "boolean" ? normalized.last_test_ok : null,
+      last_tool_count:
+        typeof normalized.last_tool_count === "number" ? normalized.last_tool_count : null,
     };
   }
   ensureDirectory(path.dirname(externalMcpConfigPath));
@@ -5274,6 +5325,20 @@ function writeExternalMcpConfig(nextConfig) {
 function getExternalMcpServer(serverId) {
   const cfg = getExternalMcpConfig();
   return cfg.servers[serverId] || null;
+}
+
+function updateExternalMcpServer(serverId, patch) {
+  if (!isSlugSafe(serverId)) {
+    return null;
+  }
+  const cfg = getExternalMcpConfig();
+  const existing = cfg.servers[serverId];
+  if (!existing) {
+    return null;
+  }
+  cfg.servers[serverId] = { ...existing, ...(patch && typeof patch === "object" ? patch : {}) };
+  writeExternalMcpConfig(cfg);
+  return cfg.servers[serverId];
 }
 
 function isExternalMcpToolAllowed(server, toolName) {
@@ -5553,7 +5618,104 @@ function externalMcpServerView(server) {
     auth_token_configured: !!tokenConfigured,
     allow_tools: server.allow_tools || [],
     deny_tools: server.deny_tools || [],
+    attestation_status: server.attestation_status || "pending",
+    attested_at: server.attested_at || null,
+    scope_verified: server.scope_verified || [],
+    last_tested_at: server.last_tested_at || null,
+    last_test_ok: typeof server.last_test_ok === "boolean" ? server.last_test_ok : null,
+    last_tool_count:
+      typeof server.last_tool_count === "number" ? Math.max(0, server.last_tool_count) : null,
   };
+}
+
+function hoursBetween(nowMs, isoTimestamp) {
+  if (typeof isoTimestamp !== "string" || !isoTimestamp.trim()) {
+    return null;
+  }
+  const parsedMs = new Date(isoTimestamp).getTime();
+  if (!Number.isFinite(parsedMs)) {
+    return null;
+  }
+  return Math.max(0, (nowMs - parsedMs) / (60 * 60 * 1000));
+}
+
+function buildExternalMcpAdmission(serverId, server) {
+  const tokenEnv = typeof server.auth_token_env === "string" ? server.auth_token_env.trim() : "";
+  const tokenConfigured =
+    tokenEnv.length > 0 &&
+    typeof process.env[tokenEnv] === "string" &&
+    process.env[tokenEnv].trim().length > 0;
+  const attestationStatus =
+    typeof server.attestation_status === "string" ? server.attestation_status : "pending";
+  const scopeVerified = Array.isArray(server.scope_verified) ? server.scope_verified : [];
+  const trustTier =
+    typeof server.trust_tier === "string" && server.trust_tier.trim()
+      ? server.trust_tier
+      : "sandboxed";
+  const blockingReasons = [];
+  if (!server.enabled) {
+    blockingReasons.push("server_disabled");
+  }
+  if (attestationStatus !== "attested") {
+    blockingReasons.push("attestation_not_complete");
+  }
+  if (scopeVerified.length === 0) {
+    blockingReasons.push("scope_verification_missing");
+  }
+  if (!tokenConfigured) {
+    blockingReasons.push("auth_token_not_configured");
+  }
+  if (trustTier === "sandboxed") {
+    blockingReasons.push("trust_tier_sandboxed");
+  }
+  if (server.last_test_ok !== true) {
+    blockingReasons.push("no_passing_health_test");
+  }
+  return {
+    server_id: serverId,
+    enabled: server.enabled !== false,
+    trust_tier: trustTier,
+    attestation_status: attestationStatus,
+    attested_at: server.attested_at || null,
+    scope_verified: scopeVerified,
+    auth: {
+      token_env: tokenEnv || null,
+      token_configured: tokenConfigured,
+    },
+    test_evidence: {
+      last_tested_at: server.last_tested_at || null,
+      last_test_ok: typeof server.last_test_ok === "boolean" ? server.last_test_ok : null,
+      last_tool_count:
+        typeof server.last_tool_count === "number" ? Math.max(0, server.last_tool_count) : null,
+    },
+    production_ready: blockingReasons.length === 0,
+    blocking_reasons: blockingReasons,
+    next_actions: blockingReasons.map((reason) => {
+      if (reason === "attestation_not_complete") {
+        return "Set attestation_status=attested after control review";
+      }
+      if (reason === "scope_verification_missing") {
+        return "Record verified scopes for this connector";
+      }
+      if (reason === "auth_token_not_configured") {
+        return "Set auth token env var on host and re-test connector";
+      }
+      if (reason === "trust_tier_sandboxed") {
+        return "Keep sandboxed for read-only or promote trust tier with approval";
+      }
+      if (reason === "no_passing_health_test") {
+        return "Run connector health test and confirm tool listing succeeds";
+      }
+      return "Resolve admission blocker";
+    }),
+  };
+}
+
+function readLastExternalMcpRevalidationRun() {
+  const rows = readJsonlLines(externalMcpRevalidationPath)
+    .filter((entry) => entry.kind === "external_mcp_revalidation_run")
+    .toSorted((a, b) => String(b.at || "").localeCompare(String(a.at || "")));
+  return rows[0] || null;
 }
 
 function normalizeMcpToolResult(result) {
@@ -7758,8 +7920,27 @@ async function onboardingActivateEndpoint(req, res, route) {
   logLine(`POST ${route} -> 200`);
 }
 
-// MF-10: Setup validation endpoint
-function setupValidateEndpoint(res, route) {
+function maskGuid(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.length <= 10) {
+    return "***";
+  }
+  return `${trimmed.slice(0, 4)}...${trimmed.slice(-4)}`;
+}
+
+function isGuidLike(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "").trim(),
+  );
+}
+
+function buildSetupStateSnapshot() {
   const issues = [];
   const checks = {};
 
@@ -7783,6 +7964,7 @@ function setupValidateEndpoint(res, route) {
   }
 
   // Graph profiles check
+  const profileDetails = [];
   for (const profileId of ["olumie", "everest"]) {
     const cfg = getGraphProfileConfig(profileId);
     checks[`graph.${profileId}.configured`] = cfg.ok ? "ok" : cfg.error;
@@ -7799,6 +7981,49 @@ function setupValidateEndpoint(res, route) {
         message: `Graph profile ${profileId}: not authenticated`,
       });
     }
+    const rawProfile = readGraphProfilesConfig().profiles?.[profileId];
+    const tenantId = typeof rawProfile?.tenant_id === "string" ? rawProfile.tenant_id.trim() : "";
+    const clientId = typeof rawProfile?.client_id === "string" ? rawProfile.client_id.trim() : "";
+    const scopes = Array.isArray(rawProfile?.delegated_scopes)
+      ? rawProfile.delegated_scopes.filter(
+          (scope) => typeof scope === "string" && scope.trim().length > 0,
+        )
+      : [];
+    const placeholder = rawProfile && isExampleGraphProfile(rawProfile);
+    const missing = [];
+    if (!tenantId) {
+      missing.push("tenant_id");
+    }
+    if (!clientId) {
+      missing.push("client_id");
+    }
+    if (scopes.length === 0) {
+      missing.push("delegated_scopes");
+    }
+    if (placeholder) {
+      missing.push("example_guid_values");
+    }
+    if (missing.length > 0) {
+      issues.push({
+        severity: "warning",
+        profile_id: profileId,
+        message: `Graph profile ${profileId}: ${missing.join(", ")} missing/invalid`,
+      });
+    }
+    profileDetails.push({
+      profile_id: profileId,
+      configured: cfg.ok,
+      authenticated: authed,
+      tenant_id_present: tenantId.length > 0,
+      client_id_present: clientId.length > 0,
+      tenant_id_masked: maskGuid(tenantId),
+      client_id_masked: maskGuid(clientId),
+      delegated_scopes_count: scopes.length,
+      delegated_scopes: scopes,
+      has_placeholder_values: !!placeholder,
+      missing,
+      next_action: authed ? "NONE" : "RUN_DEVICE_CODE_AUTH",
+    });
   }
 
   // Onboarding check
@@ -7814,21 +8039,153 @@ function setupValidateEndpoint(res, route) {
   // Scheduler check (delegated to modules/scheduler.mjs)
   const schedulerCfg = schedulerCore.getSchedulerConfig();
   checks["scheduler"] = schedulerCfg?.enabled ? "enabled" : "disabled";
+  const llmCfg = getLlmProviderConfig();
+  const providerReadiness = [];
+  if (llmCfg && llmCfg.providers && typeof llmCfg.providers === "object") {
+    for (const [provider, cfg] of Object.entries(llmCfg.providers)) {
+      const apiEnv = typeof cfg?.api_key_env === "string" ? cfg.api_key_env.trim() : "";
+      const endpointEnv = typeof cfg?.endpoint_env === "string" ? cfg.endpoint_env.trim() : "";
+      providerReadiness.push({
+        provider,
+        enabled: cfg?.enabled !== false,
+        api_key_env: apiEnv || null,
+        api_key_set: apiEnv ? !!process.env[apiEnv] : null,
+        endpoint_env: endpointEnv || null,
+        endpoint_set: endpointEnv ? !!process.env[endpointEnv] : null,
+      });
+    }
+  }
 
   const blockingIssues = issues.filter((i) => i.severity === "error");
-
-  appendEvent("setup.validated", route, {
-    checks_count: Object.keys(checks).length,
-    issues_count: issues.length,
-    blocking: blockingIssues.length,
-  });
-  sendJson(res, 200, {
+  const readyForLiveGraph =
+    profileDetails.length > 0 &&
+    profileDetails.every((profile) => profile.missing.length === 0 && profile.authenticated);
+  return {
+    generated_at: new Date().toISOString(),
     checks,
     issues,
     blocking_issues: blockingIssues,
     ready: blockingIssues.length === 0,
+    ready_for_live_graph: readyForLiveGraph,
+    profiles: profileDetails,
+    providers: providerReadiness,
+  };
+}
+
+// MF-10: Setup validation endpoint
+function setupValidateEndpoint(res, route) {
+  const snapshot = buildSetupStateSnapshot();
+  appendEvent("setup.validated", route, {
+    checks_count: Object.keys(snapshot.checks).length,
+    issues_count: snapshot.issues.length,
+    blocking: snapshot.blocking_issues.length,
   });
+  sendJson(res, 200, snapshot);
   logLine(`GET ${route} -> 200`);
+}
+
+function setupStateEndpoint(res, route) {
+  const snapshot = buildSetupStateSnapshot();
+  appendEvent("setup.state.queried", route, {
+    ready_for_live_graph: snapshot.ready_for_live_graph,
+    profile_count: snapshot.profiles.length,
+  });
+  appendAudit("SETUP_STATE_GET", {
+    ready_for_live_graph: snapshot.ready_for_live_graph,
+    profile_count: snapshot.profiles.length,
+  });
+  sendJson(res, 200, snapshot);
+  logLine(`GET ${route} -> 200`);
+}
+
+async function setupGraphProfileSetEndpoint(req, res, route) {
+  const approvalSource = req.headers["x-ted-approval-source"];
+  if (approvalSource !== "operator") {
+    sendJson(res, 403, {
+      error: "OPERATOR_APPROVAL_REQUIRED",
+      message: "Updating setup credentials requires operator confirmation.",
+    });
+    return;
+  }
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  if ("client_secret" in body || "secret" in body) {
+    sendJson(res, 400, {
+      error: "secret_not_allowed",
+      message: "Do not store client secrets in Ted config; use env-based secret management.",
+    });
+    return;
+  }
+  const profileId = typeof body.profile_id === "string" ? body.profile_id.trim() : "";
+  if (!GRAPH_ALLOWED_PROFILES.has(profileId)) {
+    sendJson(res, 400, { error: "unsupported_profile_id" });
+    return;
+  }
+  const tenantId = typeof body.tenant_id === "string" ? body.tenant_id.trim() : "";
+  const clientId = typeof body.client_id === "string" ? body.client_id.trim() : "";
+  if (!tenantId || !clientId || !isGuidLike(tenantId) || !isGuidLike(clientId)) {
+    sendJson(res, 400, {
+      error: "invalid_guid_values",
+      message: "tenant_id and client_id must be GUIDs.",
+    });
+    return;
+  }
+  const delegatedScopes = uniqueStringList(body.delegated_scopes, 128);
+  if (delegatedScopes.length === 0) {
+    sendJson(res, 400, { error: "delegated_scopes_required" });
+    return;
+  }
+  const clearAuth = body.clear_auth === true;
+  const rawCfg = readConfigFile(graphProfilesConfigPath);
+  const baseCfg =
+    rawCfg && typeof rawCfg === "object" && !Array.isArray(rawCfg) ? { ...rawCfg } : {};
+  const rawProfiles =
+    baseCfg.profiles && typeof baseCfg.profiles === "object" ? { ...baseCfg.profiles } : {};
+  const currentProfile =
+    rawProfiles[profileId] && typeof rawProfiles[profileId] === "object"
+      ? { ...rawProfiles[profileId] }
+      : {};
+  rawProfiles[profileId] = {
+    ...currentProfile,
+    tenant_id: tenantId,
+    client_id: clientId,
+    delegated_scopes: delegatedScopes,
+    updated_at: new Date().toISOString(),
+  };
+  writeConfigFileAtomic(graphProfilesConfigPath, {
+    ...baseCfg,
+    _config_version: Number.isFinite(baseCfg._config_version)
+      ? Math.max(1, Number(baseCfg._config_version))
+      : 1,
+    profiles: rawProfiles,
+  });
+  if (clearAuth) {
+    revokeTokenRecord(profileId);
+    clearGraphLastError(profileId);
+  }
+  appendEvent("setup.graph_profile.updated", route, {
+    profile_id: profileId,
+    delegated_scopes_count: delegatedScopes.length,
+    clear_auth: clearAuth,
+  });
+  appendAudit("SETUP_GRAPH_PROFILE_SET", {
+    profile_id: profileId,
+    tenant_id_masked: maskGuid(tenantId),
+    client_id_masked: maskGuid(clientId),
+    delegated_scopes_count: delegatedScopes.length,
+    clear_auth: clearAuth,
+  });
+  sendJson(res, 200, {
+    ok: true,
+    profile_id: profileId,
+    tenant_id_masked: maskGuid(tenantId),
+    client_id_masked: maskGuid(clientId),
+    delegated_scopes_count: delegatedScopes.length,
+    clear_auth: clearAuth,
+  });
 }
 
 function setGraphLastError(profileId, message) {
@@ -16788,13 +17145,132 @@ function externalMcpListServersEndpoint(res, route) {
   const servers = Object.values(cfg.servers)
     .map((server) => externalMcpServerView(server))
     .toSorted((a, b) => a.server_id.localeCompare(b.server_id));
+  const admissions = servers.map((server) => buildExternalMcpAdmission(server.server_id, server));
+  const readyCount = admissions.filter((entry) => entry.production_ready).length;
   sendJson(res, 200, {
     servers,
     total_count: servers.length,
     cache_ttl_ms: EXTERNAL_MCP_TOOLS_CACHE_TTL_MS,
+    admission: {
+      ready_count: readyCount,
+      blocked_count: Math.max(0, servers.length - readyCount),
+    },
   });
   appendAudit("EXTERNAL_MCP_SERVERS_LIST", { count: servers.length });
   logLine(`GET ${route} -> 200 (${servers.length} servers)`);
+}
+
+function externalMcpAdmissionEndpoint(parsedUrl, res, route) {
+  const serverIdFilter = parsedUrl?.searchParams?.get("server_id")?.trim() || "";
+  const cfg = getExternalMcpConfig();
+  const admissions = Object.entries(cfg.servers)
+    .filter(([serverId]) => (!serverIdFilter ? true : serverId === serverIdFilter))
+    .map(([serverId, server]) => buildExternalMcpAdmission(serverId, server))
+    .toSorted((a, b) => a.server_id.localeCompare(b.server_id));
+  const readyCount = admissions.filter((entry) => entry.production_ready).length;
+  const blockedCount = Math.max(0, admissions.length - readyCount);
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    server_id: serverIdFilter || null,
+    admissions,
+    total_count: admissions.length,
+    ready_count: readyCount,
+    blocked_count: blockedCount,
+  });
+  appendEvent("mcp.external.admission.queried", route, {
+    server_id: serverIdFilter || null,
+    total_count: admissions.length,
+    ready_count: readyCount,
+  });
+  appendAudit("EXTERNAL_MCP_ADMISSION_GET", {
+    server_id: serverIdFilter || "all",
+    total_count: admissions.length,
+    ready_count: readyCount,
+  });
+  logLine(`GET ${route} -> 200 (${admissions.length} admissions)`);
+}
+
+function externalMcpRevalidationStatusEndpoint(res, route) {
+  const latestRun = readLastExternalMcpRevalidationRun();
+  sendJson(res, 200, {
+    generated_at: new Date().toISOString(),
+    has_run: !!latestRun,
+    last_run: latestRun,
+  });
+  appendEvent("mcp.external.revalidation.status.queried", route, { has_run: !!latestRun });
+  appendAudit("EXTERNAL_MCP_REVALIDATION_STATUS_GET", { has_run: !!latestRun });
+  logLine(`GET ${route} -> 200`);
+}
+
+async function externalMcpRevalidateEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const serverIdFilter = typeof body.server_id === "string" ? body.server_id.trim() : "";
+  if (serverIdFilter && !isSlugSafe(serverIdFilter)) {
+    sendJson(res, 400, { error: "invalid_server_id" });
+    return;
+  }
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const nowMs = now.getTime();
+  const cfg = getExternalMcpConfig();
+  const selected = Object.entries(cfg.servers).filter(([serverId]) =>
+    serverIdFilter ? serverId === serverIdFilter : true,
+  );
+  const checks = selected.map(([serverId, server]) => {
+    const admission = buildExternalMcpAdmission(serverId, server);
+    const ageHours = hoursBetween(nowMs, server.last_tested_at);
+    let status = "ok";
+    if (!admission.production_ready) {
+      status = "blocked";
+    } else if (ageHours !== null && ageHours > 168) {
+      status = "stale_test";
+    }
+    return {
+      server_id: serverId,
+      status,
+      production_ready: admission.production_ready,
+      last_test_age_hours: ageHours !== null ? Math.round(ageHours * 10) / 10 : null,
+      blocking_reasons: admission.blocking_reasons,
+    };
+  });
+  const summary = {
+    total_servers: checks.length,
+    ok: checks.filter((entry) => entry.status === "ok").length,
+    blocked: checks.filter((entry) => entry.status === "blocked").length,
+    stale_test: checks.filter((entry) => entry.status === "stale_test").length,
+  };
+  const row = {
+    kind: "external_mcp_revalidation_run",
+    at: nowIso,
+    server_id: serverIdFilter || null,
+    summary,
+    checks,
+  };
+  appendJsonlLine(externalMcpRevalidationPath, row);
+  appendEvent("mcp.external.revalidation.run", route, {
+    server_id: serverIdFilter || null,
+    total_servers: summary.total_servers,
+    ok: summary.ok,
+    blocked: summary.blocked,
+    stale_test: summary.stale_test,
+  });
+  appendAudit("EXTERNAL_MCP_REVALIDATION_RUN", {
+    server_id: serverIdFilter || "all",
+    total_servers: summary.total_servers,
+    ok: summary.ok,
+    blocked: summary.blocked,
+    stale_test: summary.stale_test,
+  });
+  sendJson(res, 200, {
+    ok: true,
+    generated_at: nowIso,
+    summary,
+    checks,
+  });
 }
 
 async function externalMcpUpsertServerEndpoint(req, res, route) {
@@ -16845,6 +17321,10 @@ async function externalMcpUpsertServerEndpoint(req, res, route) {
     trust_tier: typeof body.trust_tier === "string" ? body.trust_tier.trim() : undefined,
     allow_tools: body.allow_tools,
     deny_tools: body.deny_tools,
+    attestation_status:
+      typeof body.attestation_status === "string" ? body.attestation_status.trim() : undefined,
+    attested_at: typeof body.attested_at === "string" ? body.attested_at.trim() : undefined,
+    scope_verified: body.scope_verified,
   };
   const normalized = normalizeExternalMcpServerConfig(serverId, candidate);
   if (!normalized) {
@@ -16867,11 +17347,14 @@ async function externalMcpUpsertServerEndpoint(req, res, route) {
   appendEvent("mcp.external.server.upserted", route, {
     server_id: serverId,
     enabled: normalized.enabled,
+    attestation_status: normalized.attestation_status || "pending",
   });
   appendAudit("EXTERNAL_MCP_SERVER_UPSERT", {
     server_id: serverId,
     enabled: normalized.enabled,
     has_token_env: !!normalized.auth_token_env,
+    attestation_status: normalized.attestation_status || "pending",
+    scope_verified: Array.isArray(normalized.scope_verified) ? normalized.scope_verified.length : 0,
   });
   sendJson(res, 200, { ok: true, server: externalMcpServerView(normalized) });
 }
@@ -16941,6 +17424,12 @@ async function externalMcpTestServerEndpoint(req, res, route) {
 
   try {
     const fetched = await getExternalToolDefsForServer(serverId, server, { refresh: true });
+    const testedAt = new Date().toISOString();
+    updateExternalMcpServer(serverId, {
+      last_tested_at: testedAt,
+      last_test_ok: true,
+      last_tool_count: fetched.tools.length,
+    });
     appendEvent("mcp.external.server.health_checked", route, {
       server_id: serverId,
       ok: true,
@@ -16965,6 +17454,11 @@ async function externalMcpTestServerEndpoint(req, res, route) {
       })),
     });
   } catch (err) {
+    updateExternalMcpServer(serverId, {
+      last_tested_at: new Date().toISOString(),
+      last_test_ok: false,
+      last_tool_count: null,
+    });
     appendEvent("mcp.external.server.health_checked", route, {
       server_id: serverId,
       ok: false,
@@ -20251,6 +20745,14 @@ const server = http.createServer(async (req, res) => {
       setupValidateEndpoint(res, route);
       return;
     }
+    if (method === "GET" && route === "/ops/setup/state") {
+      setupStateEndpoint(res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/setup/graph-profile") {
+      await setupGraphProfileSetEndpoint(req, res, route);
+      return;
+    }
 
     // MF-6: Scheduler routes (extracted to modules/scheduler.mjs — P1-1-003)
     const schedulerHandled = await dispatchSchedulerRoute(
@@ -21207,6 +21709,18 @@ const server = http.createServer(async (req, res) => {
     }
     if (method === "POST" && route === "/ops/mcp/external/servers/tools/list") {
       await externalMcpListToolsEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/mcp/external/servers/admission") {
+      externalMcpAdmissionEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/mcp/external/servers/revalidate") {
+      await externalMcpRevalidateEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/mcp/external/servers/revalidate/status") {
+      externalMcpRevalidationStatusEndpoint(res, route);
       return;
     }
     if (method === "GET" && route === "/ops/mcp/trust-policy") {
