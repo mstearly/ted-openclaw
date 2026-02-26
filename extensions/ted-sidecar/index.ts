@@ -3985,6 +3985,97 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
     },
   );
 
+  api.registerGatewayMethod(
+    "ted.llm.routing.get",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/llm-routing-policy",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted llm routing get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.llm.routing.set",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/llm-routing-policy",
+          payloadIn,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted llm routing set failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.llm.provider.test",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as {
+                provider?: unknown;
+                model?: unknown;
+                prompt?: unknown;
+                entity?: unknown;
+              })
+            : {};
+        const body: Record<string, unknown> = {};
+        if (typeof payloadIn.provider === "string" && payloadIn.provider.trim().length > 0) {
+          body.provider = payloadIn.provider.trim();
+        }
+        if (typeof payloadIn.model === "string" && payloadIn.model.trim().length > 0) {
+          body.model = payloadIn.model.trim();
+        }
+        if (typeof payloadIn.prompt === "string" && payloadIn.prompt.trim().length > 0) {
+          body.prompt = payloadIn.prompt.trim();
+        }
+        if (typeof payloadIn.entity === "string" && payloadIn.entity.trim().length > 0) {
+          body.entity = payloadIn.entity.trim();
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/llm-provider/test",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted llm provider test failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
   // --- Notification Budget gateway method (JC-084a) ---
 
   api.registerGatewayMethod(
@@ -6052,6 +6143,7 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
                 auth_token_env?: unknown;
                 auth_header_name?: unknown;
                 description?: unknown;
+                trust_tier?: unknown;
                 allow_tools?: unknown;
                 deny_tools?: unknown;
               })
@@ -6084,6 +6176,9 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
         }
         if (typeof payloadIn.description === "string") {
           body.description = payloadIn.description.trim();
+        }
+        if (typeof payloadIn.trust_tier === "string" && payloadIn.trust_tier.trim().length > 0) {
+          body.trust_tier = payloadIn.trust_tier.trim();
         }
         if (Array.isArray(payloadIn.allow_tools)) {
           body.allow_tools = payloadIn.allow_tools.filter(
@@ -6141,6 +6236,414 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         api.logger.warn(`ted external mcp server remove failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.trust_policy.get",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/trust-policy",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted mcp trust policy get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.trust_policy.set",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/trust-policy",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted mcp trust policy set failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.mcp.tool_policy.set",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { tool_alias?: unknown; action?: unknown })
+            : {};
+        const toolAlias =
+          typeof payloadIn.tool_alias === "string" ? payloadIn.tool_alias.trim() : "";
+        const action = typeof payloadIn.action === "string" ? payloadIn.action.trim() : "";
+        if (!toolAlias || !action) {
+          respond(false, { error: "tool_alias and action are required" });
+          return;
+        }
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/mcp/tool-policy",
+          { tool_alias: toolAlias, action },
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted mcp tool policy set failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.workflows.list",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, "/ops/workflows");
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted workflows list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.workflows.mutate",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(baseUrl, timeoutMs, "/ops/workflows", body);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted workflows mutate failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.workflows.run",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/workflows/run",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted workflows run failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.workflows.runs",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { workflow_id?: unknown; limit?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.workflow_id === "string" && payloadIn.workflow_id.trim().length > 0) {
+          query.set("workflow_id", payloadIn.workflow_id.trim());
+        }
+        if (typeof payloadIn.limit === "number" && Number.isFinite(payloadIn.limit)) {
+          query.set("limit", String(Math.max(1, Math.min(200, Math.floor(payloadIn.limit)))));
+        }
+        const routePath = `/ops/workflows/runs${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted workflows runs failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.memory.preferences.list",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { scope?: unknown; entity?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.scope === "string" && payloadIn.scope.trim().length > 0) {
+          query.set("scope", payloadIn.scope.trim());
+        }
+        if (typeof payloadIn.entity === "string" && payloadIn.entity.trim().length > 0) {
+          query.set("entity", payloadIn.entity.trim());
+        }
+        const routePath = `/ops/memory/preferences${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted memory preferences list failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.memory.preferences.upsert",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/memory/preferences/upsert",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted memory preferences upsert failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.memory.preferences.forget",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/memory/preferences/forget",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted memory preferences forget failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.memory.preferences.export",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { entity?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.entity === "string" && payloadIn.entity.trim().length > 0) {
+          query.set("entity", payloadIn.entity.trim());
+        }
+        const routePath = `/ops/memory/preferences/export${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted memory preferences export failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.graph.delta.status",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { profile_id?: unknown; workload?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (typeof payloadIn.profile_id === "string" && payloadIn.profile_id.trim().length > 0) {
+          query.set("profile_id", payloadIn.profile_id.trim());
+        }
+        if (typeof payloadIn.workload === "string" && payloadIn.workload.trim().length > 0) {
+          query.set("workload", payloadIn.workload.trim());
+        }
+        const routePath = `/ops/graph/delta/status${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted graph delta status failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.graph.delta.run",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/graph/delta/run",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted graph delta run failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.eval.matrix.get",
+    async ({ respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/evaluation/matrix",
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted eval matrix get failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.eval.matrix.set",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/evaluation/matrix",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted eval matrix set failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.eval.matrix.run",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const body =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as Record<string, unknown>)
+            : {};
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedRoute(
+          baseUrl,
+          timeoutMs,
+          "/ops/evaluation/matrix/run",
+          body,
+        );
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted eval matrix run failed: ${message}`);
         respond(false, { error: message });
       }
     },
