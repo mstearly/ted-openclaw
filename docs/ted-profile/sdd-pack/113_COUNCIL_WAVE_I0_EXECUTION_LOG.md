@@ -28,9 +28,13 @@ Planned tasks from SDD 112:
 
 ## 3. Task Status
 
-1. `R0-001` - Not started
-2. `MR0-001` - Not started
-3. `MR0-002` - Not started
+1. `R0-001` - Completed
+   - Evidence: `SDD 114` (active plan and wave inventory)
+2. `MR0-001` - In progress
+   - Evidence: `SDD 115` (ownership register created)
+   - Note: provider account identifiers are pending operator confirmation
+3. `MR0-002` - Completed (checklist build)
+   - Evidence: `SDD 116` (vendor credential checklist)
 
 ---
 
@@ -43,7 +47,8 @@ Planned tasks from SDD 112:
 
 ## 5. Blockers
 
-1. None identified at wave-open.
+1. `MR0-001` requires operator confirmation of Monday and RightSignature account identifiers.
+2. Graph tenant/client identifiers remain tracked under existing P0-2/P0-4 gate.
 
 ---
 
@@ -55,3 +60,21 @@ Planned tasks from SDD 112:
 4. SDD 110 - Plan 4 (roadmap/module lifecycle)
 5. SDD 111 - Plan 5 (Monday/RightSignature)
 6. SDD 112 - Master integrated execution plan
+7. SDD 114 - R0-001 plan inventory
+8. SDD 115 - MR0-001 provider ownership register
+9. SDD 116 - MR0-002 credential checklist
+
+---
+
+## 7. Early Wave I1/I2 Progress
+
+The council began Plan 1 execution in parallel with I0 paperwork to maintain momentum:
+
+1. Implemented explicit unsupported-context-semantics handling in gateway OpenResponses path for:
+   - `previous_response_id`,
+   - `reasoning`,
+   - `truncation`.
+2. Added e2e coverage for the three rejected fields with explicit `invalid_request_error` assertions.
+3. Executed gateway e2e test passes:
+   - `src/gateway/openresponses-http.e2e.test.ts`,
+   - `src/gateway/openresponses-parity.e2e.test.ts`.
