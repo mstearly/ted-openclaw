@@ -42,7 +42,8 @@ export const affected_configs = [
   "decision_index.json",
 ];
 
-export function up(configDir) {
+export function up(configDir, options = {}) {
+  const dryRun = options?.dry_run === true;
   const results = [];
   for (const filename of affected_configs) {
     const filePath = path.join(configDir, filename);
@@ -57,12 +58,16 @@ export function up(configDir) {
         results.push({ file: filename, action: "no_op", reason: "already_versioned" });
         continue;
       }
-      parsed._config_version = 1;
-      // Atomic write: write to .tmp, then rename
-      const tmpPath = filePath + ".tmp";
-      fs.writeFileSync(tmpPath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
-      fs.renameSync(tmpPath, filePath);
-      results.push({ file: filename, action: "versioned", version: 1 });
+      if (dryRun) {
+        results.push({ file: filename, action: "would_version", version: 1 });
+      } else {
+        parsed._config_version = 1;
+        // Atomic write: write to .tmp, then rename
+        const tmpPath = filePath + ".tmp";
+        fs.writeFileSync(tmpPath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
+        fs.renameSync(tmpPath, filePath);
+        results.push({ file: filename, action: "versioned", version: 1 });
+      }
     } catch (err) {
       results.push({ file: filename, action: "error", error: err.message });
     }
