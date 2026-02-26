@@ -70,6 +70,8 @@ Details: [Plugins](/tools/plugin)
    - Env: `MATRIX_HOMESERVER`, `MATRIX_ACCESS_TOKEN` (or `MATRIX_USER_ID` + `MATRIX_PASSWORD`)
    - Or config: `channels.matrix.*`
    - If both are set, config takes precedence.
+   - Non-local homeservers should use `https://`. Plain `http://` is blocked unless
+     `channels.matrix.allowInsecureHomeserver: true` (or `MATRIX_ALLOW_INSECURE_HOMESERVER=true`).
    - With access token: user ID is fetched automatically via `/whoami`.
    - When set, `channels.matrix.userId` should be the full Matrix ID (example: `@bot:example.org`).
 5. Restart the gateway (or finish onboarding).
@@ -278,6 +280,7 @@ Provider options:
 
 - `channels.matrix.enabled`: enable/disable channel startup.
 - `channels.matrix.homeserver`: homeserver URL.
+- `channels.matrix.allowInsecureHomeserver`: allow `http://` for non-local homeservers (default: false).
 - `channels.matrix.userId`: Matrix user ID (optional with access token).
 - `channels.matrix.accessToken`: access token.
 - `channels.matrix.password`: password for login (token stored).

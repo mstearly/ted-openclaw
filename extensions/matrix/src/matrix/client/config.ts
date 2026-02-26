@@ -9,6 +9,103 @@ function clean(value?: string): string {
   return value?.trim() ?? "";
 }
 
+function parseBooleanEnv(value?: string): boolean | undefined {
+  const raw = value?.trim().toLowerCase();
+  if (!raw) {
+    return undefined;
+  }
+  if (["1", "true", "yes", "on"].includes(raw)) {
+    return true;
+  }
+  if (["0", "false", "no", "off"].includes(raw)) {
+    return false;
+  }
+  return undefined;
+}
+
+function isLocalOrPrivateHost(hostname: string): boolean {
+  const host = hostname.trim().toLowerCase();
+  if (!host) {
+    return false;
+  }
+  if (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    host.endsWith(".local")
+  ) {
+    return true;
+  }
+
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
+    const parts = host.split(".").map((segment) => Number(segment));
+    if (parts.some((segment) => !Number.isInteger(segment) || segment < 0 || segment > 255)) {
+      return false;
+    }
+    if (parts[0] === 10 || parts[0] === 127) {
+      return true;
+    }
+    if (parts[0] === 169 && parts[1] === 254) {
+      return true;
+    }
+    if (parts[0] === 192 && parts[1] === 168) {
+      return true;
+    }
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) {
+      return true;
+    }
+  }
+
+  const normalizedIpv6 = host.replace(/^\[|\]$/g, "");
+  if (
+    normalizedIpv6.startsWith("fc") ||
+    normalizedIpv6.startsWith("fd") ||
+    normalizedIpv6.startsWith("fe80:")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function normalizeHomeserverUrl(params: {
+  rawHomeserver: string;
+  allowInsecureHomeserver: boolean;
+}): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(params.rawHomeserver);
+  } catch {
+    throw new Error("Matrix homeserver must be a valid URL.");
+  }
+
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("Matrix homeserver must use http:// or https://.");
+  }
+
+  if (parsed.username || parsed.password) {
+    throw new Error("Matrix homeserver URL must not include embedded credentials.");
+  }
+
+  if (parsed.search || parsed.hash) {
+    throw new Error("Matrix homeserver URL must not include query strings or URL fragments.");
+  }
+
+  if (
+    parsed.protocol === "http:" &&
+    !params.allowInsecureHomeserver &&
+    !isLocalOrPrivateHost(parsed.hostname)
+  ) {
+    throw new Error(
+      "Matrix homeserver must use https:// for non-local hosts. Set channels.matrix.allowInsecureHomeserver=true to bypass.",
+    );
+  }
+
+  const pathname = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "");
+  return `${parsed.protocol}//${parsed.host}${pathname}`;
+}
+
 /** Shallow-merge known nested config sub-objects so partial overrides inherit base values. */
 function deepMergeConfig<T extends Record<string, unknown>>(base: T, override: Partial<T>): T {
   const merged = { ...base, ...override } as Record<string, unknown>;
@@ -52,7 +149,13 @@ export function resolveMatrixConfigForAccount(
   // nested object inheritance (dm, actions, groups) so partial overrides work.
   const matrix = accountConfig ? deepMergeConfig(matrixBase, accountConfig) : matrixBase;
 
-  const homeserver = clean(matrix.homeserver) || clean(env.MATRIX_HOMESERVER);
+  const allowInsecureHomeserver =
+    matrix.allowInsecureHomeserver === true ||
+    parseBooleanEnv(env.MATRIX_ALLOW_INSECURE_HOMESERVER) === true;
+  const homeserverRaw = clean(matrix.homeserver) || clean(env.MATRIX_HOMESERVER);
+  const homeserver = homeserverRaw
+    ? normalizeHomeserverUrl({ rawHomeserver: homeserverRaw, allowInsecureHomeserver })
+    : "";
   const userId = clean(matrix.userId) || clean(env.MATRIX_USER_ID);
   const accessToken = clean(matrix.accessToken) || clean(env.MATRIX_ACCESS_TOKEN) || undefined;
   const password = clean(matrix.password) || clean(env.MATRIX_PASSWORD) || undefined;
@@ -170,6 +273,7 @@ export async function resolveMatrixAuth(params?: {
   // Login with password using HTTP API
   const loginResponse = await fetch(`${resolved.homeserver}/_matrix/client/v3/login`, {
     method: "POST",
+    redirect: "error",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       type: "m.login.password",

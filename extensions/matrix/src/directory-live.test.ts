@@ -39,16 +39,24 @@ describe("matrix directory live", () => {
     });
 
     expect(resolveMatrixAuth).toHaveBeenCalledWith({ cfg, accountId: "assistant" });
+    expect(fetch).toHaveBeenCalledWith(
+      "https://matrix.example.org/_matrix/client/v3/user_directory/search",
+      expect.objectContaining({ redirect: "error" }),
+    );
   });
 
   it("passes accountId to group directory auth resolution", async () => {
     await listMatrixDirectoryGroupsLive({
       cfg,
       accountId: "assistant",
-      query: "!room:example.org",
+      query: "project",
       limit: 10,
     });
 
     expect(resolveMatrixAuth).toHaveBeenCalledWith({ cfg, accountId: "assistant" });
+    expect(fetch).toHaveBeenCalledWith(
+      "https://matrix.example.org/_matrix/client/v3/joined_rooms",
+      expect.objectContaining({ redirect: "error" }),
+    );
   });
 });

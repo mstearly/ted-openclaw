@@ -51,6 +51,8 @@ export type MatrixConfig = {
   accounts?: Record<string, MatrixAccountConfig>;
   /** Matrix homeserver URL (https://matrix.example.org). */
   homeserver?: string;
+  /** Allow non-HTTPS homeserver URLs for non-local hosts (security escape hatch). */
+  allowInsecureHomeserver?: boolean;
   /** Matrix user id (@user:server). */
   userId?: string;
   /** Matrix access token. */

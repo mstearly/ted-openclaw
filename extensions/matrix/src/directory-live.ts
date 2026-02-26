@@ -31,6 +31,7 @@ async function fetchMatrixJson<T>(params: {
 }): Promise<T> {
   const res = await fetch(`${params.homeserver}${params.path}`, {
     method: params.method ?? "GET",
+    redirect: "error",
     headers: {
       Authorization: `Bearer ${params.accessToken}`,
       "Content-Type": "application/json",

@@ -39,6 +39,7 @@ export const MatrixConfigSchema = z.object({
   enabled: z.boolean().optional(),
   markdown: MarkdownConfigSchema,
   homeserver: z.string().optional(),
+  allowInsecureHomeserver: z.boolean().optional(),
   userId: z.string().optional(),
   accessToken: z.string().optional(),
   password: z.string().optional(),
