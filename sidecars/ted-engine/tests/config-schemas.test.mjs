@@ -12,6 +12,7 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
+import { validateMigrationManifest } from "../modules/migration_registry.mjs";
 import {
   validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
@@ -412,6 +413,14 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("migration_manifest.json passes structural validation", () => {
+    const manifest = configs.get("migration_manifest.json");
+    const result = validateMigrationManifest(manifest);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(result.migrations.length).toBeGreaterThanOrEqual(1);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -435,6 +444,7 @@ describe("Required config files exist", () => {
     "autonomy_ladder.json",
     "builder_lane_config.json",
     "migration_state.json",
+    "migration_manifest.json",
     "ted_constitution.json",
     "ted_agent.json",
     "roadmap_master.json",

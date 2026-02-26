@@ -4,6 +4,11 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import * as baselineSchemaMigration from "./migrations/001_baseline_schema_versions.mjs";
+import {
+  buildMigrationExecutionPlan,
+  validateMigrationManifest,
+} from "./modules/migration_registry.mjs";
 import {
   validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
@@ -177,6 +182,7 @@ const replayCorpusConfigPath = path.join(__dirname, "config", "replay_corpus.jso
 const schedulerConfigPath = path.join(__dirname, "config", "scheduler_config.json");
 const mobileAlertPolicyConfigPath = path.join(__dirname, "config", "mobile_alert_policy.json");
 const compatibilityPolicyConfigPath = path.join(__dirname, "config", "compatibility_policy.json");
+const migrationManifestConfigPath = path.join(__dirname, "config", "migration_manifest.json");
 const retrofitBaselineLockConfigPath = path.join(
   __dirname,
   "config",
@@ -1194,6 +1200,7 @@ function validateStartupIntegrity() {
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
     compatibilityPolicyConfigPath,
+    migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
   ]);
   const allConfigPaths = [
@@ -1216,6 +1223,7 @@ function validateStartupIntegrity() {
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
     compatibilityPolicyConfigPath,
+    migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
     hardBansConfigPath,
     briefConfigPath,
@@ -1379,6 +1387,22 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: compatibilityPolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === migrationManifestConfigPath) {
+        const migrationManifestValidation = validateMigrationManifest(parsed);
+        if (!migrationManifestValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `migration_manifest validation failed: ${migrationManifestValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: migrationManifestValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;
@@ -23847,6 +23871,19 @@ const server = http.createServer(async (req, res) => {
 });
 
 // ─── Sprint 2 (SDD 72): Config Migration Runner ───
+const CONFIG_MIGRATION_REGISTRY = new Map([
+  [
+    baselineSchemaMigration.id,
+    {
+      run: baselineSchemaMigration.up,
+      description: baselineSchemaMigration.description,
+      affected_configs: Array.isArray(baselineSchemaMigration.affected_configs)
+        ? baselineSchemaMigration.affected_configs
+        : [],
+    },
+  ],
+]);
+
 function runConfigMigrations() {
   const configDir = path.join(__dirname, "config");
   const migrationStatePath = path.join(configDir, "migration_state.json");
@@ -23859,33 +23896,43 @@ function runConfigMigrations() {
   } catch {
     migrationState = { _config_version: 1, applied: [], last_run: null };
   }
-  const appliedSet = new Set(migrationState.applied.map((a) => (typeof a === "string" ? a : a.id)));
+  const appliedSet = new Set(
+    migrationState.applied.map((entry) => (typeof entry === "string" ? entry : entry.id)),
+  );
 
-  // Scan migrations directory
-  const migrationsDir = path.join(__dirname, "migrations");
-  if (!fs.existsSync(migrationsDir)) {
-    logLine("MIGRATION_RUNNER: No migrations directory found — skipping");
-    return { migrations_run: 0, already_applied: appliedSet.size };
+  let manifest;
+  try {
+    manifest = JSON.parse(fs.readFileSync(migrationManifestConfigPath, "utf8"));
+  } catch (err) {
+    logLine(`MIGRATION_RUNNER_ERROR: Cannot read migration manifest: ${err.message}`);
+    return {
+      migrations_run: 0,
+      error: "migration_manifest_read_failed",
+      details: err.message,
+    };
   }
 
-  let migrationFiles;
-  try {
-    migrationFiles = fs
-      .readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".mjs"))
-      .toSorted();
-  } catch (err) {
-    logLine(`MIGRATION_RUNNER_ERROR: Cannot read migrations dir: ${err.message}`);
-    return { migrations_run: 0, error: err.message };
+  const executionPlan = buildMigrationExecutionPlan(manifest, CONFIG_MIGRATION_REGISTRY);
+  if (!executionPlan.ok) {
+    logLine(
+      `MIGRATION_RUNNER_ERROR: migration manifest invalid: ${executionPlan.errors
+        .map((entry) => `${entry.code}:${entry.message}`)
+        .join(" | ")}`,
+    );
+    return {
+      migrations_run: 0,
+      error: "migration_manifest_invalid",
+      details: executionPlan.errors,
+    };
   }
 
   let migrationsRun = 0;
   const results = [];
 
-  for (const filename of migrationFiles) {
-    const migrationId = filename.replace(/\.mjs$/, "");
+  for (const migration of executionPlan.plan) {
+    const migrationId = migration.id;
     if (appliedSet.has(migrationId)) {
-      continue; // Already applied
+      continue;
     }
 
     // Create backup before migration
@@ -23894,68 +23941,56 @@ function runConfigMigrations() {
     try {
       fs.mkdirSync(backupPath, { recursive: true });
       const configFiles = fs.readdirSync(configDir).filter((f) => f.endsWith(".json"));
-      for (const cf of configFiles) {
-        fs.copyFileSync(path.join(configDir, cf), path.join(backupPath, cf));
+      for (const configFile of configFiles) {
+        fs.copyFileSync(path.join(configDir, configFile), path.join(backupPath, configFile));
       }
     } catch (backupErr) {
       logLine(
         `MIGRATION_RUNNER_WARN: Backup creation failed for ${migrationId}: ${backupErr.message}`,
       );
-      // Continue anyway — backup failure is non-fatal
+      // Continue anyway — backup failure is non-fatal.
     }
 
-    // Execute migration — synchronous registry approach
     try {
-      if (migrationId === "001_baseline_schema_versions") {
-        // Inline baseline migration: ensure all configs have _config_version
-        const configFiles = fs.readdirSync(configDir).filter((f) => f.endsWith(".json"));
-        const migrationResult = [];
-        for (const cf of configFiles) {
-          const cfPath = path.join(configDir, cf);
-          try {
-            const raw = fs.readFileSync(cfPath, "utf8");
-            const parsed = JSON.parse(raw);
-            if (parsed._config_version !== undefined) {
-              migrationResult.push({ file: cf, action: "no_op" });
-              continue;
-            }
-            parsed._config_version = 1;
-            const tmpCfPath = cfPath + ".tmp";
-            fs.writeFileSync(tmpCfPath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
-            fs.renameSync(tmpCfPath, cfPath);
-            migrationResult.push({ file: cf, action: "versioned" });
-          } catch (cfErr) {
-            migrationResult.push({ file: cf, action: "error", error: cfErr.message });
-          }
-        }
-        migrationsRun++;
-        const record = {
-          id: migrationId,
-          applied_at: new Date().toISOString(),
-          affected_configs: configFiles,
-          result: migrationResult,
-        };
-        migrationState.applied.push(record);
-        results.push(record);
-        logLine(
-          `MIGRATION_RUNNER: Applied ${migrationId} — ${migrationResult.filter((r) => r.action === "versioned").length} configs versioned`,
-        );
-      } else {
-        logLine(
-          `MIGRATION_RUNNER_WARN: Unknown migration ${migrationId} — skipping (register in server.mjs or use async runner)`,
-        );
-        results.push({ id: migrationId, action: "skipped", reason: "unregistered" });
-        continue;
+      const registryEntry = CONFIG_MIGRATION_REGISTRY.get(migrationId);
+      if (!registryEntry || typeof registryEntry.run !== "function") {
+        throw new Error(`registry handler missing for ${migrationId}`);
       }
+      const rawResult = registryEntry.run(configDir);
+      const normalizedResult = Array.isArray(rawResult)
+        ? rawResult
+        : Array.isArray(rawResult?.result)
+          ? rawResult.result
+          : [];
+
+      const record = {
+        id: migrationId,
+        order: migration.order,
+        depends_on: migration.depends_on,
+        description: registryEntry.description || null,
+        applied_at: new Date().toISOString(),
+        affected_configs: registryEntry.affected_configs || [],
+        result: normalizedResult,
+      };
+      migrationState.applied.push(record);
+      appliedSet.add(migrationId);
+      results.push(record);
+      migrationsRun += 1;
+
+      logLine(
+        `MIGRATION_RUNNER: Applied ${migrationId} (order=${migration.order}) — ${normalizedResult.filter((entry) => entry.action === "versioned").length} configs versioned`,
+      );
       try {
-        appendEvent("config.migrated", "migration_runner", { migration_id: migrationId });
+        appendEvent("config.migrated", "migration_runner", {
+          migration_id: migrationId,
+          order: migration.order,
+        });
       } catch {
         /* non-fatal */
       }
     } catch (err) {
       logLine(`MIGRATION_RUNNER_ERROR: Migration ${migrationId} failed: ${err.message}`);
-      results.push({ id: migrationId, error: err.message });
-      // Do NOT apply subsequent migrations after a failure
+      results.push({ id: migrationId, order: migration.order, error: err.message });
       break;
     }
   }
@@ -23970,7 +24005,7 @@ function runConfigMigrations() {
     logLine(`MIGRATION_RUNNER_ERROR: Cannot update migration_state.json: ${err.message}`);
   }
 
-  return { migrations_run: migrationsRun, results };
+  return { migrations_run: migrationsRun, already_applied: appliedSet.size, results };
 }
 
 // ─── Sprint 2 (SDD 72): Run config migrations before validation ───

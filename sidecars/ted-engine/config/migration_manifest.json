@@ -1,0 +1,11 @@
+{
+  "_config_version": 1,
+  "description": "Ordered config migration manifest executed by startup migration runner.",
+  "migrations": [
+    {
+      "id": "001_baseline_schema_versions",
+      "order": 1,
+      "depends_on": []
+    }
+  ]
+}

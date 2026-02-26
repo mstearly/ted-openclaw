@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateMigrationManifest } from "../../sidecars/ted-engine/modules/migration_registry.mjs";
 import {
   validateCompatibilityPolicy,
   validateConnectorAdmissionPolicy,
@@ -40,6 +41,7 @@ function parseArgs(argv) {
       repoRoot,
       "sidecars/ted-engine/config/compatibility_policy.json",
     ),
+    migrationManifest: path.join(repoRoot, "sidecars/ted-engine/config/migration_manifest.json"),
     retrofitBaselineLock: path.join(
       repoRoot,
       "sidecars/ted-engine/config/retrofit_rf0_baseline_lock.json",
@@ -78,6 +80,10 @@ function parseArgs(argv) {
     }
     if (arg === "--compatibility-policy") {
       out.compatibilityPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--migration-manifest") {
+      out.migrationManifest = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
     if (arg === "--retrofit-baseline-lock") {
@@ -149,6 +155,11 @@ function main() {
       kind: "compatibility policy",
       path: args.compatibilityPolicy,
       validator: validateCompatibilityPolicy,
+    },
+    {
+      kind: "migration manifest",
+      path: args.migrationManifest,
+      validator: validateMigrationManifest,
     },
     {
       kind: "retrofit baseline lock",
