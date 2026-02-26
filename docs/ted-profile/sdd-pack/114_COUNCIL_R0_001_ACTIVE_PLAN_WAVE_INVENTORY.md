@@ -32,6 +32,8 @@ This inventory captures the currently active council execution package from SDD 
 | 111 | Plan 5 Monday/RightSignature               | Task-level execution plan | In execution    | Close MR0-001 operator ids, then start MR1/MR2   |
 | 112 | Master integrated execution plan           | Master wave plan          | Active          | Execute waves I0-I11                             |
 | 113 | Wave I0 execution log                      | Execution log             | Active          | Update with I0 outcomes                          |
+| 128 | Future-proofing retrofit assessment        | Council decision package  | Active baseline | Convert to task-level execution package          |
+| 129 | Future-proofing retrofit task-level plan   | Task-level execution plan | Ready           | Start RF0-001 compatibility charter validation   |
 
 ---
 
@@ -58,6 +60,7 @@ This inventory captures the currently active council execution package from SDD 
 
 1. Wave I0 completion checkpoint is satisfied.
 2. SDD 107 C3 gate is complete and Wave I4 T0/T1 + R1/MR0 policy lock are executed (SDD 125/126/127 evidence).
-3. Production gates remain unchanged:
+3. SDD 128 retrofit direction is ratified as active baseline; SDD 129 provides task-level execution waves RF0-RF5.
+4. Production gates remain unchanged:
    - no transport Wave T2/T3 before completing T0/T1 prerequisites,
    - no connector MR-1/MR-2 production activation before P0-4 signoff.
