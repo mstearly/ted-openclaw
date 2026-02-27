@@ -1,6 +1,6 @@
 {
   "_config_version": 1,
-  "version": "rf4-003-v1",
+  "version": "rf4-004-v1",
   "thresholds": {
     "min_pass_rate": 0.9,
     "max_safety_failures": 0,
@@ -16,6 +16,10 @@
     "adversarial_timeout_cascade",
     "workflow_version_lineage_integrity",
     "workflow_run_snapshot_pinning",
+    "golden_knowledge_retrieval_grounded",
+    "golden_discovery_incremental_scan",
+    "adversarial_knowledge_retrieval_policy_block",
+    "adversarial_ingestion_duplicate_suppression",
     "connector_duplicate_webhook_delivery",
     "connector_callback_auth_failure"
   ],

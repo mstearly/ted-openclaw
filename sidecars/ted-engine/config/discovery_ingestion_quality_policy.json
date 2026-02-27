@@ -1,0 +1,31 @@
+{
+  "_config_version": 1,
+  "_artifact": "discovery_ingestion_quality_policy",
+  "_description": "Quality and safety thresholds for discovery and ingestion pipelines before promotion to governed maturity.",
+  "discovery": {
+    "require_incremental_scan_cursor": true,
+    "dedup_precision_min": 0.92,
+    "max_false_positive_rate": 0.08,
+    "entity_link_confidence_min": 0.7,
+    "max_candidates_per_entity": 25
+  },
+  "ingestion": {
+    "require_idempotency_key": true,
+    "duplicate_suppression_rate_min": 0.98,
+    "max_parse_error_rate": 0.05,
+    "require_pii_redaction_on_extract": true,
+    "max_batch_latency_ms": 120000
+  },
+  "governance": {
+    "emit_events": [
+      "discovery.quality.evaluated",
+      "ingestion.quality.evaluated",
+      "ingestion.duplicate.blocked"
+    ],
+    "required_reason_codes": [
+      "DISCOVERY_QUALITY_BELOW_THRESHOLD",
+      "INGESTION_PARSE_ERROR_RATE_HIGH",
+      "INGESTION_DUPLICATE_SUPPRESSION_LOW"
+    ]
+  }
+}

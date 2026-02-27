@@ -12,10 +12,12 @@ import {
   resolveChangedFeatureIds,
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDiscoveryIngestionQualityPolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
   validateFeatureReleaseGatePolicy,
+  validateKnowledgeRetrievalPolicy,
   validateMcpTrustPolicy,
   validateTransportPolicy,
 } from "./modules/feature_governance.mjs";
@@ -273,6 +275,16 @@ const connectorCertificationMatrixConfigPath = path.join(
 );
 const transportPolicyConfigPath = path.join(__dirname, "config", "transport_policy.json");
 const contextPolicyConfigPath = path.join(__dirname, "config", "context_policy.json");
+const knowledgeRetrievalPolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "knowledge_retrieval_policy.json",
+);
+const discoveryIngestionQualityPolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "discovery_ingestion_quality_policy.json",
+);
 const migrationManifestConfigPath = path.join(__dirname, "config", "migration_manifest.json");
 const retrofitBaselineLockConfigPath = path.join(
   __dirname,
@@ -604,6 +616,67 @@ function loadContextPolicy() {
   });
 }
 
+function loadKnowledgeRetrievalPolicy() {
+  return loadJsonConfigWithFallback(knowledgeRetrievalPolicyConfigPath, {
+    allowed_modes: ["structured_ledger", "keyword_index", "vector_rag"],
+    default_mode: "structured_ledger",
+    indexes: {
+      structured_ledger: { enabled: true, allowed_ledgers: ["events.jsonl"], max_candidates: 50 },
+      keyword_index: { enabled: false, allowed_ledgers: ["events.jsonl"], max_candidates: 40 },
+      vector_rag: { enabled: false, allowed_ledgers: ["events.jsonl"], max_candidates: 25 },
+    },
+    query_constraints: {
+      max_query_length_chars: 512,
+      max_top_k: 12,
+      max_context_tokens: 6000,
+      min_similarity_score: 0.55,
+      min_citation_count: 1,
+    },
+    security: {
+      require_scope_filter: true,
+      require_citation_offsets: true,
+      redact_sensitive_patterns: true,
+      blocked_pattern_policy_refs: [],
+    },
+    fallback: {
+      on_no_results: "return_no_results_contract",
+      on_policy_block: "block_with_reason_code",
+      emit_governance_event: true,
+    },
+    governance: {
+      emit_events: ["knowledge.retrieval.query.executed"],
+      required_reason_codes: ["NO_RESULTS", "POLICY_BLOCK", "SCOPE_FILTER_MISSING"],
+    },
+  });
+}
+
+function loadDiscoveryIngestionQualityPolicy() {
+  return loadJsonConfigWithFallback(discoveryIngestionQualityPolicyConfigPath, {
+    discovery: {
+      require_incremental_scan_cursor: true,
+      dedup_precision_min: 0.92,
+      max_false_positive_rate: 0.08,
+      entity_link_confidence_min: 0.7,
+      max_candidates_per_entity: 25,
+    },
+    ingestion: {
+      require_idempotency_key: true,
+      duplicate_suppression_rate_min: 0.98,
+      max_parse_error_rate: 0.05,
+      require_pii_redaction_on_extract: true,
+      max_batch_latency_ms: 120000,
+    },
+    governance: {
+      emit_events: ["discovery.quality.evaluated", "ingestion.quality.evaluated"],
+      required_reason_codes: [
+        "DISCOVERY_QUALITY_BELOW_THRESHOLD",
+        "INGESTION_PARSE_ERROR_RATE_HIGH",
+        "INGESTION_DUPLICATE_SUPPRESSION_LOW",
+      ],
+    },
+  });
+}
+
 function refreshFeatureSignalMatcher() {
   try {
     _featureSignalMatcher = buildFeatureSignalMatcher(loadFeatureRegistryConfig());
@@ -739,6 +812,8 @@ const MONITORED_CONFIGS = [
   "feature_fragility_policy.json",
   "feature_usage_policy.json",
   "research_trigger_policy.json",
+  "knowledge_retrieval_policy.json",
+  "discovery_ingestion_quality_policy.json",
   "compatibility_policy.json",
   "retrofit_rf0_baseline_lock.json",
 ];
@@ -1683,6 +1758,8 @@ function validateStartupIntegrity() {
     connectorCertificationMatrixConfigPath,
     transportPolicyConfigPath,
     contextPolicyConfigPath,
+    knowledgeRetrievalPolicyConfigPath,
+    discoveryIngestionQualityPolicyConfigPath,
     mcpTrustPolicyConfigPath,
     replayGateContractConfigPath,
     rolloutPolicyConfigPath,
@@ -1723,6 +1800,8 @@ function validateStartupIntegrity() {
     connectorCertificationMatrixConfigPath,
     transportPolicyConfigPath,
     contextPolicyConfigPath,
+    knowledgeRetrievalPolicyConfigPath,
+    discoveryIngestionQualityPolicyConfigPath,
     migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
     hardBansConfigPath,
@@ -2095,6 +2174,38 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: contextPolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === knowledgeRetrievalPolicyConfigPath) {
+        const knowledgeRetrievalValidation = validateKnowledgeRetrievalPolicy(parsed);
+        if (!knowledgeRetrievalValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `knowledge_retrieval_policy validation failed: ${knowledgeRetrievalValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: knowledgeRetrievalValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === discoveryIngestionQualityPolicyConfigPath) {
+        const discoveryIngestionValidation = validateDiscoveryIngestionQualityPolicy(parsed);
+        if (!discoveryIngestionValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `discovery_ingestion_quality_policy validation failed: ${discoveryIngestionValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: discoveryIngestionValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;
@@ -2521,6 +2632,8 @@ function featureOperatingStatusPayload(options = {}) {
     policy,
     transport_policy: loadTransportPolicy(),
     context_policy: loadContextPolicy(),
+    knowledge_retrieval_policy: loadKnowledgeRetrievalPolicy(),
+    discovery_ingestion_quality_policy: loadDiscoveryIngestionQualityPolicy(),
     activation_experiments: Array.isArray(activationCatalog?.experiments)
       ? activationCatalog.experiments.length
       : 0,

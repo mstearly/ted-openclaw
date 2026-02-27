@@ -9,10 +9,12 @@ import {
   resolveChangedFeatureIds,
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDiscoveryIngestionQualityPolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
   validateFeatureReleaseGatePolicy,
+  validateKnowledgeRetrievalPolicy,
   validateMcpTrustPolicy,
   validateTransportPolicy,
 } from "../modules/feature_governance.mjs";
@@ -32,6 +34,8 @@ describe("feature governance policy validators", () => {
     const matrix = loadJson("../config/connector_certification_matrix.json");
     const transport = loadJson("../config/transport_policy.json");
     const context = loadJson("../config/context_policy.json");
+    const retrieval = loadJson("../config/knowledge_retrieval_policy.json");
+    const discoveryIngestion = loadJson("../config/discovery_ingestion_quality_policy.json");
     const mcpTrust = loadJson("../config/mcp_trust_policy.json");
 
     expect(validateFeatureOperatingCadencePolicy(cadence).ok).toBe(true);
@@ -41,7 +45,29 @@ describe("feature governance policy validators", () => {
     expect(validateConnectorCertificationMatrix(matrix).ok).toBe(true);
     expect(validateTransportPolicy(transport).ok).toBe(true);
     expect(validateContextPolicy(context).ok).toBe(true);
+    expect(validateKnowledgeRetrievalPolicy(retrieval).ok).toBe(true);
+    expect(validateDiscoveryIngestionQualityPolicy(discoveryIngestion).ok).toBe(true);
     expect(validateMcpTrustPolicy(mcpTrust).ok).toBe(true);
+  });
+
+  test("discovery ingestion policy rejects invalid thresholds", () => {
+    const policy = loadJson("../config/discovery_ingestion_quality_policy.json");
+    policy.discovery.dedup_precision_min = 1.4;
+    policy.ingestion.max_parse_error_rate = -0.2;
+    const result = validateDiscoveryIngestionQualityPolicy(policy);
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors.some(
+        (entry) =>
+          entry.code === "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_DEDUP_PRECISION_INVALID",
+      ),
+    ).toBe(true);
+    expect(
+      result.errors.some(
+        (entry) =>
+          entry.code === "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_PARSE_ERROR_INVALID",
+      ),
+    ).toBe(true);
   });
 });
 

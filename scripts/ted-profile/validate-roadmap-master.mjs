@@ -5,10 +5,12 @@ import { fileURLToPath } from "node:url";
 import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDiscoveryIngestionQualityPolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
   validateFeatureReleaseGatePolicy,
+  validateKnowledgeRetrievalPolicy,
   validateMcpTrustPolicy,
   validateTransportPolicy,
 } from "../../sidecars/ted-engine/modules/feature_governance.mjs";
@@ -106,6 +108,14 @@ function parseArgs(argv) {
     ),
     transportPolicy: path.join(repoRoot, "sidecars/ted-engine/config/transport_policy.json"),
     contextPolicy: path.join(repoRoot, "sidecars/ted-engine/config/context_policy.json"),
+    knowledgeRetrievalPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/knowledge_retrieval_policy.json",
+    ),
+    discoveryIngestionQualityPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/discovery_ingestion_quality_policy.json",
+    ),
     mcpTrustPolicy: path.join(repoRoot, "sidecars/ted-engine/config/mcp_trust_policy.json"),
   };
 
@@ -205,6 +215,14 @@ function parseArgs(argv) {
     }
     if (arg === "--context-policy") {
       out.contextPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--knowledge-retrieval-policy") {
+      out.knowledgeRetrievalPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--discovery-ingestion-quality-policy") {
+      out.discoveryIngestionQualityPolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
     if (arg === "--mcp-trust-policy") {
@@ -361,6 +379,16 @@ function main() {
       kind: "context policy",
       path: args.contextPolicy,
       validator: validateContextPolicy,
+    },
+    {
+      kind: "knowledge retrieval policy",
+      path: args.knowledgeRetrievalPolicy,
+      validator: validateKnowledgeRetrievalPolicy,
+    },
+    {
+      kind: "discovery ingestion quality policy",
+      path: args.discoveryIngestionQualityPolicy,
+      validator: validateDiscoveryIngestionQualityPolicy,
     },
     {
       kind: "mcp trust policy",

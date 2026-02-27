@@ -280,22 +280,23 @@
       "owner": "council.state",
       "backup_owner": "operator.primary",
       "module_class": "domain_engine",
-      "lifecycle_state": "incubating",
-      "maturity_score": 2,
-      "fragility_score": 76,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 58,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
           "sidecars/ted-engine/tests/contracts.test.mjs",
           "feature:discovery_pipeline:unit"
         ],
-        "replay_scenarios": ["replay:discovery_pipeline:baseline"],
+        "replay_scenarios": ["replay:discovery_pipeline:incremental_scan_quality"],
         "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
       },
       "security_controls": {
         "policy_refs": [
           "sidecars/ted-engine/config/hard_bans.json",
-          "sidecars/ted-engine/config/rollout_policy.json"
+          "sidecars/ted-engine/config/rollout_policy.json",
+          "sidecars/ted-engine/config/discovery_ingestion_quality_policy.json"
         ],
         "owasp_llm_top10": ["LLM03", "LLM08"]
       },
@@ -316,11 +317,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "incubating",
+        "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "medium",
-        "notes": "90d email + 60d calendar scan. Needs: incremental discovery, better deal matching."
+        "notes": "Incremental scan and dedup quality guardrails are now governed through policy and replay evidence."
       }
     },
     {
@@ -730,22 +731,23 @@
       "owner": "council.state",
       "backup_owner": "operator.primary",
       "module_class": "domain_engine",
-      "lifecycle_state": "incubating",
-      "maturity_score": 2,
-      "fragility_score": 76,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 57,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
           "sidecars/ted-engine/tests/contracts.test.mjs",
           "feature:ingestion_pipeline:unit"
         ],
-        "replay_scenarios": ["replay:ingestion_pipeline:baseline"],
+        "replay_scenarios": ["replay:ingestion_pipeline:duplicate_suppression_guard"],
         "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
       },
       "security_controls": {
         "policy_refs": [
           "sidecars/ted-engine/config/hard_bans.json",
-          "sidecars/ted-engine/config/rollout_policy.json"
+          "sidecars/ted-engine/config/rollout_policy.json",
+          "sidecars/ted-engine/config/discovery_ingestion_quality_policy.json"
         ],
         "owasp_llm_top10": ["LLM03", "LLM08"]
       },
@@ -766,11 +768,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "incubating",
+        "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "medium",
-        "notes": "Inbox ingestion, dedup. Needs: more robust error handling, semantic dedup."
+        "notes": "Ingestion idempotency and duplicate-suppression thresholds are now governed with replay-gated validation."
       }
     },
     {
@@ -780,27 +782,31 @@
       "owner": "council.state",
       "backup_owner": "operator.primary",
       "module_class": "domain_engine",
-      "lifecycle_state": "incubating",
-      "maturity_score": 1,
-      "fragility_score": 82,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 56,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
           "sidecars/ted-engine/tests/contracts.test.mjs",
           "feature:knowledge_retrieval:unit"
         ],
-        "replay_scenarios": ["replay:knowledge_retrieval:baseline"],
+        "replay_scenarios": [
+          "replay:knowledge_retrieval:grounded",
+          "replay:knowledge_retrieval:policy_block"
+        ],
         "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
       },
       "security_controls": {
         "policy_refs": [
           "sidecars/ted-engine/config/hard_bans.json",
-          "sidecars/ted-engine/config/rollout_policy.json"
+          "sidecars/ted-engine/config/rollout_policy.json",
+          "sidecars/ted-engine/config/knowledge_retrieval_policy.json"
         ],
         "owasp_llm_top10": ["LLM03", "LLM08"]
       },
       "runtime_signals": {
-        "events": ["extraction.*", "memory.preference.*"],
+        "events": ["extraction.*", "memory.preference.*", "knowledge.retrieval.*"],
         "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
         "alerts": ["latency_breach", "failure_ratio_breach"]
       },
@@ -816,11 +822,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": null,
-        "capability_level": 1,
+        "feature_maturity_level": "graduated",
+        "capability_level": 3,
         "capability_target": 3,
         "research_debt_score": null,
-        "notes": "Basic: structured ledger queries only. No semantic search, no RAG, no vector store. Significant gap."
+        "notes": "Governed retrieval baseline now includes scoped query policy, citation requirements, and adversarial policy-block replay coverage."
       }
     },
     {

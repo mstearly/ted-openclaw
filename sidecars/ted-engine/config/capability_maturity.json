@@ -54,9 +54,9 @@
     },
     {
       "name": "knowledge_retrieval",
-      "level": 1,
+      "level": 3,
       "target": 3,
-      "notes": "Basic: structured ledger queries only. No semantic search, no RAG, no vector store. Significant gap."
+      "notes": "Governed: retrieval scope/query/security contracts plus replay-gated containment are implemented; semantic/vector ranking remains optional future enhancement."
     },
     {
       "name": "multi_user",

@@ -596,6 +596,322 @@ export function validateContextPolicy(policy) {
   return { ok: errors.length === 0, errors };
 }
 
+export function validateKnowledgeRetrievalPolicy(policy) {
+  const errors = [];
+  if (!expectArtifact(policy, "knowledge_retrieval_policy", "KNOWLEDGE_RETRIEVAL_POLICY", errors)) {
+    return { ok: false, errors };
+  }
+
+  const allowedModes = uniqueStringList(policy.allowed_modes);
+  if (allowedModes.length === 0) {
+    errors.push({
+      code: "KNOWLEDGE_RETRIEVAL_POLICY_ALLOWED_MODES_INVALID",
+      message: "allowed_modes must be non-empty",
+    });
+  }
+
+  if (typeof policy.default_mode !== "string" || !allowedModes.includes(policy.default_mode)) {
+    errors.push({
+      code: "KNOWLEDGE_RETRIEVAL_POLICY_DEFAULT_MODE_INVALID",
+      message: "default_mode must be one of allowed_modes",
+    });
+  }
+
+  const indexes = isObject(policy.indexes) ? policy.indexes : null;
+  if (!indexes || Object.keys(indexes).length === 0) {
+    errors.push({
+      code: "KNOWLEDGE_RETRIEVAL_POLICY_INDEXES_MISSING",
+      message: "indexes must be a non-empty object",
+    });
+  } else {
+    for (const mode of allowedModes) {
+      const entry = indexes[mode];
+      if (!isObject(entry)) {
+        errors.push({
+          code: "KNOWLEDGE_RETRIEVAL_POLICY_INDEX_ENTRY_MISSING",
+          message: `indexes.${mode} must be an object`,
+        });
+        continue;
+      }
+      if (typeof entry.enabled !== "boolean") {
+        errors.push({
+          code: "KNOWLEDGE_RETRIEVAL_POLICY_INDEX_ENABLED_INVALID",
+          message: `indexes.${mode}.enabled must be boolean`,
+        });
+      }
+      if (uniqueStringList(entry.allowed_ledgers).length === 0) {
+        errors.push({
+          code: "KNOWLEDGE_RETRIEVAL_POLICY_INDEX_ALLOWED_LEDGERS_INVALID",
+          message: `indexes.${mode}.allowed_ledgers must be non-empty`,
+        });
+      }
+      if (!Number.isInteger(entry.max_candidates) || entry.max_candidates < 1) {
+        errors.push({
+          code: "KNOWLEDGE_RETRIEVAL_POLICY_INDEX_MAX_CANDIDATES_INVALID",
+          message: `indexes.${mode}.max_candidates must be integer >= 1`,
+        });
+      }
+    }
+  }
+
+  const constraints = isObject(policy.query_constraints) ? policy.query_constraints : null;
+  if (!constraints) {
+    errors.push({
+      code: "KNOWLEDGE_RETRIEVAL_POLICY_QUERY_CONSTRAINTS_MISSING",
+      message: "query_constraints must be an object",
+    });
+  } else {
+    if (
+      !Number.isInteger(constraints.max_query_length_chars) ||
+      constraints.max_query_length_chars < 32
+    ) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_MAX_QUERY_LENGTH_INVALID",
+        message: "query_constraints.max_query_length_chars must be integer >= 32",
+      });
+    }
+    if (!Number.isInteger(constraints.max_top_k) || constraints.max_top_k < 1) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_MAX_TOP_K_INVALID",
+        message: "query_constraints.max_top_k must be integer >= 1",
+      });
+    }
+    if (!Number.isInteger(constraints.max_context_tokens) || constraints.max_context_tokens < 256) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_MAX_CONTEXT_TOKENS_INVALID",
+        message: "query_constraints.max_context_tokens must be integer >= 256",
+      });
+    }
+    if (
+      !isFiniteNumber(constraints.min_similarity_score) ||
+      constraints.min_similarity_score < 0 ||
+      constraints.min_similarity_score > 1
+    ) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_MIN_SIMILARITY_INVALID",
+        message: "query_constraints.min_similarity_score must be in [0, 1]",
+      });
+    }
+    if (!Number.isInteger(constraints.min_citation_count) || constraints.min_citation_count < 1) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_MIN_CITATION_COUNT_INVALID",
+        message: "query_constraints.min_citation_count must be integer >= 1",
+      });
+    }
+  }
+
+  const security = isObject(policy.security) ? policy.security : null;
+  if (!security) {
+    errors.push({
+      code: "KNOWLEDGE_RETRIEVAL_POLICY_SECURITY_MISSING",
+      message: "security must be an object",
+    });
+  } else {
+    for (const key of [
+      "require_scope_filter",
+      "require_citation_offsets",
+      "redact_sensitive_patterns",
+    ]) {
+      if (typeof security[key] !== "boolean") {
+        errors.push({
+          code: "KNOWLEDGE_RETRIEVAL_POLICY_SECURITY_FLAG_INVALID",
+          message: `security.${key} must be boolean`,
+        });
+      }
+    }
+    if (uniqueStringList(security.blocked_pattern_policy_refs).length === 0) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_BLOCKED_PATTERN_REFS_INVALID",
+        message: "security.blocked_pattern_policy_refs must be non-empty",
+      });
+    }
+  }
+
+  const fallback = isObject(policy.fallback) ? policy.fallback : null;
+  if (!fallback) {
+    errors.push({
+      code: "KNOWLEDGE_RETRIEVAL_POLICY_FALLBACK_MISSING",
+      message: "fallback must be an object",
+    });
+  } else {
+    for (const key of ["on_no_results", "on_policy_block"]) {
+      if (typeof fallback[key] !== "string" || fallback[key].trim().length === 0) {
+        errors.push({
+          code: "KNOWLEDGE_RETRIEVAL_POLICY_FALLBACK_VALUE_INVALID",
+          message: `fallback.${key} must be non-empty string`,
+        });
+      }
+    }
+    if (typeof fallback.emit_governance_event !== "boolean") {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_FALLBACK_EMIT_FLAG_INVALID",
+        message: "fallback.emit_governance_event must be boolean",
+      });
+    }
+  }
+
+  const governance = isObject(policy.governance) ? policy.governance : null;
+  if (!governance) {
+    errors.push({
+      code: "KNOWLEDGE_RETRIEVAL_POLICY_GOVERNANCE_MISSING",
+      message: "governance must be an object",
+    });
+  } else {
+    if (uniqueStringList(governance.emit_events).length === 0) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_EMIT_EVENTS_INVALID",
+        message: "governance.emit_events must be non-empty",
+      });
+    }
+    if (uniqueStringList(governance.required_reason_codes).length === 0) {
+      errors.push({
+        code: "KNOWLEDGE_RETRIEVAL_POLICY_REASON_CODES_INVALID",
+        message: "governance.required_reason_codes must be non-empty",
+      });
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+export function validateDiscoveryIngestionQualityPolicy(policy) {
+  const errors = [];
+  if (
+    !expectArtifact(
+      policy,
+      "discovery_ingestion_quality_policy",
+      "DISCOVERY_INGESTION_QUALITY_POLICY",
+      errors,
+    )
+  ) {
+    return { ok: false, errors };
+  }
+
+  const discovery = isObject(policy.discovery) ? policy.discovery : null;
+  if (!discovery) {
+    errors.push({
+      code: "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_MISSING",
+      message: "discovery must be an object",
+    });
+  } else {
+    if (typeof discovery.require_incremental_scan_cursor !== "boolean") {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_INCREMENTAL_FLAG_INVALID",
+        message: "discovery.require_incremental_scan_cursor must be boolean",
+      });
+    }
+    if (
+      !isFiniteNumber(discovery.dedup_precision_min) ||
+      discovery.dedup_precision_min < 0 ||
+      discovery.dedup_precision_min > 1
+    ) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_DEDUP_PRECISION_INVALID",
+        message: "discovery.dedup_precision_min must be in [0, 1]",
+      });
+    }
+    if (
+      !isFiniteNumber(discovery.max_false_positive_rate) ||
+      discovery.max_false_positive_rate < 0 ||
+      discovery.max_false_positive_rate > 1
+    ) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_FALSE_POSITIVE_INVALID",
+        message: "discovery.max_false_positive_rate must be in [0, 1]",
+      });
+    }
+    if (
+      !isFiniteNumber(discovery.entity_link_confidence_min) ||
+      discovery.entity_link_confidence_min < 0 ||
+      discovery.entity_link_confidence_min > 1
+    ) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_ENTITY_CONFIDENCE_INVALID",
+        message: "discovery.entity_link_confidence_min must be in [0, 1]",
+      });
+    }
+    if (
+      !Number.isInteger(discovery.max_candidates_per_entity) ||
+      discovery.max_candidates_per_entity < 1
+    ) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_MAX_CANDIDATES_INVALID",
+        message: "discovery.max_candidates_per_entity must be integer >= 1",
+      });
+    }
+  }
+
+  const ingestion = isObject(policy.ingestion) ? policy.ingestion : null;
+  if (!ingestion) {
+    errors.push({
+      code: "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_MISSING",
+      message: "ingestion must be an object",
+    });
+  } else {
+    if (typeof ingestion.require_idempotency_key !== "boolean") {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_IDEMPOTENCY_FLAG_INVALID",
+        message: "ingestion.require_idempotency_key must be boolean",
+      });
+    }
+    if (
+      !isFiniteNumber(ingestion.duplicate_suppression_rate_min) ||
+      ingestion.duplicate_suppression_rate_min < 0 ||
+      ingestion.duplicate_suppression_rate_min > 1
+    ) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_DUP_SUPPRESSION_INVALID",
+        message: "ingestion.duplicate_suppression_rate_min must be in [0, 1]",
+      });
+    }
+    if (
+      !isFiniteNumber(ingestion.max_parse_error_rate) ||
+      ingestion.max_parse_error_rate < 0 ||
+      ingestion.max_parse_error_rate > 1
+    ) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_PARSE_ERROR_INVALID",
+        message: "ingestion.max_parse_error_rate must be in [0, 1]",
+      });
+    }
+    if (typeof ingestion.require_pii_redaction_on_extract !== "boolean") {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_PII_REDACTION_FLAG_INVALID",
+        message: "ingestion.require_pii_redaction_on_extract must be boolean",
+      });
+    }
+    if (!Number.isInteger(ingestion.max_batch_latency_ms) || ingestion.max_batch_latency_ms < 1) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_BATCH_LATENCY_INVALID",
+        message: "ingestion.max_batch_latency_ms must be integer >= 1",
+      });
+    }
+  }
+
+  const governance = isObject(policy.governance) ? policy.governance : null;
+  if (!governance) {
+    errors.push({
+      code: "DISCOVERY_INGESTION_QUALITY_POLICY_GOVERNANCE_MISSING",
+      message: "governance must be an object",
+    });
+  } else {
+    if (uniqueStringList(governance.emit_events).length === 0) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_EMIT_EVENTS_INVALID",
+        message: "governance.emit_events must be non-empty",
+      });
+    }
+    if (uniqueStringList(governance.required_reason_codes).length === 0) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_REASON_CODES_INVALID",
+        message: "governance.required_reason_codes must be non-empty",
+      });
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
 export function validateMcpTrustPolicy(policy) {
   const errors = [];
   if (!isObject(policy)) {

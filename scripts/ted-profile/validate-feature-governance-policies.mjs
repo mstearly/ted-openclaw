@@ -5,10 +5,12 @@ import { fileURLToPath } from "node:url";
 import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDiscoveryIngestionQualityPolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
   validateFeatureReleaseGatePolicy,
+  validateKnowledgeRetrievalPolicy,
   validateMcpTrustPolicy,
   validateTransportPolicy,
 } from "../../sidecars/ted-engine/modules/feature_governance.mjs";
@@ -69,6 +71,19 @@ function main() {
       kind: "context policy",
       path: path.join(repoRoot, "sidecars/ted-engine/config/context_policy.json"),
       validator: validateContextPolicy,
+    },
+    {
+      kind: "knowledge retrieval policy",
+      path: path.join(repoRoot, "sidecars/ted-engine/config/knowledge_retrieval_policy.json"),
+      validator: validateKnowledgeRetrievalPolicy,
+    },
+    {
+      kind: "discovery ingestion quality policy",
+      path: path.join(
+        repoRoot,
+        "sidecars/ted-engine/config/discovery_ingestion_quality_policy.json",
+      ),
+      validator: validateDiscoveryIngestionQualityPolicy,
     },
     {
       kind: "mcp trust policy",

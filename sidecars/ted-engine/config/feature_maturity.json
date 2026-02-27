@@ -61,17 +61,24 @@
     },
     {
       "name": "ingestion_pipeline",
-      "level": "incubating",
-      "since_cycle": 9,
-      "last_finding_cycle": 10,
-      "notes": "Inbox ingestion, dedup. Needs: more robust error handling, semantic dedup."
+      "level": "graduated",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Ingestion idempotency, duplicate suppression, and parse error thresholds are now governed with replay-gated validation."
     },
     {
       "name": "discovery_pipeline",
-      "level": "incubating",
-      "since_cycle": 9,
-      "last_finding_cycle": 10,
-      "notes": "90d email + 60d calendar scan. Needs: incremental discovery, better deal matching."
+      "level": "graduated",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Incremental discovery scan quality and dedup thresholds are now governed with replay-gated validation."
+    },
+    {
+      "name": "knowledge_retrieval",
+      "level": "graduated",
+      "since_cycle": 13,
+      "last_finding_cycle": null,
+      "notes": "Policy-scoped retrieval contract plus adversarial replay containment now provide governed baseline retrieval behavior."
     },
     {
       "name": "sharepoint_integration",

@@ -1,7 +1,7 @@
 # SDD 161 - Council Top 5 Execution Disposition and Next Waves
 
 Date: 2026-02-27
-Status: Waves T5-A, T5-B1, T5-B2, and T5-C1 executed
+Status: Waves T5-A, T5-B1, and T5-C1 through T5-C2 executed
 Parents: SDD 160
 
 ## 1. Execution scope
@@ -134,6 +134,50 @@ Latest research-priority top set:
 4. `sharepoint_integration`
 5. `evaluation_pipeline`
 
+## 3.3 Retrieval + discovery/ingestion stabilization loop executed (Wave T5-C2)
+
+Council executed the next implementation loop for the top research-before-build items:
+
+1. Added retrieval policy contract hardening:
+   - `sidecars/ted-engine/config/knowledge_retrieval_policy.json`
+   - startup/roadmap/CI validation for retrieval policy shape and governance events.
+2. Added discovery + ingestion quality policy contract:
+   - `sidecars/ted-engine/config/discovery_ingestion_quality_policy.json`
+   - validator wiring in:
+     - `sidecars/ted-engine/modules/feature_governance.mjs`
+     - `scripts/ted-profile/validate-feature-governance-policies.mjs`
+     - `scripts/ted-profile/validate-roadmap-master.mjs`
+     - `sidecars/ted-engine/server.mjs`
+3. Added replay-gated quality/security evidence scenarios:
+   - `golden_knowledge_retrieval_grounded`
+   - `adversarial_knowledge_retrieval_policy_block`
+   - `golden_discovery_incremental_scan`
+   - `adversarial_ingestion_duplicate_suppression`
+     in `sidecars/ted-engine/config/replay_corpus.json`
+4. Promoted governance maturity based on new policy + replay evidence:
+   - `knowledge_retrieval`: maturity `2 -> 3`, lifecycle `incubating -> graduated`
+   - `discovery_pipeline`: maturity `2 -> 3`, lifecycle `incubating -> graduated`
+   - `ingestion_pipeline`: maturity `2 -> 3`, lifecycle `incubating -> graduated`
+   - aligned in:
+     - `sidecars/ted-engine/config/feature_registry.json`
+     - `sidecars/ted-engine/config/feature_maturity.json`
+     - `sidecars/ted-engine/config/capability_maturity.json`
+
+Queue impact after T5-C2:
+
+1. Risk remediation now: `0`
+2. Value activation now: `18` (from `15`)
+3. Research before build: `8` (from `11`)
+4. Backlog monitor: `1` (`multi_user`)
+
+Current research-priority top set after T5-C2:
+
+1. `sharepoint_integration`
+2. `evaluation_pipeline`
+3. `document_management`
+4. `m365_integration`
+5. `reconciliation_engine`
+
 ## 4. Validation and regression evidence
 
 Executed checks:
@@ -143,6 +187,8 @@ Executed checks:
 3. `node scripts/ted-profile/validate-roadmap-master.mjs` -> pass.
 4. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/migration-runner.test.mjs`
    - result: 15 files passed, 1883 tests passed, 0 failed.
+5. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/contracts.test.mjs`
+   - result: 15 files passed, 1896 tests passed, 0 failed.
 
 ## 5. Next executable waves (recommended)
 
@@ -179,4 +225,8 @@ Tasks:
 
 ## 6. Council recommendation
 
-Proceed with Wave T5-C2 (implementation) next. Immediate risk remediation is now cleared; remaining high-value work is research-before-build for retrieval/discovery/ingestion quality.
+Proceed with Wave T5-D next, focused on:
+
+1. SharePoint/document/evaluation research-before-build closures.
+2. Discovery false-positive/false-negative friction instrumentation.
+3. Activation playbooks for newly promoted governed features now in value-activation queue.

@@ -15,10 +15,12 @@ import { describe, test, expect } from "vitest";
 import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDiscoveryIngestionQualityPolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
   validateFeatureReleaseGatePolicy,
+  validateKnowledgeRetrievalPolicy,
   validateMcpTrustPolicy,
   validateTransportPolicy,
 } from "../modules/feature_governance.mjs";
@@ -537,6 +539,20 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  test("knowledge_retrieval_policy.json passes structural validation", () => {
+    const policy = configs.get("knowledge_retrieval_policy.json");
+    const result = validateKnowledgeRetrievalPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("discovery_ingestion_quality_policy.json passes structural validation", () => {
+    const policy = configs.get("discovery_ingestion_quality_policy.json");
+    const result = validateDiscoveryIngestionQualityPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
   test("mcp_trust_policy.json passes structural validation", () => {
     const policy = configs.get("mcp_trust_policy.json");
     const result = validateMcpTrustPolicy(policy);
@@ -590,6 +606,8 @@ describe("Required config files exist", () => {
     "connector_certification_matrix.json",
     "transport_policy.json",
     "context_policy.json",
+    "knowledge_retrieval_policy.json",
+    "discovery_ingestion_quality_policy.json",
     "compatibility_policy.json",
     "retrofit_rf0_baseline_lock.json",
   ];
@@ -668,6 +686,29 @@ describe("Cross-config consistency", () => {
       expect(scenario.jtbd_scenario_id).toMatch(/^JTBD-\d{3}-/);
       expect(["critical", "high", "medium"]).toContain(scenario.qa_tier);
     }
+  });
+
+  test("replay corpus includes retrieval and pipeline quality guard scenarios", () => {
+    const corpus = configs.get("replay_corpus.json");
+    if (!corpus) {
+      return;
+    }
+    const byId = new Map(
+      (corpus.scenarios || []).map((scenario) => [scenario?.scenario_id, scenario]),
+    );
+    for (const scenarioId of [
+      "golden_knowledge_retrieval_grounded",
+      "adversarial_knowledge_retrieval_policy_block",
+      "golden_discovery_incremental_scan",
+      "adversarial_ingestion_duplicate_suppression",
+    ]) {
+      expect(byId.has(scenarioId)).toBe(true);
+    }
+    const retrievalBlock = byId.get("adversarial_knowledge_retrieval_policy_block");
+    expect(retrievalBlock.expected_trajectory.required_assertions).toContain(
+      "policy_block_enforced",
+    );
+    expect(retrievalBlock.expected_output.forbidden_phrases).toContain("secret value:");
   });
 });
 

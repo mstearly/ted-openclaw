@@ -1,0 +1,53 @@
+{
+  "_config_version": 1,
+  "_artifact": "knowledge_retrieval_policy",
+  "_description": "Baseline retrieval contract for query scope, evidence quality, and policy-safe fallback behavior.",
+  "allowed_modes": ["structured_ledger", "keyword_index", "vector_rag"],
+  "default_mode": "structured_ledger",
+  "indexes": {
+    "structured_ledger": {
+      "enabled": true,
+      "allowed_ledgers": ["events.jsonl", "deals/*.jsonl", "audit/*.jsonl"],
+      "max_candidates": 50
+    },
+    "keyword_index": {
+      "enabled": false,
+      "allowed_ledgers": ["events.jsonl", "deals/*.jsonl", "mail/*.jsonl"],
+      "max_candidates": 40
+    },
+    "vector_rag": {
+      "enabled": false,
+      "allowed_ledgers": ["deals/*.jsonl", "mail/*.jsonl", "calendar/*.jsonl"],
+      "max_candidates": 25
+    }
+  },
+  "query_constraints": {
+    "max_query_length_chars": 512,
+    "max_top_k": 12,
+    "max_context_tokens": 6000,
+    "min_similarity_score": 0.55,
+    "min_citation_count": 1
+  },
+  "security": {
+    "require_scope_filter": true,
+    "require_citation_offsets": true,
+    "redact_sensitive_patterns": true,
+    "blocked_pattern_policy_refs": [
+      "sidecars/ted-engine/config/hard_bans.json",
+      "sidecars/ted-engine/config/output_contracts.json"
+    ]
+  },
+  "fallback": {
+    "on_no_results": "return_no_results_contract",
+    "on_policy_block": "block_with_reason_code",
+    "emit_governance_event": true
+  },
+  "governance": {
+    "emit_events": [
+      "knowledge.retrieval.query.executed",
+      "knowledge.retrieval.policy.blocked",
+      "knowledge.retrieval.no_results"
+    ],
+    "required_reason_codes": ["NO_RESULTS", "POLICY_BLOCK", "SCOPE_FILTER_MISSING"]
+  }
+}

@@ -276,10 +276,18 @@
     },
     "ingestion": {
       "ingestion.cycle.completed": "Inbox ingestion cycle completed with summary stats",
-      "ingestion.message.processed": "Individual message processed during inbox ingestion"
+      "ingestion.message.processed": "Individual message processed during inbox ingestion",
+      "ingestion.quality.evaluated": "Ingestion quality policy thresholds evaluated against recent pipeline metrics",
+      "ingestion.duplicate.blocked": "Ingestion idempotency guard suppressed a duplicate payload replay"
     },
     "discovery": {
-      "discovery.completed": "First-run discovery pipeline completed"
+      "discovery.completed": "First-run discovery pipeline completed",
+      "discovery.quality.evaluated": "Discovery quality policy thresholds evaluated for incremental scan and dedup precision"
+    },
+    "knowledge": {
+      "knowledge.retrieval.query.executed": "Knowledge retrieval query executed with scoped sources and citations",
+      "knowledge.retrieval.policy.blocked": "Knowledge retrieval request blocked by policy scope or sensitive pattern guardrails",
+      "knowledge.retrieval.no_results": "Knowledge retrieval produced no policy-safe results and returned governed fallback"
     },
     "onboarding": {
       "onboarding.activated": "Operator onboarding activated"
