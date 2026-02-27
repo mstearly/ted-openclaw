@@ -1,0 +1,33 @@
+{
+  "_config_version": 1,
+  "_artifact": "feature_operating_cadence_policy",
+  "_description": "Cadence contract for DFA-OS daily, weekly, and monthly operating loops.",
+  "timezone": "UTC",
+  "jobs": {
+    "daily": {
+      "enabled": true,
+      "owner": "council.governance",
+      "run_window_utc": "06:00-08:00",
+      "max_staleness_hours": 24,
+      "actions": ["feature_health_refresh", "research_trigger_refresh"]
+    },
+    "weekly": {
+      "enabled": true,
+      "owner": "council.strategy",
+      "run_window_utc": "MON-08:00-11:00",
+      "max_staleness_hours": 168,
+      "actions": ["feature_opportunity_refresh", "priority_queue_refresh"]
+    },
+    "monthly": {
+      "enabled": true,
+      "owner": "council.board",
+      "run_window_utc": "DAY01-10:00-14:00",
+      "max_staleness_hours": 840,
+      "actions": ["board_summary_refresh", "activation_retrospective_refresh"]
+    }
+  },
+  "escalation": {
+    "severity_if_stale": "high",
+    "notify_roles": ["operator.primary", "council.governance"]
+  }
+}

@@ -1,9 +1,32 @@
 {
-  "_config_version": 1,
+  "_config_version": 2,
+  "_artifact": "mcp_trust_policy",
   "default_server_trust_tier": "sandboxed",
-  "default_tool_action": "read_only",
+  "default_tool_action": "approval_required",
   "trust_tiers": ["sandboxed", "trusted_read", "trusted_write"],
   "tool_actions": ["read_only", "approval_required", "deny"],
+  "trust_tier_controls": {
+    "sandboxed": {
+      "allow_write_tools": false,
+      "require_operator_approval": true,
+      "egress_logging_required": true
+    },
+    "trusted_read": {
+      "allow_write_tools": false,
+      "require_operator_approval": false,
+      "egress_logging_required": true
+    },
+    "trusted_write": {
+      "allow_write_tools": true,
+      "require_operator_approval": true,
+      "egress_logging_required": true
+    }
+  },
+  "egress_audit": {
+    "enabled": true,
+    "sensitive_payload_redaction": true,
+    "retention_days": 90
+  },
   "servers": {},
   "tool_policies": {}
 }

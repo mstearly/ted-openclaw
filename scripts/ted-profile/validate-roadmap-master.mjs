@@ -3,6 +3,16 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  validateConnectorCertificationMatrix,
+  validateContextPolicy,
+  validateFeatureActivationCatalog,
+  validateFeatureDecisionPolicy,
+  validateFeatureOperatingCadencePolicy,
+  validateFeatureReleaseGatePolicy,
+  validateMcpTrustPolicy,
+  validateTransportPolicy,
+} from "../../sidecars/ted-engine/modules/feature_governance.mjs";
+import {
   validateFeatureFragilityPolicy,
   validateFeatureUsagePolicy,
   validateResearchTriggerPolicy,
@@ -74,6 +84,29 @@ function parseArgs(argv) {
       repoRoot,
       "sidecars/ted-engine/config/retrofit_rf0_baseline_lock.json",
     ),
+    featureOperatingCadencePolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/feature_operating_cadence_policy.json",
+    ),
+    featureReleaseGatePolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/feature_release_gate_policy.json",
+    ),
+    featureDecisionPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/feature_decision_policy.json",
+    ),
+    featureActivationCatalog: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/feature_activation_catalog.json",
+    ),
+    connectorCertificationMatrix: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/connector_certification_matrix.json",
+    ),
+    transportPolicy: path.join(repoRoot, "sidecars/ted-engine/config/transport_policy.json"),
+    contextPolicy: path.join(repoRoot, "sidecars/ted-engine/config/context_policy.json"),
+    mcpTrustPolicy: path.join(repoRoot, "sidecars/ted-engine/config/mcp_trust_policy.json"),
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -144,6 +177,38 @@ function parseArgs(argv) {
     }
     if (arg === "--retrofit-baseline-lock") {
       out.retrofitBaselineLock = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-operating-cadence-policy") {
+      out.featureOperatingCadencePolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-release-gate-policy") {
+      out.featureReleaseGatePolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-decision-policy") {
+      out.featureDecisionPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-activation-catalog") {
+      out.featureActivationCatalog = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--connector-certification-matrix") {
+      out.connectorCertificationMatrix = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--transport-policy") {
+      out.transportPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--context-policy") {
+      out.contextPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--mcp-trust-policy") {
+      out.mcpTrustPolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
   }
@@ -261,6 +326,46 @@ function main() {
       kind: "retrofit baseline lock",
       path: args.retrofitBaselineLock,
       validator: validateRetrofitBaselineLock,
+    },
+    {
+      kind: "feature operating cadence policy",
+      path: args.featureOperatingCadencePolicy,
+      validator: validateFeatureOperatingCadencePolicy,
+    },
+    {
+      kind: "feature release gate policy",
+      path: args.featureReleaseGatePolicy,
+      validator: validateFeatureReleaseGatePolicy,
+    },
+    {
+      kind: "feature decision policy",
+      path: args.featureDecisionPolicy,
+      validator: validateFeatureDecisionPolicy,
+    },
+    {
+      kind: "feature activation catalog",
+      path: args.featureActivationCatalog,
+      validator: validateFeatureActivationCatalog,
+    },
+    {
+      kind: "connector certification matrix",
+      path: args.connectorCertificationMatrix,
+      validator: validateConnectorCertificationMatrix,
+    },
+    {
+      kind: "transport policy",
+      path: args.transportPolicy,
+      validator: validateTransportPolicy,
+    },
+    {
+      kind: "context policy",
+      path: args.contextPolicy,
+      validator: validateContextPolicy,
+    },
+    {
+      kind: "mcp trust policy",
+      path: args.mcpTrustPolicy,
+      validator: validateMcpTrustPolicy,
     },
   ];
 

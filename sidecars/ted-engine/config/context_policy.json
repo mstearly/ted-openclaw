@@ -1,0 +1,23 @@
+{
+  "_config_version": 1,
+  "_artifact": "context_policy",
+  "_description": "Long-context compaction and prompt caching policy for agent reliability and cost control.",
+  "context_management": {
+    "compact_threshold_tokens": 120000,
+    "target_post_compaction_tokens": 45000,
+    "prefer_server_compaction": true,
+    "fallback_local_summary": true,
+    "preserve_sections": ["policies", "constraints", "open_questions", "next_actions"]
+  },
+  "prompt_caching": {
+    "enabled": true,
+    "cache_prefix_strategy": "stable_prefix_only",
+    "max_cacheable_prefix_tokens": 8000,
+    "zdr_safe_mode": true
+  },
+  "governance": {
+    "emit_compaction_events": true,
+    "require_compaction_reason_code": true,
+    "max_consecutive_compactions_per_run": 3
+  }
+}

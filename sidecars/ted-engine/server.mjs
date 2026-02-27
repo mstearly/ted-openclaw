@@ -6,6 +6,20 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as baselineSchemaMigration from "./migrations/001_baseline_schema_versions.mjs";
 import {
+  buildFeatureOperatingStatus,
+  buildFeaturePriorityQueue,
+  evaluateFeatureReleaseGate,
+  resolveChangedFeatureIds,
+  validateConnectorCertificationMatrix,
+  validateContextPolicy,
+  validateFeatureActivationCatalog,
+  validateFeatureDecisionPolicy,
+  validateFeatureOperatingCadencePolicy,
+  validateFeatureReleaseGatePolicy,
+  validateMcpTrustPolicy,
+  validateTransportPolicy,
+} from "./modules/feature_governance.mjs";
+import {
   buildFeatureSignalMatcher,
   buildLowUsageOpportunities,
   computeFeatureHealthSnapshot,
@@ -232,6 +246,33 @@ const researchTriggerPolicyConfigPath = path.join(
   "config",
   "research_trigger_policy.json",
 );
+const featureOperatingCadencePolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "feature_operating_cadence_policy.json",
+);
+const featureReleaseGatePolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "feature_release_gate_policy.json",
+);
+const featureDecisionPolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "feature_decision_policy.json",
+);
+const featureActivationCatalogConfigPath = path.join(
+  __dirname,
+  "config",
+  "feature_activation_catalog.json",
+);
+const connectorCertificationMatrixConfigPath = path.join(
+  __dirname,
+  "config",
+  "connector_certification_matrix.json",
+);
+const transportPolicyConfigPath = path.join(__dirname, "config", "transport_policy.json");
+const contextPolicyConfigPath = path.join(__dirname, "config", "context_policy.json");
 const migrationManifestConfigPath = path.join(__dirname, "config", "migration_manifest.json");
 const retrofitBaselineLockConfigPath = path.join(
   __dirname,
@@ -310,6 +351,9 @@ const featureHealthPath = path.join(governanceDir, "feature_health.jsonl");
 const featureUsagePath = path.join(governanceDir, "feature_usage.jsonl");
 const featureOpportunitiesPath = path.join(governanceDir, "feature_opportunities.jsonl");
 const researchTriggersPath = path.join(governanceDir, "research_triggers.jsonl");
+const featureOperatingRunsPath = path.join(governanceDir, "feature_operating_runs.jsonl");
+const featureReleaseGatePath = path.join(governanceDir, "feature_release_gate.jsonl");
+const featurePriorityQueuePath = path.join(governanceDir, "feature_priority_queue.jsonl");
 // Codex Builder Lane — improvement proposals + learning
 const improvementDir = path.join(artifactsDir, "improvement");
 const improvementLedgerPath = path.join(improvementDir, "proposals.jsonl");
@@ -427,6 +471,136 @@ function loadResearchTriggerPolicy() {
     thresholds: { fragility_score: 70, maturity_score: 2, low_usage_adoption_ratio: 0.2 },
     triggers: { maturity_gap_requires_research: true, low_usage_requires_research: true },
     strategic_feature_ids: [],
+  });
+}
+
+function loadFeatureOperatingCadencePolicy() {
+  return loadJsonConfigWithFallback(featureOperatingCadencePolicyConfigPath, {
+    timezone: "UTC",
+    jobs: {
+      daily: {
+        enabled: true,
+        owner: "council.governance",
+        run_window_utc: "06:00-08:00",
+        max_staleness_hours: 24,
+        actions: ["feature_health_refresh", "research_trigger_refresh"],
+      },
+      weekly: {
+        enabled: true,
+        owner: "council.strategy",
+        run_window_utc: "MON-08:00-11:00",
+        max_staleness_hours: 168,
+        actions: ["feature_opportunity_refresh", "priority_queue_refresh"],
+      },
+      monthly: {
+        enabled: true,
+        owner: "council.board",
+        run_window_utc: "DAY01-10:00-14:00",
+        max_staleness_hours: 840,
+        actions: ["board_summary_refresh", "activation_retrospective_refresh"],
+      },
+    },
+    escalation: {
+      severity_if_stale: "high",
+      notify_roles: ["operator.primary", "council.governance"],
+    },
+  });
+}
+
+function loadFeatureReleaseGatePolicy() {
+  return loadJsonConfigWithFallback(featureReleaseGatePolicyConfigPath, {
+    mode: "advisory",
+    hard_fail_rules: {
+      block_on_frozen_feature_change: true,
+      block_on_missing_qa_security_mapping: true,
+      block_on_open_research_trigger_for_strategic_feature: true,
+    },
+    advisory_rules: {
+      warn_on_escalated_fragility: true,
+      warn_on_low_usage_without_activation_plan: true,
+      warn_on_connector_certification_gap: true,
+    },
+    thresholds: {
+      freeze_fragility_score: 70,
+      escalation_fragility_score: 85,
+      low_usage_adoption_ratio: 0.2,
+    },
+    override: {
+      enabled: true,
+      require_reason: true,
+      require_ticket_ref: true,
+      allowed_roles: ["operator.primary"],
+    },
+    required_reason_codes: [
+      "EMERGENCY_PRODUCTION_FIX",
+      "SECURITY_PATCH",
+      "BLOCKING_CONNECTOR_OUTAGE",
+    ],
+  });
+}
+
+function loadFeatureDecisionPolicy() {
+  return loadJsonConfigWithFallback(featureDecisionPolicyConfigPath, {
+    weights: {
+      fragility_risk: 0.45,
+      maturity_gap: 0.25,
+      value_opportunity: 0.3,
+    },
+    buckets: {
+      RISK_REMEDIATION_NOW: { min_score: 75, conditions: ["fragility_ge_freeze"] },
+      VALUE_ACTIVATION_NOW: { min_score: 60, conditions: ["low_usage_high_maturity"] },
+      RESEARCH_BEFORE_BUILD: { min_score: 50, conditions: ["research_required_true"] },
+      BACKLOG_MONITOR: { min_score: 0, conditions: ["default"] },
+    },
+    top_n: { risk: 5, value: 5, research: 5 },
+  });
+}
+
+function loadFeatureActivationCatalog() {
+  return loadJsonConfigWithFallback(featureActivationCatalogConfigPath, {
+    experiments: [],
+  });
+}
+
+function loadConnectorCertificationMatrix() {
+  return loadJsonConfigWithFallback(connectorCertificationMatrixConfigPath, {
+    providers: {},
+  });
+}
+
+function loadTransportPolicy() {
+  return loadJsonConfigWithFallback(transportPolicyConfigPath, {
+    default_mode: "auto",
+    allowed_modes: ["sse", "websocket", "auto"],
+    provider_overrides: {},
+    guardrails: {
+      require_reason_on_mode_override: true,
+      emit_transport_fallback_event: true,
+      transport_canary_percent: 10,
+    },
+  });
+}
+
+function loadContextPolicy() {
+  return loadJsonConfigWithFallback(contextPolicyConfigPath, {
+    context_management: {
+      compact_threshold_tokens: 120000,
+      target_post_compaction_tokens: 45000,
+      prefer_server_compaction: true,
+      fallback_local_summary: true,
+      preserve_sections: ["policies", "constraints", "open_questions", "next_actions"],
+    },
+    prompt_caching: {
+      enabled: true,
+      cache_prefix_strategy: "stable_prefix_only",
+      max_cacheable_prefix_tokens: 8000,
+      zdr_safe_mode: true,
+    },
+    governance: {
+      emit_compaction_events: true,
+      require_compaction_reason_code: true,
+      max_consecutive_compactions_per_run: 3,
+    },
   });
 }
 
@@ -1450,6 +1624,9 @@ function validateStartupIntegrity() {
     featureUsagePath,
     featureOpportunitiesPath,
     researchTriggersPath,
+    featureOperatingRunsPath,
+    featureReleaseGatePath,
+    featurePriorityQueuePath,
     improvementLedgerPath,
     meetingsPrepPath,
     meetingsDebriefPath,
@@ -1499,6 +1676,14 @@ function validateStartupIntegrity() {
     featureFragilityPolicyConfigPath,
     featureUsagePolicyConfigPath,
     researchTriggerPolicyConfigPath,
+    featureOperatingCadencePolicyConfigPath,
+    featureReleaseGatePolicyConfigPath,
+    featureDecisionPolicyConfigPath,
+    featureActivationCatalogConfigPath,
+    connectorCertificationMatrixConfigPath,
+    transportPolicyConfigPath,
+    contextPolicyConfigPath,
+    mcpTrustPolicyConfigPath,
     replayGateContractConfigPath,
     rolloutPolicyConfigPath,
     migrationManifestConfigPath,
@@ -1531,6 +1716,13 @@ function validateStartupIntegrity() {
     featureFragilityPolicyConfigPath,
     featureUsagePolicyConfigPath,
     researchTriggerPolicyConfigPath,
+    featureOperatingCadencePolicyConfigPath,
+    featureReleaseGatePolicyConfigPath,
+    featureDecisionPolicyConfigPath,
+    featureActivationCatalogConfigPath,
+    connectorCertificationMatrixConfigPath,
+    transportPolicyConfigPath,
+    contextPolicyConfigPath,
     migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
     hardBansConfigPath,
@@ -1791,6 +1983,134 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: researchTriggerValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === featureOperatingCadencePolicyConfigPath) {
+        const cadenceValidation = validateFeatureOperatingCadencePolicy(parsed);
+        if (!cadenceValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_operating_cadence_policy validation failed: ${cadenceValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: cadenceValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === featureReleaseGatePolicyConfigPath) {
+        const releaseGateValidation = validateFeatureReleaseGatePolicy(parsed);
+        if (!releaseGateValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_release_gate_policy validation failed: ${releaseGateValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: releaseGateValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === featureDecisionPolicyConfigPath) {
+        const decisionPolicyValidation = validateFeatureDecisionPolicy(parsed);
+        if (!decisionPolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_decision_policy validation failed: ${decisionPolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: decisionPolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === featureActivationCatalogConfigPath) {
+        const activationCatalogValidation = validateFeatureActivationCatalog(parsed);
+        if (!activationCatalogValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_activation_catalog validation failed: ${activationCatalogValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: activationCatalogValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === connectorCertificationMatrixConfigPath) {
+        const connectorMatrixValidation = validateConnectorCertificationMatrix(parsed);
+        if (!connectorMatrixValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `connector_certification_matrix validation failed: ${connectorMatrixValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: connectorMatrixValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === transportPolicyConfigPath) {
+        const transportPolicyValidation = validateTransportPolicy(parsed);
+        if (!transportPolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `transport_policy validation failed: ${transportPolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: transportPolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === contextPolicyConfigPath) {
+        const contextPolicyValidation = validateContextPolicy(parsed);
+        if (!contextPolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `context_policy validation failed: ${contextPolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: contextPolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === mcpTrustPolicyConfigPath) {
+        const mcpTrustPolicyValidation = validateMcpTrustPolicy(parsed);
+        if (!mcpTrustPolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `mcp_trust_policy validation failed: ${mcpTrustPolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: mcpTrustPolicyValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;
@@ -2074,6 +2394,268 @@ function featureOpportunitiesEndpoint(parsed, res, route) {
   logLine(`GET ${route} -> 200 (opportunities=${opportunities.opportunities.length})`);
 }
 
+function latestFeatureHealthSnapshot(forceRefresh = false) {
+  if (forceRefresh) {
+    return evaluateFeatureHealthNow();
+  }
+  const lines = readJsonlLines(featureHealthPath);
+  return lines.length > 0 ? lines[lines.length - 1] : evaluateFeatureHealthNow();
+}
+
+function latestFeatureOpportunitiesSnapshot(featureHealthSnapshot, topN = 10) {
+  const usagePolicy = loadFeatureUsagePolicy();
+  const opportunities = buildLowUsageOpportunities(featureHealthSnapshot, { usagePolicy, topN });
+  appendJsonlLine(featureOpportunitiesPath, opportunities);
+  appendEvent("feature.usage.low_detected", "/ops/feature-opportunities", {
+    generated_at: opportunities.generated_at,
+    total_candidates: opportunities.total_candidates,
+    returned: opportunities.opportunities.length,
+  });
+  return opportunities;
+}
+
+function evaluateFeatureReleaseGateNow(options = {}) {
+  const policy = loadFeatureReleaseGatePolicy();
+  const registry = loadFeatureRegistryConfig();
+  const snapshot = latestFeatureHealthSnapshot(options.force_refresh === true);
+  const researchTriggers = readJsonlLines(researchTriggersPath)
+    .filter((entry) => entry?.kind === "feature_research_trigger")
+    .slice(-5000);
+
+  const changedFiles = uniqueStringList(options.changed_files || [], 2048);
+  const explicitFeatureIds = uniqueStringList(options.changed_feature_ids || [], 512);
+  const changedFeatureIds =
+    explicitFeatureIds.length > 0
+      ? explicitFeatureIds
+      : resolveChangedFeatureIds(changedFiles, registry).slice(0, 512);
+
+  const override =
+    typeof options.override_reason_code === "string" &&
+    options.override_reason_code.trim().length > 0 &&
+    typeof options.override_ticket_ref === "string" &&
+    options.override_ticket_ref.trim().length > 0
+      ? {
+          reason_code: options.override_reason_code.trim(),
+          ticket_ref: options.override_ticket_ref.trim(),
+        }
+      : null;
+
+  const summary = evaluateFeatureReleaseGate({
+    policy,
+    snapshot,
+    changedFeatureIds,
+    researchTriggers,
+    override,
+  });
+
+  const out = {
+    ...summary,
+    changed_files: changedFiles,
+    policy_mode: policy.mode === "hard" ? "hard" : "advisory",
+  };
+
+  appendJsonlLine(featureReleaseGatePath, {
+    kind: "feature_release_gate_evaluated",
+    ...out,
+  });
+  appendEvent("feature.release_gate.evaluated", "/ops/feature-release-gate/evaluate", {
+    evaluated_at: out.evaluated_at,
+    changed_feature_ids: out.changed_feature_ids,
+    pass: out.pass,
+    would_block: out.would_block,
+    violation_count: out.violations.length,
+    warning_count: out.warnings.length,
+    override_accepted: out.override?.accepted,
+  });
+  if (out.override?.accepted) {
+    appendEvent("feature.release_gate.override.used", "/ops/feature-release-gate/evaluate", {
+      reason_code: out.override.reason_code,
+      ticket_ref: out.override.ticket_ref,
+      changed_feature_ids: out.changed_feature_ids,
+    });
+  }
+
+  return out;
+}
+
+function generateFeaturePriorityQueueNow(options = {}) {
+  const snapshot =
+    options.snapshot && typeof options.snapshot === "object"
+      ? options.snapshot
+      : latestFeatureHealthSnapshot(options.force_refresh === true);
+  const decisionPolicy = loadFeatureDecisionPolicy();
+  const releaseGatePolicy = loadFeatureReleaseGatePolicy();
+  const queue = buildFeaturePriorityQueue({
+    snapshot,
+    policy: decisionPolicy,
+    thresholds: {
+      freezeFragilityScore: releaseGatePolicy?.thresholds?.freeze_fragility_score ?? 70,
+      lowUsageAdoptionRatio: releaseGatePolicy?.thresholds?.low_usage_adoption_ratio ?? 0.2,
+    },
+  });
+  appendJsonlLine(featurePriorityQueuePath, {
+    kind: "feature_priority_queue_generated",
+    ...queue,
+  });
+  appendEvent("feature.priority_queue.generated", "/ops/feature-priority-queue", {
+    generated_at: queue.generated_at,
+    totals: queue.totals,
+  });
+  return queue;
+}
+
+function featureOperatingStatusPayload(options = {}) {
+  const policy = loadFeatureOperatingCadencePolicy();
+  const runs = readJsonlLines(featureOperatingRunsPath)
+    .filter((entry) => entry?.kind === "feature_operating_run")
+    .slice(-5000);
+  const status = buildFeatureOperatingStatus({
+    policy,
+    runs,
+    nowMs: Number.isFinite(options.nowMs) ? options.nowMs : Date.now(),
+  });
+  const activationCatalog = loadFeatureActivationCatalog();
+  const connectorMatrix = loadConnectorCertificationMatrix();
+  return {
+    ...status,
+    policy,
+    transport_policy: loadTransportPolicy(),
+    context_policy: loadContextPolicy(),
+    activation_experiments: Array.isArray(activationCatalog?.experiments)
+      ? activationCatalog.experiments.length
+      : 0,
+    connector_providers:
+      connectorMatrix?.providers &&
+      typeof connectorMatrix.providers === "object" &&
+      !Array.isArray(connectorMatrix.providers)
+        ? Object.keys(connectorMatrix.providers).length
+        : 0,
+  };
+}
+
+function featureOperatingStatusEndpoint(parsed, res, route) {
+  const status = featureOperatingStatusPayload({
+    nowMs: Date.now(),
+  });
+  sendJson(res, 200, status);
+  logLine(`GET ${route} -> 200 (stale=${status.stale_count})`);
+}
+
+async function featureOperatingRunEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  const cadenceRaw =
+    body && typeof body.cadence === "string" ? body.cadence.trim().toLowerCase() : "daily";
+  const cadence = ["daily", "weekly", "monthly"].includes(cadenceRaw) ? cadenceRaw : "";
+  if (!cadence) {
+    sendJson(res, 400, {
+      error: "invalid_cadence",
+      expected: ["daily", "weekly", "monthly"],
+    });
+    return;
+  }
+
+  const runAt = new Date().toISOString();
+  try {
+    const forceRefresh = body?.force === true;
+    const snapshot = latestFeatureHealthSnapshot(forceRefresh || cadence === "daily");
+    let summary = {};
+    if (cadence === "daily") {
+      summary = {
+        feature_count: snapshot?.totals?.features || snapshot?.features?.length || 0,
+        research_required_count: snapshot?.totals?.research_required || 0,
+      };
+      appendEvent("feature.operating.daily.completed", route, {
+        run_at: runAt,
+        ...summary,
+      });
+    } else if (cadence === "weekly") {
+      const opportunities = latestFeatureOpportunitiesSnapshot(snapshot, 10);
+      const queue = generateFeaturePriorityQueueNow({ snapshot });
+      summary = {
+        opportunity_count: opportunities?.opportunities?.length || 0,
+        queue_risk_count: queue?.queue?.risk?.length || 0,
+        queue_value_count: queue?.queue?.value?.length || 0,
+        queue_research_count: queue?.queue?.research?.length || 0,
+      };
+      appendEvent("feature.operating.weekly.completed", route, {
+        run_at: runAt,
+        ...summary,
+      });
+    } else {
+      const queue = generateFeaturePriorityQueueNow({ snapshot });
+      const status = featureOperatingStatusPayload({ nowMs: Date.now() });
+      summary = {
+        queue_features: queue?.totals?.features || 0,
+        stale_jobs: status?.stale_count || 0,
+      };
+      appendEvent("feature.operating.monthly.completed", route, {
+        run_at: runAt,
+        ...summary,
+      });
+    }
+
+    appendJsonlLine(featureOperatingRunsPath, {
+      kind: "feature_operating_run",
+      cadence,
+      status: "completed",
+      run_at: runAt,
+      summary,
+    });
+
+    sendJson(res, 200, {
+      ok: true,
+      cadence,
+      run_at: runAt,
+      summary,
+      status: featureOperatingStatusPayload({ nowMs: Date.now() }),
+    });
+  } catch (err) {
+    appendJsonlLine(featureOperatingRunsPath, {
+      kind: "feature_operating_run",
+      cadence,
+      status: "failed",
+      run_at: runAt,
+      error: err?.message || String(err),
+    });
+    appendEvent(`feature.operating.${cadence}.failed`, route, {
+      run_at: runAt,
+      error: err?.message || String(err),
+    });
+    sendJson(res, 500, {
+      error: "feature_operating_run_failed",
+      detail: err?.message || String(err),
+    });
+  }
+}
+
+async function featureReleaseGateEvaluateEndpoint(req, res, route) {
+  const body = await readJsonBodyGuarded(req, res, route);
+  if (!body || typeof body !== "object") {
+    sendJson(res, 400, { error: "invalid_json_body" });
+    return;
+  }
+  const result = evaluateFeatureReleaseGateNow({
+    changed_files: Array.isArray(body.changed_files) ? body.changed_files : [],
+    changed_feature_ids: Array.isArray(body.changed_feature_ids) ? body.changed_feature_ids : [],
+    override_reason_code:
+      typeof body.override_reason_code === "string" ? body.override_reason_code : "",
+    override_ticket_ref:
+      typeof body.override_ticket_ref === "string" ? body.override_ticket_ref : "",
+    force_refresh: body.force_refresh === true,
+  });
+  sendJson(res, 200, result);
+  logLine(
+    `POST ${route} -> 200 (pass=${result.pass}, violations=${result.violations.length}, warnings=${result.warnings.length})`,
+  );
+}
+
+function featurePriorityQueueEndpoint(parsed, res, route) {
+  const forceRefresh = parsed.searchParams.get("force") === "1";
+  const queue = generateFeaturePriorityQueueNow({ force_refresh: forceRefresh });
+  sendJson(res, 200, queue);
+  logLine(`GET ${route} -> 200 (risk=${queue?.queue?.risk?.length || 0})`);
+}
+
 // Event normalizers (JC-092a)
 function normalizeMailEvent(rawMail, action) {
   return {
@@ -2300,6 +2882,10 @@ function normalizeRoutePolicyKey(route) {
     [/^\/ops\/replay\/runs$/, "/ops/replay/runs"],
     [/^\/ops\/feature-health$/, "/ops/feature-health"],
     [/^\/ops\/feature-opportunities$/, "/ops/feature-opportunities"],
+    [/^\/ops\/feature-operating\/status$/, "/ops/feature-operating/status"],
+    [/^\/ops\/feature-operating\/run$/, "/ops/feature-operating/run"],
+    [/^\/ops\/feature-release-gate\/evaluate$/, "/ops/feature-release-gate/evaluate"],
+    [/^\/ops\/feature-priority-queue$/, "/ops/feature-priority-queue"],
   ];
   for (const [pattern, key] of dynamicPatterns) {
     if (pattern.test(route)) {
@@ -2591,6 +3177,10 @@ executionBoundaryPolicy.set("/ops/replay/run", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/runs", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/feature-health", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/feature-opportunities", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/feature-operating/status", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/feature-operating/run", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/feature-release-gate/evaluate", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/feature-priority-queue", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/rollout-policy", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/compatibility-policy", "WORKFLOW_ONLY");
 // Sprint 2 (SDD 72): Evaluation pipeline
@@ -5925,11 +6515,34 @@ function getMemoryPolicy() {
 
 function getMcpTrustPolicy() {
   const fallback = {
-    _config_version: 1,
+    _config_version: 2,
+    _artifact: "mcp_trust_policy",
     default_server_trust_tier: "sandboxed",
-    default_tool_action: "read_only",
+    default_tool_action: "approval_required",
     trust_tiers: ["sandboxed", "trusted_read", "trusted_write"],
     tool_actions: ["read_only", "approval_required", "deny"],
+    trust_tier_controls: {
+      sandboxed: {
+        allow_write_tools: false,
+        require_operator_approval: true,
+        egress_logging_required: true,
+      },
+      trusted_read: {
+        allow_write_tools: false,
+        require_operator_approval: false,
+        egress_logging_required: true,
+      },
+      trusted_write: {
+        allow_write_tools: true,
+        require_operator_approval: true,
+        egress_logging_required: true,
+      },
+    },
+    egress_audit: {
+      enabled: true,
+      sensitive_payload_redaction: true,
+      retention_days: 90,
+    },
     servers: {},
     tool_policies: {},
   };
@@ -5940,6 +6553,14 @@ function getMcpTrustPolicy() {
   return {
     ...fallback,
     ...cfg,
+    trust_tier_controls:
+      cfg.trust_tier_controls && typeof cfg.trust_tier_controls === "object"
+        ? { ...fallback.trust_tier_controls, ...cfg.trust_tier_controls }
+        : fallback.trust_tier_controls,
+    egress_audit:
+      cfg.egress_audit && typeof cfg.egress_audit === "object"
+        ? { ...fallback.egress_audit, ...cfg.egress_audit }
+        : fallback.egress_audit,
     servers: cfg.servers && typeof cfg.servers === "object" ? cfg.servers : {},
     tool_policies:
       cfg.tool_policies && typeof cfg.tool_policies === "object" ? cfg.tool_policies : {},
@@ -24802,6 +25423,22 @@ const server = http.createServer(async (req, res) => {
     }
     if (method === "GET" && route === "/ops/feature-opportunities") {
       featureOpportunitiesEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/feature-operating/status") {
+      featureOperatingStatusEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/feature-operating/run") {
+      await featureOperatingRunEndpoint(req, res, route);
+      return;
+    }
+    if (method === "POST" && route === "/ops/feature-release-gate/evaluate") {
+      await featureReleaseGateEvaluateEndpoint(req, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/feature-priority-queue") {
+      featurePriorityQueueEndpoint(parsed, res, route);
       return;
     }
     if (method === "GET" && route === "/ops/rollout-policy") {

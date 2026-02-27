@@ -1,0 +1,32 @@
+{
+  "_config_version": 1,
+  "_artifact": "transport_policy",
+  "_description": "Provider transport routing policy for tool-heavy runs with deterministic fallback.",
+  "default_mode": "auto",
+  "allowed_modes": ["sse", "websocket", "auto"],
+  "provider_overrides": {
+    "openai_direct": {
+      "mode": "auto",
+      "fallback_mode": "sse",
+      "max_parallel_sockets": 4,
+      "retry_on_previous_response_not_found": true
+    },
+    "anthropic_direct": {
+      "mode": "sse",
+      "fallback_mode": "sse",
+      "max_parallel_sockets": 1,
+      "retry_on_previous_response_not_found": false
+    },
+    "openai_compatible": {
+      "mode": "sse",
+      "fallback_mode": "sse",
+      "max_parallel_sockets": 1,
+      "retry_on_previous_response_not_found": false
+    }
+  },
+  "guardrails": {
+    "require_reason_on_mode_override": true,
+    "emit_transport_fallback_event": true,
+    "transport_canary_percent": 10
+  }
+}

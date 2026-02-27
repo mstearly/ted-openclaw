@@ -1,0 +1,33 @@
+{
+  "_config_version": 1,
+  "_artifact": "feature_decision_policy",
+  "_description": "Scoring and bucketing policy that turns DFA-OS signals into roadmap decisions.",
+  "weights": {
+    "fragility_risk": 0.45,
+    "maturity_gap": 0.25,
+    "value_opportunity": 0.3
+  },
+  "buckets": {
+    "RISK_REMEDIATION_NOW": {
+      "min_score": 75,
+      "conditions": ["fragility_ge_freeze"]
+    },
+    "VALUE_ACTIVATION_NOW": {
+      "min_score": 60,
+      "conditions": ["low_usage_high_maturity"]
+    },
+    "RESEARCH_BEFORE_BUILD": {
+      "min_score": 50,
+      "conditions": ["research_required_true"]
+    },
+    "BACKLOG_MONITOR": {
+      "min_score": 0,
+      "conditions": ["default"]
+    }
+  },
+  "top_n": {
+    "risk": 5,
+    "value": 5,
+    "research": 5
+  }
+}

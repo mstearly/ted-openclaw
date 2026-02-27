@@ -1,0 +1,39 @@
+{
+  "_config_version": 1,
+  "_artifact": "feature_activation_catalog",
+  "_description": "Activation hypotheses for low-usage high-value features.",
+  "experiments": [
+    {
+      "feature_id": "scheduler",
+      "jtbd": "automate recurring operational follow-through",
+      "activation_hypothesis": "prebuilt weekly scheduling template reduces setup friction",
+      "owner": "council.experience",
+      "success_metric": "adoption_ratio_30d",
+      "target_delta": 0.1
+    },
+    {
+      "feature_id": "builder_lane",
+      "jtbd": "turn friction into safe automation improvements",
+      "activation_hypothesis": "weekly digest with one-click proposal approval increases usage",
+      "owner": "council.governance",
+      "success_metric": "invocation_count_30d",
+      "target_delta": 12
+    },
+    {
+      "feature_id": "m365_integration",
+      "jtbd": "coordinate mail, calendar, and tasks from one queue",
+      "activation_hypothesis": "guided first-run connector wizard increases repeat usage",
+      "owner": "council.connectors",
+      "success_metric": "success_rate_30d",
+      "target_delta": 0.05
+    },
+    {
+      "feature_id": "workflow_registry",
+      "jtbd": "create reusable workflows without code",
+      "activation_hypothesis": "starter workflow gallery reduces time-to-first-workflow",
+      "owner": "council.strategy",
+      "success_metric": "invocation_count_30d",
+      "target_delta": 15
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "_config_version": 1,
+  "_artifact": "connector_certification_matrix",
+  "_description": "Provider-specific reliability certification matrix used by feature release gates.",
+  "providers": {
+    "graph": {
+      "required_checks": [
+        "auth_device_code_flow",
+        "pagination_next_link",
+        "retry_429_retry_after",
+        "token_refresh",
+        "schema_validation"
+      ],
+      "slo": {
+        "success_rate_min": 0.98,
+        "p95_latency_ms_max": 3500
+      }
+    },
+    "monday": {
+      "required_checks": [
+        "auth_token_valid",
+        "complexity_budget_enforced",
+        "rate_limit_backoff",
+        "pagination",
+        "webhook_signature_validation"
+      ],
+      "slo": {
+        "success_rate_min": 0.97,
+        "p95_latency_ms_max": 4000
+      }
+    },
+    "rightsignature": {
+      "required_checks": [
+        "auth_token_valid",
+        "send_rate_budget_enforced",
+        "callback_validation",
+        "idempotency_duplicate_block"
+      ],
+      "slo": {
+        "success_rate_min": 0.97,
+        "p95_latency_ms_max": 4500
+      }
+    },
+    "external_mcp": {
+      "required_checks": [
+        "trust_tier_enforced",
+        "tool_allowlist_enforced",
+        "approval_required_path",
+        "egress_audit_logged"
+      ],
+      "slo": {
+        "success_rate_min": 0.95,
+        "p95_latency_ms_max": 5000
+      }
+    }
+  }
+}

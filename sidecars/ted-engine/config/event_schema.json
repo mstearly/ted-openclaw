@@ -154,7 +154,16 @@
       "feature.maturity.evaluated": "Feature coverage and maturity mapping evaluated during startup validation",
       "feature.fragility.evaluated": "Feature fragility scoring snapshot computed and persisted",
       "feature.research.triggered": "Feature crossed research-trigger threshold and requires external benchmark review",
-      "feature.usage.low_detected": "Low-usage high-value features identified for activation experiments"
+      "feature.usage.low_detected": "Low-usage high-value features identified for activation experiments",
+      "feature.operating.daily.completed": "Daily feature operating loop completed",
+      "feature.operating.daily.failed": "Daily feature operating loop failed",
+      "feature.operating.weekly.completed": "Weekly feature operating loop completed",
+      "feature.operating.weekly.failed": "Weekly feature operating loop failed",
+      "feature.operating.monthly.completed": "Monthly feature operating loop completed",
+      "feature.operating.monthly.failed": "Monthly feature operating loop failed",
+      "feature.release_gate.evaluated": "Feature-aware release gate evaluated changed feature set",
+      "feature.release_gate.override.used": "Feature release gate override applied with reason and ticket reference",
+      "feature.priority_queue.generated": "Feature priority queue generated from decision policy and feature health snapshot"
     },
     "policy": {
       "policy.config.changed": "Policy config changed (hard_bans, autonomy, urgency, etc.)",

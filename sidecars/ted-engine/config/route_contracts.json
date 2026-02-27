@@ -335,6 +335,35 @@
       "required_fields": ["generated_at", "total_candidates", "opportunities"],
       "content_type": "application/json"
     },
+    "GET /ops/feature-operating/status": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "stale_count", "jobs", "policy"],
+      "content_type": "application/json"
+    },
+    "POST /ops/feature-operating/run": {
+      "status_codes": [200, 400, 500],
+      "required_fields": ["ok", "cadence", "run_at", "summary", "status"],
+      "content_type": "application/json"
+    },
+    "POST /ops/feature-release-gate/evaluate": {
+      "status_codes": [200, 400],
+      "required_fields": [
+        "evaluated_at",
+        "mode",
+        "changed_feature_ids",
+        "pass",
+        "would_block",
+        "violations",
+        "warnings",
+        "override"
+      ],
+      "content_type": "application/json"
+    },
+    "GET /ops/feature-priority-queue": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "totals", "queue"],
+      "content_type": "application/json"
+    },
     "GET /ops/rollout-policy": {
       "status_codes": [200],
       "required_fields": [

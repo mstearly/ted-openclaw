@@ -13,6 +13,16 @@ import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
 import {
+  validateConnectorCertificationMatrix,
+  validateContextPolicy,
+  validateFeatureActivationCatalog,
+  validateFeatureDecisionPolicy,
+  validateFeatureOperatingCadencePolicy,
+  validateFeatureReleaseGatePolicy,
+  validateMcpTrustPolicy,
+  validateTransportPolicy,
+} from "../modules/feature_governance.mjs";
+import {
   validateFeatureFragilityPolicy,
   validateFeatureUsagePolicy,
   validateResearchTriggerPolicy,
@@ -477,6 +487,62 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("feature_operating_cadence_policy.json passes structural validation", () => {
+    const policy = configs.get("feature_operating_cadence_policy.json");
+    const result = validateFeatureOperatingCadencePolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("feature_release_gate_policy.json passes structural validation", () => {
+    const policy = configs.get("feature_release_gate_policy.json");
+    const result = validateFeatureReleaseGatePolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("feature_decision_policy.json passes structural validation", () => {
+    const policy = configs.get("feature_decision_policy.json");
+    const result = validateFeatureDecisionPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("feature_activation_catalog.json passes structural validation", () => {
+    const policy = configs.get("feature_activation_catalog.json");
+    const result = validateFeatureActivationCatalog(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("connector_certification_matrix.json passes structural validation", () => {
+    const policy = configs.get("connector_certification_matrix.json");
+    const result = validateConnectorCertificationMatrix(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("transport_policy.json passes structural validation", () => {
+    const policy = configs.get("transport_policy.json");
+    const result = validateTransportPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("context_policy.json passes structural validation", () => {
+    const policy = configs.get("context_policy.json");
+    const result = validateContextPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("mcp_trust_policy.json passes structural validation", () => {
+    const policy = configs.get("mcp_trust_policy.json");
+    const result = validateMcpTrustPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -517,6 +583,13 @@ describe("Required config files exist", () => {
     "feature_fragility_policy.json",
     "feature_usage_policy.json",
     "research_trigger_policy.json",
+    "feature_operating_cadence_policy.json",
+    "feature_release_gate_policy.json",
+    "feature_decision_policy.json",
+    "feature_activation_catalog.json",
+    "connector_certification_matrix.json",
+    "transport_policy.json",
+    "context_policy.json",
     "compatibility_policy.json",
     "retrofit_rf0_baseline_lock.json",
   ];

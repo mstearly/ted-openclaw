@@ -1,0 +1,32 @@
+{
+  "_config_version": 1,
+  "_artifact": "feature_release_gate_policy",
+  "_description": "Feature-aware release gate policy for advisory and hard-enforcement modes.",
+  "mode": "advisory",
+  "hard_fail_rules": {
+    "block_on_frozen_feature_change": true,
+    "block_on_missing_qa_security_mapping": true,
+    "block_on_open_research_trigger_for_strategic_feature": true
+  },
+  "advisory_rules": {
+    "warn_on_escalated_fragility": true,
+    "warn_on_low_usage_without_activation_plan": true,
+    "warn_on_connector_certification_gap": true
+  },
+  "thresholds": {
+    "freeze_fragility_score": 70,
+    "escalation_fragility_score": 85,
+    "low_usage_adoption_ratio": 0.2
+  },
+  "override": {
+    "enabled": true,
+    "require_reason": true,
+    "require_ticket_ref": true,
+    "allowed_roles": ["operator.primary"]
+  },
+  "required_reason_codes": [
+    "EMERGENCY_PRODUCTION_FIX",
+    "SECURITY_PATCH",
+    "BLOCKING_CONNECTOR_OUTAGE"
+  ]
+}
