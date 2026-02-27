@@ -34,6 +34,30 @@
       "owner": "council.strategy",
       "success_metric": "invocation_count_30d",
       "target_delta": 15
+    },
+    {
+      "feature_id": "evaluation_pipeline",
+      "jtbd": "keep quality regressions visible before user impact",
+      "activation_hypothesis": "daily quality digest with pass-rate/canary highlights increases operator run cadence",
+      "owner": "council.governance",
+      "success_metric": "invocation_count_30d",
+      "target_delta": 10
+    },
+    {
+      "feature_id": "discovery_pipeline",
+      "jtbd": "surface high-signal opportunities from communications history",
+      "activation_hypothesis": "guided discovery kickoff prompt with quality scorecard increases recurring discovery use",
+      "owner": "council.state",
+      "success_metric": "adoption_ratio_30d",
+      "target_delta": 0.1
+    },
+    {
+      "feature_id": "draft_state_machine",
+      "jtbd": "move drafts safely from proposal to send-ready state",
+      "activation_hypothesis": "inline stage explanations and completion nudges reduce abandoned drafts",
+      "owner": "council.experience",
+      "success_metric": "success_rate_30d",
+      "target_delta": 0.08
     }
   ]
 }

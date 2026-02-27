@@ -13,6 +13,7 @@ import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
   validateDiscoveryIngestionQualityPolicy,
+  validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
@@ -284,6 +285,11 @@ const discoveryIngestionQualityPolicyConfigPath = path.join(
   __dirname,
   "config",
   "discovery_ingestion_quality_policy.json",
+);
+const evaluationPipelinePolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "evaluation_pipeline_policy.json",
 );
 const migrationManifestConfigPath = path.join(__dirname, "config", "migration_manifest.json");
 const retrofitBaselineLockConfigPath = path.join(
@@ -656,6 +662,7 @@ function loadDiscoveryIngestionQualityPolicy() {
       require_incremental_scan_cursor: true,
       dedup_precision_min: 0.92,
       max_false_positive_rate: 0.08,
+      min_candidate_coverage_ratio: 0.02,
       entity_link_confidence_min: 0.7,
       max_candidates_per_entity: 25,
     },
@@ -670,8 +677,46 @@ function loadDiscoveryIngestionQualityPolicy() {
       emit_events: ["discovery.quality.evaluated", "ingestion.quality.evaluated"],
       required_reason_codes: [
         "DISCOVERY_QUALITY_BELOW_THRESHOLD",
+        "DISCOVERY_FALSE_POSITIVE_RATE_HIGH",
+        "DISCOVERY_FALSE_NEGATIVE_RISK_HIGH",
         "INGESTION_PARSE_ERROR_RATE_HIGH",
         "INGESTION_DUPLICATE_SUPPRESSION_LOW",
+      ],
+    },
+  });
+}
+
+function loadEvaluationPipelinePolicy() {
+  return loadJsonConfigWithFallback(evaluationPipelinePolicyConfigPath, {
+    pipeline: {
+      enabled: true,
+      min_pass_rate: 0.8,
+      max_degraded_streak: 2,
+      max_eval_run_age_hours: 24,
+    },
+    canary: {
+      enabled: true,
+      max_failed_canaries: 1,
+      min_canary_score: 0.8,
+    },
+    drift: {
+      enabled: true,
+      window_days: 7,
+      max_drift_delta: 0.2,
+      min_samples_for_alert: 10,
+    },
+    governance: {
+      emit_events: [
+        "evaluation.pipeline.completed",
+        "evaluation.quality.degraded",
+        "evaluation.canary.completed",
+        "evaluation.canary.failed",
+        "evaluation.drift.detected",
+      ],
+      required_reason_codes: [
+        "EVAL_PASS_RATE_BELOW_THRESHOLD",
+        "EVAL_CANARY_FAILURE_BUDGET_EXCEEDED",
+        "EVAL_DRIFT_THRESHOLD_EXCEEDED",
       ],
     },
   });
@@ -814,6 +859,7 @@ const MONITORED_CONFIGS = [
   "research_trigger_policy.json",
   "knowledge_retrieval_policy.json",
   "discovery_ingestion_quality_policy.json",
+  "evaluation_pipeline_policy.json",
   "compatibility_policy.json",
   "retrofit_rf0_baseline_lock.json",
 ];
@@ -1760,6 +1806,7 @@ function validateStartupIntegrity() {
     contextPolicyConfigPath,
     knowledgeRetrievalPolicyConfigPath,
     discoveryIngestionQualityPolicyConfigPath,
+    evaluationPipelinePolicyConfigPath,
     mcpTrustPolicyConfigPath,
     replayGateContractConfigPath,
     rolloutPolicyConfigPath,
@@ -1802,6 +1849,7 @@ function validateStartupIntegrity() {
     contextPolicyConfigPath,
     knowledgeRetrievalPolicyConfigPath,
     discoveryIngestionQualityPolicyConfigPath,
+    evaluationPipelinePolicyConfigPath,
     migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
     hardBansConfigPath,
@@ -2206,6 +2254,22 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: discoveryIngestionValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === evaluationPipelinePolicyConfigPath) {
+        const evaluationPipelineValidation = validateEvaluationPipelinePolicy(parsed);
+        if (!evaluationPipelineValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `evaluation_pipeline_policy validation failed: ${evaluationPipelineValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: evaluationPipelineValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;
@@ -2634,6 +2698,7 @@ function featureOperatingStatusPayload(options = {}) {
     context_policy: loadContextPolicy(),
     knowledge_retrieval_policy: loadKnowledgeRetrievalPolicy(),
     discovery_ingestion_quality_policy: loadDiscoveryIngestionQualityPolicy(),
+    evaluation_pipeline_policy: loadEvaluationPipelinePolicy(),
     activation_experiments: Array.isArray(activationCatalog?.experiments)
       ? activationCatalog.experiments.length
       : 0,
@@ -11325,6 +11390,43 @@ async function runDiscoveryPipeline(profileId, options = {}) {
 async function _runDiscoveryPipelineInner(profileId, options = {}) {
   const daysBack = options.days_back ?? 90;
   const contacts = new Map();
+  const discoveryRunId = `discovery-${Date.now().toString(36)}-${crypto.randomBytes(4).toString("hex")}`;
+  const discoveryTraceId = discoveryRunId;
+  const logDiscoveryFriction = (severity, reason, details = {}) => {
+    const event = {
+      kind: "friction_event",
+      event_id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      category: "context",
+      severity,
+      reason,
+      run_id: discoveryRunId,
+      workflow_id: "discovery_pipeline",
+      workflow_name: "Discovery Pipeline",
+      workflow_version: 1,
+      definition_hash: "discovery_quality_policy_v1",
+      workflow_snapshot_ref: "discovery_pipeline@v1:discovery_quality_policy_v1",
+      step_id: "candidate_matching",
+      trace_id: discoveryTraceId,
+      dry_run: false,
+      profile_id: profileId,
+      ...details,
+    };
+    appendJsonlLine(jobFrictionLedgerPath, event);
+    appendEvent(
+      "friction.event.logged",
+      "/ops/onboarding/discover",
+      {
+        category: event.category,
+        severity,
+        reason,
+        run_id: discoveryRunId,
+        workflow_id: event.workflow_id,
+        step_id: event.step_id,
+      },
+      discoveryTraceId,
+    );
+  };
 
   const cfg = getGraphProfileConfig(profileId);
   if (!cfg.ok) {
@@ -11454,31 +11556,33 @@ async function _runDiscoveryPipelineInner(profileId, options = {}) {
   }
 
   // Summarize
+  const discoveryQualityPolicy = loadDiscoveryIngestionQualityPolicy()?.discovery || {};
+  const maxCandidatesPerEntity = Number.isFinite(discoveryQualityPolicy.max_candidates_per_entity)
+    ? Math.max(1, Math.floor(discoveryQualityPolicy.max_candidates_per_entity))
+    : 25;
   const contactList = [...contacts.entries()]
     .toSorted((a, b) => b[1] - a[1])
-    .slice(0, 50)
+    .slice(0, maxCandidatesPerEntity)
     .map(([address, count]) => ({ address, message_count: count }));
 
   // Detect deal-related keywords
   const dealKeywords =
     /\b(NDA|LOI|PSA|DD|due diligence|term sheet|purchase agreement|closing|facility|acquisition|letter of intent|indemnification)\b/i;
-  const dealCandidates = emails
-    .filter((e) => dealKeywords.test(e.subject))
+  const matchedDealEmails = emails.filter((e) => dealKeywords.test(e.subject));
+  const dealCandidates = matchedDealEmails
     .slice(0, 20)
     .map((e) => ({ subject: e.subject, from: e.from, received_at: e.received_at }));
 
   // Detect commitment keywords
   const commitKeywords =
     /\b(by|before|deadline|due|need.*by|please.*by|must.*by|send.*by|deliver|follow.?up)\b/i;
-  const commitmentCandidates = emails
-    .filter((e) => commitKeywords.test(e.body_preview))
-    .slice(0, 20)
-    .map((e) => ({
-      subject: e.subject,
-      from: e.from,
-      received_at: e.received_at,
-      snippet: e.body_preview.slice(0, 100),
-    }));
+  const matchedCommitmentEmails = emails.filter((e) => commitKeywords.test(e.body_preview));
+  const commitmentCandidates = matchedCommitmentEmails.slice(0, 20).map((e) => ({
+    subject: e.subject,
+    from: e.from,
+    received_at: e.received_at,
+    snippet: e.body_preview.slice(0, 100),
+  }));
 
   const discovery = {
     profile_id: profileId,
@@ -11499,11 +11603,14 @@ async function _runDiscoveryPipelineInner(profileId, options = {}) {
     generated_at: new Date().toISOString(),
   };
 
-  const discoveryQualityPolicy = loadDiscoveryIngestionQualityPolicy()?.discovery || {};
   const uniqueEmailIds = new Set(emails.map((entry) => entry.id).filter(Boolean)).size;
   const duplicateEmails = Math.max(0, emails.length - uniqueEmailIds);
   const dedupPrecision = emails.length > 0 ? (emails.length - duplicateEmails) / emails.length : 1;
   const falsePositiveRate = emails.length > 0 ? duplicateEmails / emails.length : 0;
+  const candidateCoverageRatio =
+    emails.length > 0
+      ? (matchedDealEmails.length + matchedCommitmentEmails.length) / emails.length
+      : 0;
   const entityLinkConfidence =
     contactList.length > 0 ? Math.min(0.95, 0.7 + Math.min(0.25, contactList.length / 200)) : 0;
   const dedupPrecisionMin = Number.isFinite(discoveryQualityPolicy.dedup_precision_min)
@@ -11512,6 +11619,11 @@ async function _runDiscoveryPipelineInner(profileId, options = {}) {
   const maxFalsePositiveRate = Number.isFinite(discoveryQualityPolicy.max_false_positive_rate)
     ? discoveryQualityPolicy.max_false_positive_rate
     : 1;
+  const minCandidateCoverageRatio = Number.isFinite(
+    discoveryQualityPolicy.min_candidate_coverage_ratio,
+  )
+    ? discoveryQualityPolicy.min_candidate_coverage_ratio
+    : 0;
   const minEntityLinkConfidence = Number.isFinite(discoveryQualityPolicy.entity_link_confidence_min)
     ? discoveryQualityPolicy.entity_link_confidence_min
     : 0;
@@ -11520,30 +11632,63 @@ async function _runDiscoveryPipelineInner(profileId, options = {}) {
     discoveryReasonCodes.push("DISCOVERY_QUALITY_BELOW_THRESHOLD");
   }
   if (falsePositiveRate > maxFalsePositiveRate) {
-    discoveryReasonCodes.push("DISCOVERY_QUALITY_BELOW_THRESHOLD");
+    discoveryReasonCodes.push("DISCOVERY_FALSE_POSITIVE_RATE_HIGH");
+  }
+  // Low candidate coverage at meaningful scan volume is a practical false-negative proxy.
+  if (emails.length >= 25 && candidateCoverageRatio < minCandidateCoverageRatio) {
+    discoveryReasonCodes.push("DISCOVERY_FALSE_NEGATIVE_RISK_HIGH");
   }
   if (entityLinkConfidence < minEntityLinkConfidence) {
     discoveryReasonCodes.push("DISCOVERY_QUALITY_BELOW_THRESHOLD");
   }
 
+  const dedupPrecisionRounded = Math.round(dedupPrecision * 1000) / 1000;
+  const falsePositiveRateRounded = Math.round(falsePositiveRate * 1000) / 1000;
+  const candidateCoverageRounded = Math.round(candidateCoverageRatio * 1000) / 1000;
+  const entityLinkConfidenceRounded = Math.round(entityLinkConfidence * 1000) / 1000;
+  const uniqueDiscoveryReasonCodes = [...new Set(discoveryReasonCodes)];
+
+  if (uniqueDiscoveryReasonCodes.includes("DISCOVERY_FALSE_POSITIVE_RATE_HIGH")) {
+    logDiscoveryFriction("medium", "discovery_false_positive_rate_high", {
+      false_positive_rate: falsePositiveRateRounded,
+      max_false_positive_rate: maxFalsePositiveRate,
+      dedup_precision: dedupPrecisionRounded,
+      dedup_precision_min: dedupPrecisionMin,
+    });
+  }
+  if (uniqueDiscoveryReasonCodes.includes("DISCOVERY_FALSE_NEGATIVE_RISK_HIGH")) {
+    logDiscoveryFriction("medium", "discovery_false_negative_risk_high", {
+      candidate_coverage_ratio: candidateCoverageRounded,
+      min_candidate_coverage_ratio: minCandidateCoverageRatio,
+      emails_scanned: emails.length,
+      matched_candidates: matchedDealEmails.length + matchedCommitmentEmails.length,
+    });
+  }
+
   discovery.quality = {
-    dedup_precision: Math.round(dedupPrecision * 1000) / 1000,
+    dedup_precision: dedupPrecisionRounded,
     dedup_precision_min: dedupPrecisionMin,
-    false_positive_rate: Math.round(falsePositiveRate * 1000) / 1000,
+    false_positive_rate: falsePositiveRateRounded,
     max_false_positive_rate: maxFalsePositiveRate,
-    entity_link_confidence: Math.round(entityLinkConfidence * 1000) / 1000,
+    candidate_coverage_ratio: candidateCoverageRounded,
+    min_candidate_coverage_ratio: minCandidateCoverageRatio,
+    entity_link_confidence: entityLinkConfidenceRounded,
     entity_link_confidence_min: minEntityLinkConfidence,
-    quality_gate_pass: discoveryReasonCodes.length === 0,
-    reason_codes: [...new Set(discoveryReasonCodes)],
+    quality_gate_pass: uniqueDiscoveryReasonCodes.length === 0,
+    reason_codes: uniqueDiscoveryReasonCodes,
   };
 
   appendJsonlLine(discoveryLedgerPath, { kind: "discovery_completed", ...discovery });
   appendEvent("discovery.quality.evaluated", "/ops/onboarding/discover", {
     profile_id: profileId,
+    run_id: discoveryRunId,
+    trace_id: discoveryTraceId,
     dedup_precision: discovery.quality.dedup_precision,
     dedup_precision_min: discovery.quality.dedup_precision_min,
     false_positive_rate: discovery.quality.false_positive_rate,
     max_false_positive_rate: discovery.quality.max_false_positive_rate,
+    candidate_coverage_ratio: discovery.quality.candidate_coverage_ratio,
+    min_candidate_coverage_ratio: discovery.quality.min_candidate_coverage_ratio,
     entity_link_confidence: discovery.quality.entity_link_confidence,
     entity_link_confidence_min: discovery.quality.entity_link_confidence_min,
     quality_gate_pass: discovery.quality.quality_gate_pass,

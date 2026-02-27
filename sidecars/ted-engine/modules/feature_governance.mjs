@@ -821,6 +821,16 @@ export function validateDiscoveryIngestionQualityPolicy(policy) {
       });
     }
     if (
+      !isFiniteNumber(discovery.min_candidate_coverage_ratio) ||
+      discovery.min_candidate_coverage_ratio < 0 ||
+      discovery.min_candidate_coverage_ratio > 1
+    ) {
+      errors.push({
+        code: "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_MIN_COVERAGE_INVALID",
+        message: "discovery.min_candidate_coverage_ratio must be in [0, 1]",
+      });
+    }
+    if (
       !isFiniteNumber(discovery.entity_link_confidence_min) ||
       discovery.entity_link_confidence_min < 0 ||
       discovery.entity_link_confidence_min > 1
@@ -904,6 +914,141 @@ export function validateDiscoveryIngestionQualityPolicy(policy) {
     if (uniqueStringList(governance.required_reason_codes).length === 0) {
       errors.push({
         code: "DISCOVERY_INGESTION_QUALITY_POLICY_REASON_CODES_INVALID",
+        message: "governance.required_reason_codes must be non-empty",
+      });
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+export function validateEvaluationPipelinePolicy(policy) {
+  const errors = [];
+  if (!expectArtifact(policy, "evaluation_pipeline_policy", "EVALUATION_PIPELINE_POLICY", errors)) {
+    return { ok: false, errors };
+  }
+
+  const pipeline = isObject(policy.pipeline) ? policy.pipeline : null;
+  if (!pipeline) {
+    errors.push({
+      code: "EVALUATION_PIPELINE_POLICY_PIPELINE_MISSING",
+      message: "pipeline must be an object",
+    });
+  } else {
+    if (typeof pipeline.enabled !== "boolean") {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_PIPELINE_ENABLED_INVALID",
+        message: "pipeline.enabled must be boolean",
+      });
+    }
+    if (
+      !isFiniteNumber(pipeline.min_pass_rate) ||
+      pipeline.min_pass_rate < 0 ||
+      pipeline.min_pass_rate > 1
+    ) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_MIN_PASS_RATE_INVALID",
+        message: "pipeline.min_pass_rate must be in [0, 1]",
+      });
+    }
+    if (!Number.isInteger(pipeline.max_degraded_streak) || pipeline.max_degraded_streak < 1) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_MAX_DEGRADED_STREAK_INVALID",
+        message: "pipeline.max_degraded_streak must be integer >= 1",
+      });
+    }
+    if (!Number.isInteger(pipeline.max_eval_run_age_hours) || pipeline.max_eval_run_age_hours < 1) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_MAX_RUN_AGE_INVALID",
+        message: "pipeline.max_eval_run_age_hours must be integer >= 1",
+      });
+    }
+  }
+
+  const canary = isObject(policy.canary) ? policy.canary : null;
+  if (!canary) {
+    errors.push({
+      code: "EVALUATION_PIPELINE_POLICY_CANARY_MISSING",
+      message: "canary must be an object",
+    });
+  } else {
+    if (typeof canary.enabled !== "boolean") {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_CANARY_ENABLED_INVALID",
+        message: "canary.enabled must be boolean",
+      });
+    }
+    if (!Number.isInteger(canary.max_failed_canaries) || canary.max_failed_canaries < 0) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_MAX_FAILED_CANARIES_INVALID",
+        message: "canary.max_failed_canaries must be integer >= 0",
+      });
+    }
+    if (
+      !isFiniteNumber(canary.min_canary_score) ||
+      canary.min_canary_score < 0 ||
+      canary.min_canary_score > 1
+    ) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_MIN_CANARY_SCORE_INVALID",
+        message: "canary.min_canary_score must be in [0, 1]",
+      });
+    }
+  }
+
+  const drift = isObject(policy.drift) ? policy.drift : null;
+  if (!drift) {
+    errors.push({
+      code: "EVALUATION_PIPELINE_POLICY_DRIFT_MISSING",
+      message: "drift must be an object",
+    });
+  } else {
+    if (typeof drift.enabled !== "boolean") {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_DRIFT_ENABLED_INVALID",
+        message: "drift.enabled must be boolean",
+      });
+    }
+    if (!Number.isInteger(drift.window_days) || drift.window_days < 1) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_DRIFT_WINDOW_INVALID",
+        message: "drift.window_days must be integer >= 1",
+      });
+    }
+    if (
+      !isFiniteNumber(drift.max_drift_delta) ||
+      drift.max_drift_delta < 0 ||
+      drift.max_drift_delta > 1
+    ) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_MAX_DRIFT_DELTA_INVALID",
+        message: "drift.max_drift_delta must be in [0, 1]",
+      });
+    }
+    if (!Number.isInteger(drift.min_samples_for_alert) || drift.min_samples_for_alert < 1) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_MIN_SAMPLES_INVALID",
+        message: "drift.min_samples_for_alert must be integer >= 1",
+      });
+    }
+  }
+
+  const governance = isObject(policy.governance) ? policy.governance : null;
+  if (!governance) {
+    errors.push({
+      code: "EVALUATION_PIPELINE_POLICY_GOVERNANCE_MISSING",
+      message: "governance must be an object",
+    });
+  } else {
+    if (uniqueStringList(governance.emit_events).length === 0) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_EMIT_EVENTS_INVALID",
+        message: "governance.emit_events must be non-empty",
+      });
+    }
+    if (uniqueStringList(governance.required_reason_codes).length === 0) {
+      errors.push({
+        code: "EVALUATION_PIPELINE_POLICY_REASON_CODES_INVALID",
         message: "governance.required_reason_codes must be non-empty",
       });
     }

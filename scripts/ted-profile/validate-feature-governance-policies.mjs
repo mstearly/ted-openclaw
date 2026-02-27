@@ -6,6 +6,7 @@ import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
   validateDiscoveryIngestionQualityPolicy,
+  validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
@@ -84,6 +85,11 @@ function main() {
         "sidecars/ted-engine/config/discovery_ingestion_quality_policy.json",
       ),
       validator: validateDiscoveryIngestionQualityPolicy,
+    },
+    {
+      kind: "evaluation pipeline policy",
+      path: path.join(repoRoot, "sidecars/ted-engine/config/evaluation_pipeline_policy.json"),
+      validator: validateEvaluationPipelinePolicy,
     },
     {
       kind: "mcp trust policy",

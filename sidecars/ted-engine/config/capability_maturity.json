@@ -66,9 +66,9 @@
     },
     {
       "name": "evaluation_pipeline",
-      "level": 2,
+      "level": 3,
       "target": 4,
-      "notes": "Functional: 7 golden fixtures at startup. Missing: continuous evaluation, LLM-as-Judge, quality trends."
+      "notes": "Governed: policy thresholds now define pass-rate, canary failure budget, and drift alert limits. Next step: self-optimizing remediation loops."
     },
     {
       "name": "non_destructive_evolution",

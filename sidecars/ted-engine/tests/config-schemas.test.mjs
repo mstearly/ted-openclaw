@@ -16,6 +16,7 @@ import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
   validateDiscoveryIngestionQualityPolicy,
+  validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
@@ -562,6 +563,13 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  test("evaluation_pipeline_policy.json passes structural validation", () => {
+    const policy = configs.get("evaluation_pipeline_policy.json");
+    const result = validateEvaluationPipelinePolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
   test("mcp_trust_policy.json passes structural validation", () => {
     const policy = configs.get("mcp_trust_policy.json");
     const result = validateMcpTrustPolicy(policy);
@@ -617,6 +625,7 @@ describe("Required config files exist", () => {
     "context_policy.json",
     "knowledge_retrieval_policy.json",
     "discovery_ingestion_quality_policy.json",
+    "evaluation_pipeline_policy.json",
     "compatibility_policy.json",
     "retrofit_rf0_baseline_lock.json",
   ];

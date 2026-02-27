@@ -124,10 +124,10 @@
     },
     {
       "name": "evaluation_pipeline",
-      "level": "incubating",
+      "level": "graduated",
       "since_cycle": 13,
       "last_finding_cycle": null,
-      "notes": "Functional multi-grader evaluation + canaries + drift checks. Next step: broader continuous fixture coverage."
+      "notes": "Governed evaluation pipeline with explicit policy thresholds for pass-rate, canary budget, and drift escalation."
     }
   ]
 }

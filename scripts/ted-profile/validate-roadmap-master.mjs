@@ -6,6 +6,7 @@ import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
   validateDiscoveryIngestionQualityPolicy,
+  validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
@@ -116,6 +117,10 @@ function parseArgs(argv) {
       repoRoot,
       "sidecars/ted-engine/config/discovery_ingestion_quality_policy.json",
     ),
+    evaluationPipelinePolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/evaluation_pipeline_policy.json",
+    ),
     mcpTrustPolicy: path.join(repoRoot, "sidecars/ted-engine/config/mcp_trust_policy.json"),
   };
 
@@ -223,6 +228,10 @@ function parseArgs(argv) {
     }
     if (arg === "--discovery-ingestion-quality-policy") {
       out.discoveryIngestionQualityPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--evaluation-pipeline-policy") {
+      out.evaluationPipelinePolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
     if (arg === "--mcp-trust-policy") {
@@ -389,6 +398,11 @@ function main() {
       kind: "discovery ingestion quality policy",
       path: args.discoveryIngestionQualityPolicy,
       validator: validateDiscoveryIngestionQualityPolicy,
+    },
+    {
+      kind: "evaluation pipeline policy",
+      path: args.evaluationPipelinePolicy,
+      validator: validateEvaluationPipelinePolicy,
     },
     {
       kind: "mcp trust policy",

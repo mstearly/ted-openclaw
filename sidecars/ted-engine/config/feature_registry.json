@@ -481,9 +481,9 @@
       "owner": "council.governance",
       "backup_owner": "operator.primary",
       "module_class": "policy",
-      "lifecycle_state": "incubating",
-      "maturity_score": 2,
-      "fragility_score": 62,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 52,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -496,7 +496,8 @@
       "security_controls": {
         "policy_refs": [
           "sidecars/ted-engine/config/hard_bans.json",
-          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+          "sidecars/ted-engine/config/module_lifecycle_policy.json",
+          "sidecars/ted-engine/config/evaluation_pipeline_policy.json"
         ],
         "owasp_llm_top10": ["LLM01", "LLM06"]
       },
@@ -517,11 +518,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "incubating",
-        "capability_level": 2,
+        "feature_maturity_level": "graduated",
+        "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Functional multi-grader evaluation pipeline with golden fixtures/canaries and drift signals; needs expanded continuous eval breadth."
+        "notes": "Governed evaluation controls now include explicit pipeline policy thresholds, canary budgets, and drift guardrails."
       }
     },
     {

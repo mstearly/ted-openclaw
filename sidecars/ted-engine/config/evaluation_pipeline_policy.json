@@ -1,0 +1,36 @@
+{
+  "_config_version": 1,
+  "_artifact": "evaluation_pipeline_policy",
+  "_description": "Governed controls for evaluation pipeline reliability, drift response, and canary quality gates.",
+  "pipeline": {
+    "enabled": true,
+    "min_pass_rate": 0.8,
+    "max_degraded_streak": 2,
+    "max_eval_run_age_hours": 24
+  },
+  "canary": {
+    "enabled": true,
+    "max_failed_canaries": 1,
+    "min_canary_score": 0.8
+  },
+  "drift": {
+    "enabled": true,
+    "window_days": 7,
+    "max_drift_delta": 0.2,
+    "min_samples_for_alert": 10
+  },
+  "governance": {
+    "emit_events": [
+      "evaluation.pipeline.completed",
+      "evaluation.quality.degraded",
+      "evaluation.canary.completed",
+      "evaluation.canary.failed",
+      "evaluation.drift.detected"
+    ],
+    "required_reason_codes": [
+      "EVAL_PASS_RATE_BELOW_THRESHOLD",
+      "EVAL_CANARY_FAILURE_BUDGET_EXCEEDED",
+      "EVAL_DRIFT_THRESHOLD_EXCEEDED"
+    ]
+  }
+}

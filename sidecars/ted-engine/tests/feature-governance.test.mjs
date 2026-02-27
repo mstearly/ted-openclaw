@@ -10,6 +10,7 @@ import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
   validateDiscoveryIngestionQualityPolicy,
+  validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
   validateFeatureDecisionPolicy,
   validateFeatureOperatingCadencePolicy,
@@ -36,6 +37,7 @@ describe("feature governance policy validators", () => {
     const context = loadJson("../config/context_policy.json");
     const retrieval = loadJson("../config/knowledge_retrieval_policy.json");
     const discoveryIngestion = loadJson("../config/discovery_ingestion_quality_policy.json");
+    const evaluationPipeline = loadJson("../config/evaluation_pipeline_policy.json");
     const mcpTrust = loadJson("../config/mcp_trust_policy.json");
 
     expect(validateFeatureOperatingCadencePolicy(cadence).ok).toBe(true);
@@ -47,12 +49,14 @@ describe("feature governance policy validators", () => {
     expect(validateContextPolicy(context).ok).toBe(true);
     expect(validateKnowledgeRetrievalPolicy(retrieval).ok).toBe(true);
     expect(validateDiscoveryIngestionQualityPolicy(discoveryIngestion).ok).toBe(true);
+    expect(validateEvaluationPipelinePolicy(evaluationPipeline).ok).toBe(true);
     expect(validateMcpTrustPolicy(mcpTrust).ok).toBe(true);
   });
 
   test("discovery ingestion policy rejects invalid thresholds", () => {
     const policy = loadJson("../config/discovery_ingestion_quality_policy.json");
     policy.discovery.dedup_precision_min = 1.4;
+    policy.discovery.min_candidate_coverage_ratio = 1.3;
     policy.ingestion.max_parse_error_rate = -0.2;
     const result = validateDiscoveryIngestionQualityPolicy(policy);
     expect(result.ok).toBe(false);
@@ -66,6 +70,30 @@ describe("feature governance policy validators", () => {
       result.errors.some(
         (entry) =>
           entry.code === "DISCOVERY_INGESTION_QUALITY_POLICY_INGESTION_PARSE_ERROR_INVALID",
+      ),
+    ).toBe(true);
+    expect(
+      result.errors.some(
+        (entry) =>
+          entry.code === "DISCOVERY_INGESTION_QUALITY_POLICY_DISCOVERY_MIN_COVERAGE_INVALID",
+      ),
+    ).toBe(true);
+  });
+
+  test("evaluation pipeline policy rejects invalid pipeline settings", () => {
+    const policy = loadJson("../config/evaluation_pipeline_policy.json");
+    policy.pipeline.min_pass_rate = 1.2;
+    policy.canary.max_failed_canaries = -1;
+    const result = validateEvaluationPipelinePolicy(policy);
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors.some(
+        (entry) => entry.code === "EVALUATION_PIPELINE_POLICY_MIN_PASS_RATE_INVALID",
+      ),
+    ).toBe(true);
+    expect(
+      result.errors.some(
+        (entry) => entry.code === "EVALUATION_PIPELINE_POLICY_MAX_FAILED_CANARIES_INVALID",
       ),
     ).toBe(true);
   });

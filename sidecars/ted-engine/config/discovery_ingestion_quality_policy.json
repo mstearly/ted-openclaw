@@ -6,6 +6,7 @@
     "require_incremental_scan_cursor": true,
     "dedup_precision_min": 0.92,
     "max_false_positive_rate": 0.08,
+    "min_candidate_coverage_ratio": 0.02,
     "entity_link_confidence_min": 0.7,
     "max_candidates_per_entity": 25
   },
@@ -24,6 +25,8 @@
     ],
     "required_reason_codes": [
       "DISCOVERY_QUALITY_BELOW_THRESHOLD",
+      "DISCOVERY_FALSE_POSITIVE_RATE_HIGH",
+      "DISCOVERY_FALSE_NEGATIVE_RISK_HIGH",
       "INGESTION_PARSE_ERROR_RATE_HIGH",
       "INGESTION_DUPLICATE_SUPPRESSION_LOW"
     ]

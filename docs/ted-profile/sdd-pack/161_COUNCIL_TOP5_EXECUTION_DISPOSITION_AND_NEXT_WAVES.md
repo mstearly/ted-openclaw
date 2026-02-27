@@ -1,7 +1,7 @@
 # SDD 161 - Council Top 5 Execution Disposition and Next Waves
 
 Date: 2026-02-27
-Status: Waves T5-A, T5-B1, and T5-C1 through T5-C2 executed
+Status: Waves T5-A, T5-B1, T5-C1 through T5-C2, and T5-D1 through T5-D2 executed
 Parents: SDD 160
 
 ## 1. Execution scope
@@ -181,6 +181,43 @@ Current research-priority top set after T5-C2:
 4. `m365_integration`
 5. `reconciliation_engine`
 
+## 3.4 Discovery friction hardening + evaluation closure loop executed (Waves T5-D1/T5-D2)
+
+Council executed the next recursive wave pass:
+
+1. Tightened discovery quality policy and checks:
+   - Added `min_candidate_coverage_ratio` to `discovery_ingestion_quality_policy.json`.
+   - Added explicit reason codes for false positive/false negative risk thresholds.
+2. Added friction instrumentation for discovery false positives/false negatives:
+   - Discovery pipeline now appends governed `friction_event` records to `job_friction.jsonl` when:
+     - false-positive rate exceeds policy threshold
+     - false-negative proxy risk exceeds policy threshold
+   - Emits `friction.event.logged` with stable reason signatures for these discovery risks.
+3. Added governed evaluation pipeline contract:
+   - Added `sidecars/ted-engine/config/evaluation_pipeline_policy.json`.
+   - Wired validation through startup, roadmap validator, and governance policy validators.
+4. Promoted evaluation maturity from research-before-build to governed:
+   - `evaluation_pipeline`: lifecycle `incubating -> graduated`, maturity `2 -> 3`
+   - aligned in:
+     - `feature_registry.json`
+     - `feature_maturity.json`
+     - `capability_maturity.json`
+
+Queue impact after T5-D2:
+
+1. Risk remediation now: `0`
+2. Value activation now: `19` (from `18`)
+3. Research before build: `7` (from `8`)
+4. Backlog monitor: `1` (`multi_user`)
+
+Current research-priority top set after T5-D2:
+
+1. `sharepoint_integration`
+2. `document_management`
+3. `m365_integration`
+4. `reconciliation_engine`
+5. `builder_lane`
+
 ## 4. Validation and regression evidence
 
 Executed checks:
@@ -191,7 +228,7 @@ Executed checks:
 4. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/migration-runner.test.mjs`
    - result: 15 files passed, 1883 tests passed, 0 failed.
 5. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/contracts.test.mjs`
-   - result: 15 files passed, 1897 tests passed, 0 failed.
+   - result: 15 files passed, 1903 tests passed, 0 failed.
 
 ## 5. Next executable waves (recommended)
 
@@ -228,8 +265,8 @@ Tasks:
 
 ## 6. Council recommendation
 
-Proceed with Wave T5-D next, focused on:
+Proceed with Wave T5-E next, focused on:
 
-1. SharePoint/document/evaluation research-before-build closures.
-2. Discovery false-positive/false-negative friction instrumentation.
-3. Activation playbooks for newly promoted governed features now in value-activation queue.
+1. SharePoint/document-management research-before-build closures.
+2. Activation playbooks for top value-now features (`evaluation_pipeline`, `discovery_pipeline`, `draft_state_machine`).
+3. Continued friction signal enrichment for connector-heavy discovery/document workflows.
