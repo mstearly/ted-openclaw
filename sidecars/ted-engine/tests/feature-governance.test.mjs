@@ -9,6 +9,7 @@ import {
   resolveChangedFeatureIds,
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDocumentManagementQualityPolicy,
   validateDiscoveryIngestionQualityPolicy,
   validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
@@ -38,6 +39,7 @@ describe("feature governance policy validators", () => {
     const retrieval = loadJson("../config/knowledge_retrieval_policy.json");
     const discoveryIngestion = loadJson("../config/discovery_ingestion_quality_policy.json");
     const evaluationPipeline = loadJson("../config/evaluation_pipeline_policy.json");
+    const documentManagementQuality = loadJson("../config/document_management_quality_policy.json");
     const mcpTrust = loadJson("../config/mcp_trust_policy.json");
 
     expect(validateFeatureOperatingCadencePolicy(cadence).ok).toBe(true);
@@ -50,6 +52,7 @@ describe("feature governance policy validators", () => {
     expect(validateKnowledgeRetrievalPolicy(retrieval).ok).toBe(true);
     expect(validateDiscoveryIngestionQualityPolicy(discoveryIngestion).ok).toBe(true);
     expect(validateEvaluationPipelinePolicy(evaluationPipeline).ok).toBe(true);
+    expect(validateDocumentManagementQualityPolicy(documentManagementQuality).ok).toBe(true);
     expect(validateMcpTrustPolicy(mcpTrust).ok).toBe(true);
   });
 
@@ -94,6 +97,24 @@ describe("feature governance policy validators", () => {
     expect(
       result.errors.some(
         (entry) => entry.code === "EVALUATION_PIPELINE_POLICY_MAX_FAILED_CANARIES_INVALID",
+      ),
+    ).toBe(true);
+  });
+
+  test("document management quality policy rejects invalid status codes", () => {
+    const policy = loadJson("../config/document_management_quality_policy.json");
+    policy.sharepoint.friction_statuses = [99];
+    policy.sharepoint.high_severity_statuses = [700];
+    const result = validateDocumentManagementQualityPolicy(policy);
+    expect(result.ok).toBe(false);
+    expect(
+      result.errors.some(
+        (entry) => entry.code === "DOCUMENT_MANAGEMENT_QUALITY_POLICY_FRICTION_STATUS_CODE_INVALID",
+      ),
+    ).toBe(true);
+    expect(
+      result.errors.some(
+        (entry) => entry.code === "DOCUMENT_MANAGEMENT_QUALITY_POLICY_HIGH_SEVERITY_STATUS_INVALID",
       ),
     ).toBe(true);
   });

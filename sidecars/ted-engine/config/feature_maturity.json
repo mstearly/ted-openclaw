@@ -82,10 +82,10 @@
     },
     {
       "name": "sharepoint_integration",
-      "level": "incubating",
+      "level": "graduated",
       "since_cycle": 12,
-      "last_finding_cycle": 12,
-      "notes": "7 routes. Needs: content extraction, document intelligence."
+      "last_finding_cycle": 13,
+      "notes": "Governed with connector quality policy, friction telemetry, and operator-safe write boundaries. Next: content extraction layer."
     },
     {
       "name": "reconciliation_engine",

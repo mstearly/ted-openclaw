@@ -12,6 +12,7 @@ import {
   resolveChangedFeatureIds,
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDocumentManagementQualityPolicy,
   validateDiscoveryIngestionQualityPolicy,
   validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
@@ -290,6 +291,11 @@ const evaluationPipelinePolicyConfigPath = path.join(
   __dirname,
   "config",
   "evaluation_pipeline_policy.json",
+);
+const documentManagementQualityPolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "document_management_quality_policy.json",
 );
 const migrationManifestConfigPath = path.join(__dirname, "config", "migration_manifest.json");
 const retrofitBaselineLockConfigPath = path.join(
@@ -722,6 +728,26 @@ function loadEvaluationPipelinePolicy() {
   });
 }
 
+function loadDocumentManagementQualityPolicy() {
+  return loadJsonConfigWithFallback(documentManagementQualityPolicyConfigPath, {
+    sharepoint: {
+      friction_statuses: [401, 403, 429, 500, 502, 503, 504],
+      high_severity_statuses: [429, 500, 502, 503, 504],
+      auth_required_reason_code: "DOCUMENT_CONNECTOR_AUTH_REQUIRED",
+      graph_error_reason_code: "DOCUMENT_CONNECTOR_GRAPH_ERROR",
+      rate_limit_reason_code: "DOCUMENT_CONNECTOR_RATE_LIMITED",
+    },
+    governance: {
+      emit_events: ["friction.event.logged"],
+      required_reason_codes: [
+        "DOCUMENT_CONNECTOR_AUTH_REQUIRED",
+        "DOCUMENT_CONNECTOR_GRAPH_ERROR",
+        "DOCUMENT_CONNECTOR_RATE_LIMITED",
+      ],
+    },
+  });
+}
+
 function refreshFeatureSignalMatcher() {
   try {
     _featureSignalMatcher = buildFeatureSignalMatcher(loadFeatureRegistryConfig());
@@ -860,6 +886,7 @@ const MONITORED_CONFIGS = [
   "knowledge_retrieval_policy.json",
   "discovery_ingestion_quality_policy.json",
   "evaluation_pipeline_policy.json",
+  "document_management_quality_policy.json",
   "compatibility_policy.json",
   "retrofit_rf0_baseline_lock.json",
 ];
@@ -1696,6 +1723,56 @@ function appendEvent(eventType, source, payload, traceId) {
   return event.event_id;
 }
 
+function appendConnectorFrictionEvent(input) {
+  const payload = input && typeof input === "object" ? input : {};
+  const traceId = `connector-friction-${Date.now().toString(36)}-${crypto.randomBytes(3).toString("hex")}`;
+  const event = {
+    kind: "friction_event",
+    event_id: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    category: "connector",
+    severity: payload.severity === "high" ? "high" : "medium",
+    reason:
+      typeof payload.reason === "string" && payload.reason.trim().length > 0
+        ? payload.reason.trim()
+        : "document_connector_quality_issue",
+    run_id: payload.run_id || `connector-${Date.now().toString(36)}`,
+    workflow_id: payload.workflow_id || "document_management",
+    workflow_name: payload.workflow_name || "Document Management",
+    workflow_version: Number.isInteger(payload.workflow_version) ? payload.workflow_version : 1,
+    definition_hash: payload.definition_hash || "document_management_quality_policy_v1",
+    workflow_snapshot_ref:
+      payload.workflow_snapshot_ref ||
+      "document_management@v1:document_management_quality_policy_v1",
+    step_id: payload.step_id || "connector_operation",
+    trace_id: traceId,
+    dry_run: false,
+    profile_id: typeof payload.profile_id === "string" ? payload.profile_id : null,
+    connector: typeof payload.connector === "string" ? payload.connector : "sharepoint",
+    operation: typeof payload.operation === "string" ? payload.operation : "unknown",
+    status_code: Number.isInteger(payload.status_code) ? payload.status_code : null,
+    error_code: typeof payload.error_code === "string" ? payload.error_code : null,
+    detail: payload.detail && typeof payload.detail === "object" ? payload.detail : {},
+  };
+  appendJsonlLine(jobFrictionLedgerPath, event);
+  appendEvent(
+    "friction.event.logged",
+    typeof payload.route === "string" ? payload.route : "/graph/sharepoint",
+    {
+      category: event.category,
+      severity: event.severity,
+      reason: event.reason,
+      run_id: event.run_id,
+      workflow_id: event.workflow_id,
+      step_id: event.step_id,
+      connector: event.connector,
+      operation: event.operation,
+      status_code: event.status_code,
+    },
+    traceId,
+  );
+}
+
 // ─── Sprint 1 (SDD 72): Pre-Upgrade Startup Validation ───
 let _lastStartupValidation = null;
 
@@ -1807,6 +1884,7 @@ function validateStartupIntegrity() {
     knowledgeRetrievalPolicyConfigPath,
     discoveryIngestionQualityPolicyConfigPath,
     evaluationPipelinePolicyConfigPath,
+    documentManagementQualityPolicyConfigPath,
     mcpTrustPolicyConfigPath,
     replayGateContractConfigPath,
     rolloutPolicyConfigPath,
@@ -1850,6 +1928,7 @@ function validateStartupIntegrity() {
     knowledgeRetrievalPolicyConfigPath,
     discoveryIngestionQualityPolicyConfigPath,
     evaluationPipelinePolicyConfigPath,
+    documentManagementQualityPolicyConfigPath,
     migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
     hardBansConfigPath,
@@ -2270,6 +2349,22 @@ function validateStartupIntegrity() {
               .map((entry) => entry.code)
               .join(", ")}`,
             details: evaluationPipelineValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === documentManagementQualityPolicyConfigPath) {
+        const documentManagementQualityValidation = validateDocumentManagementQualityPolicy(parsed);
+        if (!documentManagementQualityValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `document_management_quality_policy validation failed: ${documentManagementQualityValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: documentManagementQualityValidation.errors,
             critical: criticalConfigs.has(cp),
           });
           configValid = false;
@@ -2699,6 +2794,7 @@ function featureOperatingStatusPayload(options = {}) {
     knowledge_retrieval_policy: loadKnowledgeRetrievalPolicy(),
     discovery_ingestion_quality_policy: loadDiscoveryIngestionQualityPolicy(),
     evaluation_pipeline_policy: loadEvaluationPipelinePolicy(),
+    document_management_quality_policy: loadDocumentManagementQualityPolicy(),
     activation_experiments: Array.isArray(activationCatalog?.experiments)
       ? activationCatalog.experiments.length
       : 0,
@@ -17151,12 +17247,14 @@ async function syncReject(_profileId, proposalId, req, res, route) {
 
 const sharePointCore = createSharePointCore({
   appendAudit,
+  appendConnectorFrictionEvent,
   appendEvent,
   blockedExplainability,
   checkExecutionBoundary,
   ensureValidToken,
   graphFetchWithRetry,
   isSlugSafe,
+  loadDocumentManagementQualityPolicy,
   logLine,
   normalizeRoutePolicyKey,
   readJsonBodyGuarded,

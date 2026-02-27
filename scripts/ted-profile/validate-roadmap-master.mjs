@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDocumentManagementQualityPolicy,
   validateDiscoveryIngestionQualityPolicy,
   validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
@@ -121,6 +122,10 @@ function parseArgs(argv) {
       repoRoot,
       "sidecars/ted-engine/config/evaluation_pipeline_policy.json",
     ),
+    documentManagementQualityPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/document_management_quality_policy.json",
+    ),
     mcpTrustPolicy: path.join(repoRoot, "sidecars/ted-engine/config/mcp_trust_policy.json"),
   };
 
@@ -232,6 +237,10 @@ function parseArgs(argv) {
     }
     if (arg === "--evaluation-pipeline-policy") {
       out.evaluationPipelinePolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--document-management-quality-policy") {
+      out.documentManagementQualityPolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
     if (arg === "--mcp-trust-policy") {
@@ -403,6 +412,11 @@ function main() {
       kind: "evaluation pipeline policy",
       path: args.evaluationPipelinePolicy,
       validator: validateEvaluationPipelinePolicy,
+    },
+    {
+      kind: "document management quality policy",
+      path: args.documentManagementQualityPolicy,
+      validator: validateDocumentManagementQualityPolicy,
     },
     {
       kind: "mcp trust policy",

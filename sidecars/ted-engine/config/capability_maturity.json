@@ -30,9 +30,9 @@
     },
     {
       "name": "document_management",
-      "level": 2,
+      "level": 3,
       "target": 3,
-      "notes": "Functional: SharePoint browse/search/upload. Missing: content extraction, document intelligence, data room integration."
+      "notes": "Governed: SharePoint browse/search/upload now backed by document connector quality policy + friction evidence. Missing: extraction and intelligence layers."
     },
     {
       "name": "governance_safety",

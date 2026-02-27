@@ -15,6 +15,7 @@ import { describe, test, expect } from "vitest";
 import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDocumentManagementQualityPolicy,
   validateDiscoveryIngestionQualityPolicy,
   validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
@@ -570,6 +571,13 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.errors).toHaveLength(0);
   });
 
+  test("document_management_quality_policy.json passes structural validation", () => {
+    const policy = configs.get("document_management_quality_policy.json");
+    const result = validateDocumentManagementQualityPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
   test("mcp_trust_policy.json passes structural validation", () => {
     const policy = configs.get("mcp_trust_policy.json");
     const result = validateMcpTrustPolicy(policy);
@@ -626,6 +634,7 @@ describe("Required config files exist", () => {
     "knowledge_retrieval_policy.json",
     "discovery_ingestion_quality_policy.json",
     "evaluation_pipeline_policy.json",
+    "document_management_quality_policy.json",
     "compatibility_policy.json",
     "retrofit_rf0_baseline_lock.json",
   ];

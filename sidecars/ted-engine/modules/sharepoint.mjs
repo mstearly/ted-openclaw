@@ -15,12 +15,14 @@ export function createSharePointHandlers(coreOrDeps) {
   const core = createSharePointCore(coreOrDeps);
   const {
     appendAudit,
+    appendConnectorFrictionEvent,
     appendEvent,
     blockedExplainability,
     checkExecutionBoundary,
     ensureValidToken,
     graphFetchWithRetry,
     logLine,
+    loadDocumentManagementQualityPolicy,
     normalizeRoutePolicyKey,
     readJsonBodyGuarded,
     requestedExecutionMode,
@@ -43,6 +45,88 @@ export function createSharePointHandlers(coreOrDeps) {
     };
   }
 
+  function getDocumentPolicy() {
+    const policy =
+      typeof loadDocumentManagementQualityPolicy === "function"
+        ? loadDocumentManagementQualityPolicy()
+        : null;
+    if (policy && typeof policy === "object") {
+      return policy;
+    }
+    return {
+      sharepoint: {
+        friction_statuses: [401, 403, 429, 500, 502, 503, 504],
+        high_severity_statuses: [429, 500, 502, 503, 504],
+        auth_required_reason_code: "DOCUMENT_CONNECTOR_AUTH_REQUIRED",
+        graph_error_reason_code: "DOCUMENT_CONNECTOR_GRAPH_ERROR",
+        rate_limit_reason_code: "DOCUMENT_CONNECTOR_RATE_LIMITED",
+      },
+    };
+  }
+
+  function normalizeReasonCode(raw) {
+    return typeof raw === "string" && raw.trim().length > 0
+      ? raw.trim().toLowerCase()
+      : "document_connector_graph_error";
+  }
+
+  function maybeLogSharePointFriction({ profileId, route, operation, statusCode, detail }) {
+    if (typeof appendConnectorFrictionEvent !== "function") {
+      return;
+    }
+    const policy = getDocumentPolicy();
+    const sharepointPolicy =
+      policy && typeof policy.sharepoint === "object" && policy.sharepoint ? policy.sharepoint : {};
+    const frictionStatuses = Array.isArray(sharepointPolicy.friction_statuses)
+      ? new Set(
+          sharepointPolicy.friction_statuses.filter(
+            (entry) => Number.isInteger(entry) && entry >= 100 && entry <= 599,
+          ),
+        )
+      : new Set([401, 403, 429, 500, 502, 503, 504]);
+    if (!frictionStatuses.has(statusCode)) {
+      return;
+    }
+    const highSeverityStatuses = Array.isArray(sharepointPolicy.high_severity_statuses)
+      ? new Set(
+          sharepointPolicy.high_severity_statuses.filter(
+            (entry) => Number.isInteger(entry) && entry >= 100 && entry <= 599,
+          ),
+        )
+      : new Set([429, 500, 502, 503, 504]);
+    const authReasonCode =
+      typeof sharepointPolicy.auth_required_reason_code === "string"
+        ? sharepointPolicy.auth_required_reason_code
+        : "DOCUMENT_CONNECTOR_AUTH_REQUIRED";
+    const graphErrorReasonCode =
+      typeof sharepointPolicy.graph_error_reason_code === "string"
+        ? sharepointPolicy.graph_error_reason_code
+        : "DOCUMENT_CONNECTOR_GRAPH_ERROR";
+    const rateLimitReasonCode =
+      typeof sharepointPolicy.rate_limit_reason_code === "string"
+        ? sharepointPolicy.rate_limit_reason_code
+        : "DOCUMENT_CONNECTOR_RATE_LIMITED";
+
+    let reasonCode = graphErrorReasonCode;
+    if (statusCode === 401 || statusCode === 403) {
+      reasonCode = authReasonCode;
+    } else if (statusCode === 429) {
+      reasonCode = rateLimitReasonCode;
+    }
+
+    appendConnectorFrictionEvent({
+      route,
+      profile_id: profileId,
+      connector: "sharepoint",
+      operation,
+      status_code: statusCode,
+      error_code: normalizeReasonCode(reasonCode),
+      reason: normalizeReasonCode(reasonCode),
+      severity: highSeverityStatuses.has(statusCode) ? "high" : "medium",
+      detail,
+    });
+  }
+
   async function sharePointListSites(profileId, res, route) {
     const routeKey = normalizeRoutePolicyKey(route);
     const modeCheck = requestedExecutionMode({ headers: {} });
@@ -54,6 +138,13 @@ export function createSharePointHandlers(coreOrDeps) {
 
     const tokenResult = await ensureValidToken(profileId);
     if (!tokenResult.ok) {
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "list_sites",
+        statusCode: 401,
+        detail: { error: "auth_required" },
+      });
       sendJson(res, 401, { error: "auth_required", message: "No valid token for profile" });
       return;
     }
@@ -71,6 +162,13 @@ export function createSharePointHandlers(coreOrDeps) {
       );
       if (!resp.ok) {
         const errBody = await resp.text().catch(() => "");
+        maybeLogSharePointFriction({
+          profileId,
+          route,
+          operation: "list_sites",
+          statusCode: resp.status,
+          detail: { graph_error: true },
+        });
         sendJson(res, resp.status, {
           error: "graph_error",
           message: `Graph API returned ${resp.status}`,
@@ -90,6 +188,13 @@ export function createSharePointHandlers(coreOrDeps) {
       sendJson(res, 200, { profile_id: profileId, sites, generated_at: new Date().toISOString() });
     } catch (err) {
       logLine(`SHAREPOINT_SITES_ERROR: ${err?.message || String(err)}`);
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "list_sites",
+        statusCode: 502,
+        detail: { message: err?.message || String(err) },
+      });
       sendJson(res, 502, { error: "graph_fetch_failed", message: err?.message || String(err) });
     }
   }
@@ -113,6 +218,13 @@ export function createSharePointHandlers(coreOrDeps) {
 
     const tokenResult = await ensureValidToken(profileId);
     if (!tokenResult.ok) {
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "list_drives",
+        statusCode: 401,
+        detail: { error: "auth_required" },
+      });
       sendJson(res, 401, { error: "auth_required", message: "No valid token for profile" });
       return;
     }
@@ -130,6 +242,13 @@ export function createSharePointHandlers(coreOrDeps) {
       );
       if (!resp.ok) {
         const errBody = await resp.text().catch(() => "");
+        maybeLogSharePointFriction({
+          profileId,
+          route,
+          operation: "list_drives",
+          statusCode: resp.status,
+          detail: { graph_error: true, site_id: siteId },
+        });
         sendJson(res, resp.status, {
           error: "graph_error",
           message: `Graph API returned ${resp.status}`,
@@ -163,6 +282,13 @@ export function createSharePointHandlers(coreOrDeps) {
       });
     } catch (err) {
       logLine(`SHAREPOINT_DRIVES_ERROR: ${err?.message || String(err)}`);
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "list_drives",
+        statusCode: 502,
+        detail: { message: err?.message || String(err), site_id: siteId },
+      });
       sendJson(res, 502, { error: "graph_fetch_failed", message: err?.message || String(err) });
     }
   }
@@ -186,6 +312,13 @@ export function createSharePointHandlers(coreOrDeps) {
 
     const tokenResult = await ensureValidToken(profileId);
     if (!tokenResult.ok) {
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "list_items",
+        statusCode: 401,
+        detail: { error: "auth_required", drive_id: driveId },
+      });
       sendJson(res, 401, { error: "auth_required", message: "No valid token for profile" });
       return;
     }
@@ -215,6 +348,13 @@ export function createSharePointHandlers(coreOrDeps) {
       );
       if (!resp.ok) {
         const errBody = await resp.text().catch(() => "");
+        maybeLogSharePointFriction({
+          profileId,
+          route,
+          operation: "list_items",
+          statusCode: resp.status,
+          detail: { graph_error: true, drive_id: driveId },
+        });
         sendJson(res, resp.status, {
           error: "graph_error",
           message: `Graph API returned ${resp.status}`,
@@ -246,6 +386,13 @@ export function createSharePointHandlers(coreOrDeps) {
       });
     } catch (err) {
       logLine(`SHAREPOINT_ITEMS_ERROR: ${err?.message || String(err)}`);
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "list_items",
+        statusCode: 502,
+        detail: { message: err?.message || String(err), drive_id: driveId },
+      });
       sendJson(res, 502, { error: "graph_fetch_failed", message: err?.message || String(err) });
     }
   }
@@ -269,6 +416,13 @@ export function createSharePointHandlers(coreOrDeps) {
 
     const tokenResult = await ensureValidToken(profileId);
     if (!tokenResult.ok) {
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "get_item",
+        statusCode: 401,
+        detail: { error: "auth_required", drive_id: driveId, item_id: itemId },
+      });
       sendJson(res, 401, { error: "auth_required", message: "No valid token for profile" });
       return;
     }
@@ -286,6 +440,13 @@ export function createSharePointHandlers(coreOrDeps) {
       );
       if (!resp.ok) {
         const errBody = await resp.text().catch(() => "");
+        maybeLogSharePointFriction({
+          profileId,
+          route,
+          operation: "get_item",
+          statusCode: resp.status,
+          detail: { graph_error: true, drive_id: driveId, item_id: itemId },
+        });
         sendJson(res, resp.status, {
           error: "graph_error",
           message: `Graph API returned ${resp.status}`,
@@ -314,6 +475,13 @@ export function createSharePointHandlers(coreOrDeps) {
       });
     } catch (err) {
       logLine(`SHAREPOINT_ITEM_ERROR: ${err?.message || String(err)}`);
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "get_item",
+        statusCode: 502,
+        detail: { message: err?.message || String(err), drive_id: driveId, item_id: itemId },
+      });
       sendJson(res, 502, { error: "graph_fetch_failed", message: err?.message || String(err) });
     }
   }
@@ -343,6 +511,13 @@ export function createSharePointHandlers(coreOrDeps) {
 
     const tokenResult = await ensureValidToken(profileId);
     if (!tokenResult.ok) {
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "search",
+        statusCode: 401,
+        detail: { error: "auth_required", drive_id: driveId },
+      });
       sendJson(res, 401, { error: "auth_required", message: "No valid token for profile" });
       return;
     }
@@ -360,6 +535,13 @@ export function createSharePointHandlers(coreOrDeps) {
       );
       if (!resp.ok) {
         const errBody = await resp.text().catch(() => "");
+        maybeLogSharePointFriction({
+          profileId,
+          route,
+          operation: "search",
+          statusCode: resp.status,
+          detail: { graph_error: true, drive_id: driveId },
+        });
         sendJson(res, resp.status, {
           error: "graph_error",
           message: `Graph API returned ${resp.status}`,
@@ -390,6 +572,13 @@ export function createSharePointHandlers(coreOrDeps) {
       });
     } catch (err) {
       logLine(`SHAREPOINT_SEARCH_ERROR: ${err?.message || String(err)}`);
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "search",
+        statusCode: 502,
+        detail: { message: err?.message || String(err), drive_id: driveId },
+      });
       sendJson(res, 502, { error: "graph_fetch_failed", message: err?.message || String(err) });
     }
   }
@@ -447,6 +636,13 @@ export function createSharePointHandlers(coreOrDeps) {
 
     const tokenResult = await ensureValidToken(profileId);
     if (!tokenResult.ok) {
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "upload",
+        statusCode: 401,
+        detail: { error: "auth_required", drive_id: driveId },
+      });
       sendJson(res, 401, { error: "auth_required", message: "No valid token for profile" });
       return;
     }
@@ -470,6 +666,13 @@ export function createSharePointHandlers(coreOrDeps) {
       );
       if (!resp.ok) {
         const errBody = await resp.text().catch(() => "");
+        maybeLogSharePointFriction({
+          profileId,
+          route,
+          operation: "upload",
+          statusCode: resp.status,
+          detail: { graph_error: true, drive_id: driveId, path: uploadPath },
+        });
         sendJson(res, resp.status, {
           error: "graph_upload_error",
           message: `Graph API returned ${resp.status}`,
@@ -499,6 +702,13 @@ export function createSharePointHandlers(coreOrDeps) {
       });
     } catch (err) {
       logLine(`SHAREPOINT_UPLOAD_ERROR: ${err?.message || String(err)}`);
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "upload",
+        statusCode: 502,
+        detail: { message: err?.message || String(err), drive_id: driveId, path: uploadPath },
+      });
       sendJson(res, 502, { error: "graph_upload_failed", message: err?.message || String(err) });
     }
   }
@@ -549,6 +759,13 @@ export function createSharePointHandlers(coreOrDeps) {
 
     const tokenResult = await ensureValidToken(profileId);
     if (!tokenResult.ok) {
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "create_folder",
+        statusCode: 401,
+        detail: { error: "auth_required", drive_id: driveId },
+      });
       sendJson(res, 401, { error: "auth_required", message: "No valid token for profile" });
       return;
     }
@@ -576,6 +793,13 @@ export function createSharePointHandlers(coreOrDeps) {
       );
       if (!resp.ok) {
         const errBody = await resp.text().catch(() => "");
+        maybeLogSharePointFriction({
+          profileId,
+          route,
+          operation: "create_folder",
+          statusCode: resp.status,
+          detail: { graph_error: true, drive_id: driveId, parent_path: parentPath || "/" },
+        });
         sendJson(res, resp.status, {
           error: "graph_folder_error",
           message: `Graph API returned ${resp.status}`,
@@ -605,6 +829,17 @@ export function createSharePointHandlers(coreOrDeps) {
       });
     } catch (err) {
       logLine(`SHAREPOINT_FOLDER_ERROR: ${err?.message || String(err)}`);
+      maybeLogSharePointFriction({
+        profileId,
+        route,
+        operation: "create_folder",
+        statusCode: 502,
+        detail: {
+          message: err?.message || String(err),
+          drive_id: driveId,
+          parent_path: parentPath || "/",
+        },
+      });
       sendJson(res, 502, { error: "graph_folder_failed", message: err?.message || String(err) });
     }
   }

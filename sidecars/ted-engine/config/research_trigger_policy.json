@@ -9,7 +9,8 @@
   },
   "triggers": {
     "maturity_gap_requires_research": true,
-    "low_usage_requires_research": true
+    "low_usage_requires_research": true,
+    "low_usage_research_cooldown_days": 90
   },
   "strategic_feature_ids": [
     "m365_integration",

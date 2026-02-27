@@ -1,0 +1,20 @@
+{
+  "_config_version": 1,
+  "_artifact": "document_management_quality_policy",
+  "_description": "Quality and friction policy for document-management connector workflows (SharePoint-first).",
+  "sharepoint": {
+    "friction_statuses": [401, 403, 429, 500, 502, 503, 504],
+    "high_severity_statuses": [429, 500, 502, 503, 504],
+    "auth_required_reason_code": "DOCUMENT_CONNECTOR_AUTH_REQUIRED",
+    "graph_error_reason_code": "DOCUMENT_CONNECTOR_GRAPH_ERROR",
+    "rate_limit_reason_code": "DOCUMENT_CONNECTOR_RATE_LIMITED"
+  },
+  "governance": {
+    "emit_events": ["friction.event.logged"],
+    "required_reason_codes": [
+      "DOCUMENT_CONNECTOR_AUTH_REQUIRED",
+      "DOCUMENT_CONNECTOR_GRAPH_ERROR",
+      "DOCUMENT_CONNECTOR_RATE_LIMITED"
+    ]
+  }
+}

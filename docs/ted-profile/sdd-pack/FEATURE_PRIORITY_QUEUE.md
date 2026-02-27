@@ -1,13 +1,13 @@
 # Feature Priority Queue
 
-Generated at: 2026-02-27T17:57:55.895Z
+Generated at: 2026-02-27T18:11:56.113Z
 
 ## Totals
 
 - Features: 27
 - Risk remediation now: 0
-- Value activation now: 19
-- Research before build: 7
+- Value activation now: 26
+- Research before build: 0
 - Backlog monitor: 1
 
 ## Top Risk Remediation
@@ -17,18 +17,14 @@ Generated at: 2026-02-27T17:57:55.895Z
 ## Top Value Activation
 
 - draft_state_machine: score=52.15, fragility=27, maturity=3, adoption=0, action=run_activation_experiment
+- m365_integration: score=52.15, fragility=27, maturity=3, adoption=0, action=run_activation_experiment
+- reconciliation_engine: score=52.15, fragility=27, maturity=3, adoption=0, action=run_activation_experiment
+- sharepoint_integration: score=52.15, fragility=27, maturity=3, adoption=0, action=run_activation_experiment
 - non_destructive_evolution: score=51.7, fragility=26, maturity=3, adoption=0, action=run_activation_experiment
-- discovery_pipeline: score=51.25, fragility=25, maturity=3, adoption=0, action=run_activation_experiment
-- email_handling: score=51.25, fragility=25, maturity=3, adoption=0, action=run_activation_experiment
-- evaluation_pipeline: score=51.25, fragility=25, maturity=3, adoption=0, action=run_activation_experiment
 
 ## Top Research Before Build
 
-- sharepoint_integration: score=58.95, fragility=31, maturity=2, adoption=0, action=perform_targeted_research_delta
-- document_management: score=57.15, fragility=27, maturity=2, adoption=0, action=perform_targeted_research_delta
-- m365_integration: score=52.15, fragility=27, maturity=3, adoption=0, action=perform_targeted_research_delta
-- reconciliation_engine: score=52.15, fragility=27, maturity=3, adoption=0, action=perform_targeted_research_delta
-- builder_lane: score=49, fragility=20, maturity=3, adoption=0, action=perform_targeted_research_delta
+- none
 
 ## Backlog Monitor
 

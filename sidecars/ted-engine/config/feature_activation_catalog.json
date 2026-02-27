@@ -58,6 +58,38 @@
       "owner": "council.experience",
       "success_metric": "success_rate_30d",
       "target_delta": 0.08
+    },
+    {
+      "feature_id": "sharepoint_integration",
+      "jtbd": "retrieve and update deal documents without leaving the operating workflow",
+      "activation_hypothesis": "document quick-start prompts for browse/search/upload increase weekly connector usage",
+      "owner": "council.connectors",
+      "success_metric": "invocation_count_30d",
+      "target_delta": 12
+    },
+    {
+      "feature_id": "document_management",
+      "jtbd": "keep filing and evidence workflows current with less manual overhead",
+      "activation_hypothesis": "filing assistant templates tied to SharePoint routes improve adoption and completion",
+      "owner": "council.experience",
+      "success_metric": "adoption_ratio_30d",
+      "target_delta": 0.1
+    },
+    {
+      "feature_id": "reconciliation_engine",
+      "jtbd": "reduce task drift between Planner and To Do systems",
+      "activation_hypothesis": "weekly drift digest with one-click proposal approval increases reconciliation run frequency",
+      "owner": "council.state",
+      "success_metric": "invocation_count_30d",
+      "target_delta": 10
+    },
+    {
+      "feature_id": "non_destructive_evolution",
+      "jtbd": "ship policy/config upgrades without breaking active workflows",
+      "activation_hypothesis": "upgrade readiness checklist and guided dry-run prompts increase safe migration usage",
+      "owner": "council.governance",
+      "success_metric": "invocation_count_30d",
+      "target_delta": 8
     }
   ]
 }

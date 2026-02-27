@@ -29,6 +29,10 @@ function isFiniteNumber(value) {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function isValidHttpStatusCode(value) {
+  return Number.isInteger(value) && value >= 100 && value <= 599;
+}
+
 function toTimestampMs(value) {
   if (typeof value !== "string" || value.trim().length === 0) {
     return 0;
@@ -1049,6 +1053,93 @@ export function validateEvaluationPipelinePolicy(policy) {
     if (uniqueStringList(governance.required_reason_codes).length === 0) {
       errors.push({
         code: "EVALUATION_PIPELINE_POLICY_REASON_CODES_INVALID",
+        message: "governance.required_reason_codes must be non-empty",
+      });
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+export function validateDocumentManagementQualityPolicy(policy) {
+  const errors = [];
+  if (
+    !expectArtifact(
+      policy,
+      "document_management_quality_policy",
+      "DOCUMENT_MANAGEMENT_QUALITY_POLICY",
+      errors,
+    )
+  ) {
+    return { ok: false, errors };
+  }
+
+  const sharepoint = isObject(policy.sharepoint) ? policy.sharepoint : null;
+  if (!sharepoint) {
+    errors.push({
+      code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_SHAREPOINT_MISSING",
+      message: "sharepoint must be an object",
+    });
+  } else {
+    const frictionStatuses = uniqueStringList(
+      Array.isArray(sharepoint.friction_statuses)
+        ? sharepoint.friction_statuses.map((entry) => String(entry))
+        : [],
+    );
+    if (frictionStatuses.length === 0) {
+      errors.push({
+        code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_FRICTION_STATUSES_INVALID",
+        message: "sharepoint.friction_statuses must be a non-empty array",
+      });
+    }
+    if (
+      !Array.isArray(sharepoint.friction_statuses) ||
+      !sharepoint.friction_statuses.every((entry) => isValidHttpStatusCode(entry))
+    ) {
+      errors.push({
+        code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_FRICTION_STATUS_CODE_INVALID",
+        message: "sharepoint.friction_statuses must only include HTTP status codes [100,599]",
+      });
+    }
+    if (
+      !Array.isArray(sharepoint.high_severity_statuses) ||
+      !sharepoint.high_severity_statuses.every((entry) => isValidHttpStatusCode(entry))
+    ) {
+      errors.push({
+        code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_HIGH_SEVERITY_STATUS_INVALID",
+        message: "sharepoint.high_severity_statuses must only include HTTP status codes [100,599]",
+      });
+    }
+    for (const field of [
+      "auth_required_reason_code",
+      "graph_error_reason_code",
+      "rate_limit_reason_code",
+    ]) {
+      if (typeof sharepoint[field] !== "string" || sharepoint[field].trim().length === 0) {
+        errors.push({
+          code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_REASON_CODE_INVALID",
+          message: `sharepoint.${field} must be a non-empty string`,
+        });
+      }
+    }
+  }
+
+  const governance = isObject(policy.governance) ? policy.governance : null;
+  if (!governance) {
+    errors.push({
+      code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_GOVERNANCE_MISSING",
+      message: "governance must be an object",
+    });
+  } else {
+    if (uniqueStringList(governance.emit_events).length === 0) {
+      errors.push({
+        code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_EMIT_EVENTS_INVALID",
+        message: "governance.emit_events must be non-empty",
+      });
+    }
+    if (uniqueStringList(governance.required_reason_codes).length === 0) {
+      errors.push({
+        code: "DOCUMENT_MANAGEMENT_QUALITY_POLICY_REASON_CODES_INVALID",
         message: "governance.required_reason_codes must be non-empty",
       });
     }

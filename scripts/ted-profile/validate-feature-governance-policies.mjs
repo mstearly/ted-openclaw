@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   validateConnectorCertificationMatrix,
   validateContextPolicy,
+  validateDocumentManagementQualityPolicy,
   validateDiscoveryIngestionQualityPolicy,
   validateEvaluationPipelinePolicy,
   validateFeatureActivationCatalog,
@@ -90,6 +91,14 @@ function main() {
       kind: "evaluation pipeline policy",
       path: path.join(repoRoot, "sidecars/ted-engine/config/evaluation_pipeline_policy.json"),
       validator: validateEvaluationPipelinePolicy,
+    },
+    {
+      kind: "document management quality policy",
+      path: path.join(
+        repoRoot,
+        "sidecars/ted-engine/config/document_management_quality_policy.json",
+      ),
+      validator: validateDocumentManagementQualityPolicy,
     },
     {
       kind: "mcp trust policy",

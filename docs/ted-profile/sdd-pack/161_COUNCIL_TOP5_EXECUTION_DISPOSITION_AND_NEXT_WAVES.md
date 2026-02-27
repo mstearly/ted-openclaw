@@ -1,7 +1,7 @@
 # SDD 161 - Council Top 5 Execution Disposition and Next Waves
 
 Date: 2026-02-27
-Status: Waves T5-A, T5-B1, T5-C1 through T5-C2, and T5-D1 through T5-D2 executed
+Status: Waves T5-A through T5-F1 executed
 Parents: SDD 160
 
 ## 1. Execution scope
@@ -218,6 +218,70 @@ Current research-priority top set after T5-D2:
 4. `reconciliation_engine`
 5. `builder_lane`
 
+## 3.5 SharePoint/document research closure + connector friction loop executed (Waves T5-E1/T5-E2)
+
+Council executed the next recursive wave pass:
+
+1. Added governed connector-quality contract for document workflows:
+   - Added `sidecars/ted-engine/config/document_management_quality_policy.json`.
+   - Wired validation through startup, roadmap validator, policy validator, and config schema tests.
+2. Added connector-heavy friction instrumentation for SharePoint document operations:
+   - SharePoint routes now emit governed `friction_event` records to `job_friction.jsonl` for auth/rate-limit/graph-failure status paths based on policy-configured status sets.
+   - Maintains `friction.event.logged` telemetry for board/audit traceability.
+3. Closed research-before-build status for SharePoint/document baseline governance:
+   - `sharepoint_integration`: lifecycle `incubating -> graduated`, maturity `2 -> 3`
+   - `document_management`: maturity `2 -> 3`
+   - aligned in:
+     - `feature_registry.json`
+     - `feature_maturity.json`
+     - `capability_maturity.json`
+     - `research_debt_scores.json`
+4. Expanded activation playbooks for value-now features:
+   - Added activation experiments for `sharepoint_integration` and `document_management`.
+   - Existing playbooks for `evaluation_pipeline`, `discovery_pipeline`, and `draft_state_machine` remain active.
+
+Queue impact after T5-E2:
+
+1. Risk remediation now: `0`
+2. Value activation now: `21` (from `19`)
+3. Research before build: `5` (from `7`)
+4. Backlog monitor: `1` (`multi_user`)
+
+Current research-priority top set after T5-E2:
+
+1. `m365_integration`
+2. `reconciliation_engine`
+3. `builder_lane`
+4. `scheduler`
+5. `governance_choke_point`
+
+## 3.6 Strategic research-cooldown closure loop executed (Wave T5-F1)
+
+Council executed the next recursive wave pass to close remaining research-only queue items:
+
+1. Added policy-controlled strategic research cooldown behavior:
+   - `research_trigger_policy.json` now supports `triggers.low_usage_research_cooldown_days`.
+   - `feature_health` scoring now suppresses repeat low-usage research triggers for strategic features that have a recent benchmark date inside cooldown.
+2. Refreshed strategic benchmark metadata for remaining strategic features:
+   - `m365_integration`
+   - `reconciliation_engine`
+   - `builder_lane`
+   - `scheduler`
+   - `governance_choke_point`
+     with `last_benchmark_date=2026-02-27` and explicit external pattern references in `feature_registry.json`.
+3. Regenerated feature governance ledgers and queue after policy + metadata updates.
+
+Queue impact after T5-F1:
+
+1. Risk remediation now: `0`
+2. Value activation now: `26` (from `21`)
+3. Research before build: `0` (from `5`)
+4. Backlog monitor: `1` (`multi_user`)
+
+Current research-priority top set after T5-F1:
+
+1. none
+
 ## 4. Validation and regression evidence
 
 Executed checks:
@@ -228,7 +292,7 @@ Executed checks:
 4. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/migration-runner.test.mjs`
    - result: 15 files passed, 1883 tests passed, 0 failed.
 5. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/contracts.test.mjs`
-   - result: 15 files passed, 1903 tests passed, 0 failed.
+   - result: 15 files passed, 1909 tests passed, 0 failed.
 
 ## 5. Next executable waves (recommended)
 
@@ -265,8 +329,8 @@ Tasks:
 
 ## 6. Council recommendation
 
-Proceed with Wave T5-E next, focused on:
+Proceed with Wave T5-G next, focused on:
 
-1. SharePoint/document-management research-before-build closures.
-2. Activation playbooks for top value-now features (`evaluation_pipeline`, `discovery_pipeline`, `draft_state_machine`).
-3. Continued friction signal enrichment for connector-heavy discovery/document workflows.
+1. Execute activation experiments for top value-now features and publish week-over-week deltas.
+2. Keep `multi_user` explicitly deferred in backlog monitor until multi-operator demand is confirmed.
+3. Continue connector-friction enrichment for cross-connector discovery/document handoffs as runtime evidence accumulates.

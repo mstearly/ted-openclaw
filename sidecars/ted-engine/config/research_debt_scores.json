@@ -54,10 +54,10 @@
     },
     {
       "name": "sharepoint",
-      "findings_count": 2,
-      "explained": false,
-      "last_reviewed": "cycle_012",
-      "debt_score": "medium"
+      "findings_count": 3,
+      "explained": true,
+      "last_reviewed": "cycle_013",
+      "debt_score": "low"
     },
     {
       "name": "hipaa_compliance",

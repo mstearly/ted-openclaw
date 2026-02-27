@@ -61,16 +61,20 @@
       },
       "dependencies": ["governance_choke_point", "event_sourcing"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "human_gate_for_autonomy_escalation",
+          "proposal_shadow_mode_before_apply",
+          "policy_diff_with_revert_checkpoint"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "low",
-        "notes": "Complete implementation. Last finding: rubber-stamping detection (Cycle QA, fixed)."
+        "notes": "Complete implementation. Last finding: rubber-stamping detection (Cycle QA, fixed). Research benchmark refreshed for current operating cycle."
       }
     },
     {
@@ -332,8 +336,8 @@
       "backup_owner": "operator.primary",
       "module_class": "workflow",
       "lifecycle_state": "graduated",
-      "maturity_score": 2,
-      "fragility_score": 63,
+      "maturity_score": 3,
+      "fragility_score": 55,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -346,7 +350,8 @@
       "security_controls": {
         "policy_refs": [
           "sidecars/ted-engine/config/hard_bans.json",
-          "sidecars/ted-engine/config/operator_profile.json"
+          "sidecars/ted-engine/config/operator_profile.json",
+          "sidecars/ted-engine/config/document_management_quality_policy.json"
         ],
         "owasp_llm_top10": ["LLM02", "LLM04"]
       },
@@ -360,18 +365,22 @@
         "adoption_ratio_30d": null,
         "success_rate_30d": null
       },
-      "dependencies": [],
+      "dependencies": ["sharepoint_integration"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "metadata_first_document_indexing",
+          "progressive_document_enrichment_pipeline",
+          "human_in_the_loop_filing_review"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": null,
-        "capability_level": 2,
+        "capability_level": 3,
         "capability_target": 3,
         "research_debt_score": null,
-        "notes": "Functional: SharePoint browse/search/upload. Missing: content extraction, document intelligence, data room integration."
+        "notes": "Governed: document workflows now include SharePoint connector quality policy + friction evidence logging. Next: content extraction, document intelligence, and data room orchestration."
       }
     },
     {
@@ -613,16 +622,20 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "policy_as_code_with_fail_closed_defaults",
+          "audit_first_dual_write_enforcement",
+          "reason_code_taxonomy_for_operator_overrides"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "mature",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": null,
-        "notes": "Single sidecar. Execution boundary policy. No bypass. No findings in 4+ cycles."
+        "notes": "Single sidecar. Execution boundary policy. No bypass. No findings in 4+ cycles. Research benchmark refreshed for current operating cycle."
       }
     },
     {
@@ -868,16 +881,20 @@
       },
       "dependencies": ["governance_choke_point"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "microsoft_graph_webhooks_plus_delta_sync",
+          "cross_surface_workload_partitioning",
+          "least_privilege_delegated_scopes"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": null,
-        "notes": "Mail, Calendar, Planner, To Do, SharePoint. Last finding: ensureValidToken in reconcile."
+        "notes": "Mail, Calendar, Planner, To Do, SharePoint. Last finding: ensureValidToken in reconcile. Research benchmark refreshed for current operating cycle."
       }
     },
     {
@@ -1118,16 +1135,20 @@
       },
       "dependencies": ["m365_integration"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "idempotent_task_reconciliation_with_etag_guards",
+          "human_approval_before_cross_system_writeback",
+          "sync_conflict_ledger_and_retry_window"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": null,
-        "notes": "Planner/To Do sync, dedup. Last finding: graphFetchWithRetry upgrade."
+        "notes": "Planner/To Do sync, dedup. Last finding: graphFetchWithRetry upgrade. Research benchmark refreshed for current operating cycle."
       }
     },
     {
@@ -1168,16 +1189,20 @@
       },
       "dependencies": ["draft_state_machine", "self_healing"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "event_sourced_scheduler_with_idempotent_dispatch",
+          "priority_queue_with_pause_resume_semantics",
+          "stale_job_escalation_with_owner_ack"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "low",
-        "notes": "Cron matching, 6 gates, auto-dispatch. Last finding: DOW=7 Sunday (Cycle 11, fixed)."
+        "notes": "Cron matching, 6 gates, auto-dispatch. Last finding: DOW=7 Sunday (Cycle 11, fixed). Research benchmark refreshed for current operating cycle."
       }
     },
     {
@@ -1287,9 +1312,9 @@
       "owner": "council.connectors",
       "backup_owner": "operator.primary",
       "module_class": "connector",
-      "lifecycle_state": "incubating",
-      "maturity_score": 2,
-      "fragility_score": 71,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 60,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -1302,7 +1327,8 @@
       "security_controls": {
         "policy_refs": [
           "sidecars/ted-engine/config/hard_bans.json",
-          "sidecars/ted-engine/config/connector_admission_policy.json"
+          "sidecars/ted-engine/config/connector_admission_policy.json",
+          "sidecars/ted-engine/config/document_management_quality_policy.json"
         ],
         "owasp_llm_top10": ["LLM07", "LLM10"]
       },
@@ -1318,16 +1344,20 @@
       },
       "dependencies": ["m365_integration"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "ms_graph_change_notifications_for_incremental_sync",
+          "document_connector_retry_with_idempotency_keys",
+          "least_privilege_scoped_document_access"
+        ]
       },
       "source_refs": {
-        "feature_maturity_level": "incubating",
+        "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
-        "research_debt_score": null,
-        "notes": "7 routes. Needs: content extraction, document intelligence."
+        "research_debt_score": "low",
+        "notes": "Governed: SharePoint connector now runs with document-quality policy, connector friction telemetry, and operator-safe write controls. Next: content extraction + document intelligence layers."
       }
     },
     {

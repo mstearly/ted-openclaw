@@ -341,6 +341,35 @@ export function validateResearchTriggerPolicy(policy) {
     });
   }
 
+  const triggers = isObject(policy?.triggers) ? policy.triggers : null;
+  if (!triggers) {
+    errors.push({
+      code: "RESEARCH_TRIGGER_POLICY_TRIGGERS_MISSING",
+      message: "research_trigger_policy.triggers must be an object",
+    });
+  } else {
+    for (const key of ["maturity_gap_requires_research", "low_usage_requires_research"]) {
+      if (typeof triggers[key] !== "boolean") {
+        errors.push({
+          code: "RESEARCH_TRIGGER_POLICY_TRIGGER_FLAG_INVALID",
+          message: `research_trigger_policy.triggers.${key} must be boolean`,
+        });
+      }
+    }
+    if (
+      triggers.low_usage_research_cooldown_days !== undefined &&
+      (!Number.isInteger(triggers.low_usage_research_cooldown_days) ||
+        triggers.low_usage_research_cooldown_days < 0 ||
+        triggers.low_usage_research_cooldown_days > 3650)
+    ) {
+      errors.push({
+        code: "RESEARCH_TRIGGER_POLICY_LOW_USAGE_COOLDOWN_INVALID",
+        message:
+          "research_trigger_policy.triggers.low_usage_research_cooldown_days must be integer in [0, 3650]",
+      });
+    }
+  }
+
   return {
     ok: errors.length === 0,
     errors,
@@ -519,7 +548,9 @@ export function computeFeatureHealthSnapshot(options) {
 
   const features = Array.isArray(registry?.features) ? registry.features : [];
   const lookbackDays = fragilityPolicy?.window?.lookback_days || 30;
-  const sinceMs = Date.parse(generatedAt) - lookbackDays * 24 * 60 * 60 * 1000;
+  const generatedAtMs = Date.parse(generatedAt);
+  const nowMs = Number.isFinite(generatedAtMs) ? generatedAtMs : Date.now();
+  const sinceMs = nowMs - lookbackDays * 24 * 60 * 60 * 1000;
 
   const globalReplayFailure = aggregateReplayRisk(replayRuns, sinceMs);
   const globalHarmfulFriction = aggregateFrictionRisk(frictionEvents, sinceMs);
@@ -552,6 +583,12 @@ export function computeFeatureHealthSnapshot(options) {
     researchTriggerPolicy?.triggers?.maturity_gap_requires_research !== false;
   const lowUsageRequiresResearch =
     researchTriggerPolicy?.triggers?.low_usage_requires_research !== false;
+  const lowUsageResearchCooldownDays = Number.isInteger(
+    researchTriggerPolicy?.triggers?.low_usage_research_cooldown_days,
+  )
+    ? researchTriggerPolicy.triggers.low_usage_research_cooldown_days
+    : 0;
+  const lowUsageResearchCooldownMs = lowUsageResearchCooldownDays * 24 * 60 * 60 * 1000;
 
   const evaluated = [];
   for (const feature of features) {
@@ -603,10 +640,16 @@ export function computeFeatureHealthSnapshot(options) {
     const escalation = fragilityScore >= (fragilityPolicy?.thresholds?.escalation_score ?? 85);
 
     const maturityRisk = maturityGapRequiresResearch && maturityScore <= researchMaturityThreshold;
+    const benchmarkedAtMs = Date.parse(feature?.research_profile?.last_benchmark_date || "");
+    const lowUsageResearchCoolingDown =
+      lowUsageResearchCooldownMs > 0 &&
+      Number.isFinite(benchmarkedAtMs) &&
+      nowMs - benchmarkedAtMs <= lowUsageResearchCooldownMs;
     const lowUsageRisk =
       lowUsageRequiresResearch &&
       strategicFeatureSet.has(featureId) &&
-      usage.adoption_ratio_30d <= researchLowUsageThreshold;
+      usage.adoption_ratio_30d <= researchLowUsageThreshold &&
+      !lowUsageResearchCoolingDown;
     const researchRequired =
       fragilityScore >= researchFragilityThreshold || maturityRisk || lowUsageRisk;
 
