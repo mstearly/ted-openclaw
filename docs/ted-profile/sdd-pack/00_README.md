@@ -17,6 +17,19 @@
    - Use `10_ROADMAP_JOB_BOARD.md` as the backlog spine.
    - Every job card includes _Proof_ steps (deterministic commands/tests) and a _Definition of Done_.
 
+4. **Use DFA-OS zero-search navigation for current governance operations**
+   - Start at `162_COUNCIL_DFA_OS_DOCUMENTATION_CLOSURE_AND_ZERO_SEARCH_MAP.md`.
+   - Then use:
+     - `166_COUNCIL_27_FEATURE_DEEP_REVIEW_RECURSIVE_LOOP.md`
+     - `167_COUNCIL_FEATURE_REVIEW_01_BUILDER_LANE.md`
+     - `168_COUNCIL_FEATURE_REVIEW_02_CALENDAR_AWARENESS.md`
+     - Full feature review set: `167_...` through `193_...` (indexed in `166_COUNCIL_27_FEATURE_DEEP_REVIEW_RECURSIVE_LOOP.md`)
+     - `194_COUNCIL_FEATURE_REVIEW_QUALITY_AUDIT_AND_REMEDIATION_PLAN.md`
+     - `151_COUNCIL_AGENTIC_DOCUMENTATION_AND_FEATURE_AWARENESS_OPERATING_MODEL.md`
+     - `163_COUNCIL_DFA_OS_OPERATOR_QUICKSTART.md`
+     - `160_COUNCIL_OPERATOR_COACHING_PASS_TOP5.md`
+     - `161_COUNCIL_TOP5_EXECUTION_DISPOSITION_AND_NEXT_WAVES.md`
+
 ---
 
 ## What This Pack Produces

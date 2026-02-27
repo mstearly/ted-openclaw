@@ -66,7 +66,11 @@
         "external_patterns": [
           "human_gate_for_autonomy_escalation",
           "proposal_shadow_mode_before_apply",
-          "policy_diff_with_revert_checkpoint"
+          "policy_diff_with_revert_checkpoint",
+          "permission_scoped_agent_skills",
+          "template_driven_automation_builder",
+          "enterprise_context_grounded_proposals",
+          "operator_digest_ranked_actions"
         ]
       },
       "source_refs": {
@@ -74,7 +78,7 @@
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "low",
-        "notes": "Complete implementation. Last finding: rubber-stamping detection (Cycle QA, fixed). Research benchmark refreshed for current operating cycle."
+        "notes": "Complete implementation. Last finding: rubber-stamping detection (Cycle QA, fixed). Research benchmark refreshed for current operating cycle. Feature Review 01 completed (SDD 167)."
       }
     },
     {
@@ -115,16 +119,21 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "timezone_aware_calendar_fetch_and_render",
+          "ai_assisted_calendar_actions_from_inbox",
+          "meeting_notes_to_action_items_pipeline",
+          "unified_meeting_object_across_tools"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": null,
         "capability_level": 3,
         "capability_target": 3,
         "research_debt_score": null,
-        "notes": "Governed: read events with attendees/body, meeting prep/debrief, enriched normalization. Target met."
+        "notes": "Governed: read events with attendees/body, meeting prep/debrief, enriched normalization. Target met. Feature Review 02 completed (SDD 168)."
       }
     },
     {
@@ -165,16 +174,22 @@
       },
       "dependencies": ["schema_versioning"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "safe_configuration_migration_with_rollback_checkpoints",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Implemented migration runner + startup path with blocked/failed/migrated events and dry-run tests."
+        "notes": "Implemented migration runner + startup path with blocked/failed/migrated events and dry-run tests. Feature Review 03 deep re-review passed (SDD 169)."
       }
     },
     {
@@ -215,16 +230,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "untrusted_content_isolation_and_prompt_injection_resilience",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Implemented untrusted-content isolation prompts, hard-ban/output-contract enforcement, and contamination replay assertions."
+        "notes": "Implemented untrusted-content isolation prompts, hard-ban/output-contract enforcement, and contamination replay assertions. Feature Review 04 deep re-review passed (SDD 170)."
       }
     },
     {
@@ -265,16 +286,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "pipeline_visibility_and_next_best_action_guidance",
+          "assistant_in_context_user_workflows",
+          "meeting_and_task_summary_assistance",
+          "template_driven_onboarding_and_activation",
+          "operator_digest_with_actionable_next_steps"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "incubating",
         "capability_level": 3,
         "capability_target": 3,
         "research_debt_score": null,
-        "notes": "Governed: deal pipeline, stage management, stale owner tracking, retrospective, auto-brief. Target met."
+        "notes": "Governed: deal pipeline, stage management, stale owner tracking, retrospective, auto-brief. Target met. Feature Review 05 deep re-review passed (SDD 171)."
       }
     },
     {
@@ -316,16 +343,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "signal_discovery_with_precision_recall_guardrails",
+          "durable_execution_and_memory_state",
+          "event_sourced_traceability",
+          "idempotent_reconciliation_patterns",
+          "state_quality_feedback_loops"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "medium",
-        "notes": "Incremental scan and dedup quality guardrails are now governed through policy and replay evidence."
+        "notes": "Incremental scan and dedup quality guardrails are now governed through policy and replay evidence. Feature Review 06 deep re-review passed (SDD 172)."
       }
     },
     {
@@ -372,7 +405,12 @@
         "external_patterns": [
           "metadata_first_document_indexing",
           "progressive_document_enrichment_pipeline",
-          "human_in_the_loop_filing_review"
+          "human_in_the_loop_filing_review",
+          "metadata_first_document_indexing_and_retrieval",
+          "assistant_in_context_user_workflows",
+          "meeting_and_task_summary_assistance",
+          "template_driven_onboarding_and_activation",
+          "operator_digest_with_actionable_next_steps"
         ]
       },
       "source_refs": {
@@ -380,7 +418,7 @@
         "capability_level": 3,
         "capability_target": 3,
         "research_debt_score": null,
-        "notes": "Governed: document workflows now include SharePoint connector quality policy + friction evidence logging. Next: content extraction, document intelligence, and data room orchestration."
+        "notes": "Governed: document workflows now include SharePoint connector quality policy + friction evidence logging. Next: content extraction, document intelligence, and data room orchestration. Feature Review 07 deep re-review passed (SDD 173)."
       }
     },
     {
@@ -421,16 +459,22 @@
       },
       "dependencies": ["event_sourcing"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "stage_gated_draft_lifecycle_with_auditability",
+          "durable_execution_and_memory_state",
+          "event_sourced_traceability",
+          "idempotent_reconciliation_patterns",
+          "state_quality_feedback_loops"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": null,
-        "notes": "6-state lifecycle. Last finding: req.destroy ordering (Cycle 11, fixed)."
+        "notes": "6-state lifecycle plus self-healing dead-letter handling. Retry-pending path remains a follow-up implementation item. Feature Review 08 deep re-review passed (SDD 174)."
       }
     },
     {
@@ -471,16 +515,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "inbox_triage_to_draft_action_loop",
+          "assistant_in_context_user_workflows",
+          "meeting_and_task_summary_assistance",
+          "template_driven_onboarding_and_activation",
+          "operator_digest_with_actionable_next_steps"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": null,
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Governed: ingestion, triage, draft generation, send via Graph. Missing: semantic search across email history."
+        "notes": "Governed: ingestion, triage, draft generation, and Graph action loop. Missing: semantic thread retrieval and contract alignment on draft-generation response fields. Feature Review 09 deep re-review passed (SDD 175)."
       }
     },
     {
@@ -522,16 +572,22 @@
       },
       "dependencies": ["event_sourcing", "governance_choke_point"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "trace_grading_and_eval_gate_before_release",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Governed evaluation controls now include explicit pipeline policy thresholds, canary budgets, and drift guardrails."
+        "notes": "Governed evaluation controls include explicit policy thresholds, canary budgets, replay gates, and drift guardrails; persistence/scheduling depth is next. Feature Review 10 deep re-review passed (SDD 176)."
       }
     },
     {
@@ -572,16 +628,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "append_only_event_ledger_with_replay_controls",
+          "durable_execution_and_memory_state",
+          "event_sourced_traceability",
+          "idempotent_reconciliation_patterns",
+          "state_quality_feedback_loops"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "mature",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "low",
-        "notes": "Core architecture. 218 event types, 35 ledgers, dual-write. No findings in 4+ cycles."
+        "notes": "Core architecture with append-only dual-write and upcaster coverage; event taxonomy currently spans 279 event types. Integrity-chain and projection depth are next. Feature Review 11 deep re-review passed (SDD 177)."
       }
     },
     {
@@ -627,7 +689,12 @@
         "external_patterns": [
           "policy_as_code_with_fail_closed_defaults",
           "audit_first_dual_write_enforcement",
-          "reason_code_taxonomy_for_operator_overrides"
+          "reason_code_taxonomy_for_operator_overrides",
+          "centralized_policy_enforcement_and_override_accountability",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
         ]
       },
       "source_refs": {
@@ -635,7 +702,7 @@
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": null,
-        "notes": "Single sidecar. Execution boundary policy. No bypass. No findings in 4+ cycles. Research benchmark refreshed for current operating cycle."
+        "notes": "Single sidecar ingress enforces auth + execution boundary + release-gate checks; next hardening step is route-policy parity enforcement and hard release-gate mode. Feature Review 12 deep re-review passed (SDD 178)."
       }
     },
     {
@@ -676,16 +743,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "fail_closed_safety_and_escalation_controls",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": null,
         "capability_level": 4,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Self-Improving: Builder Lane proposes governance changes, rubber-stamping detection, constitution check. Target met."
+        "notes": "Safety stack includes hard bans, output/entity/contradiction checks, trust validation telemetry, and operator-required controls; policy-threshold externalization remains. Feature Review 13 deep re-review passed (SDD 179)."
       }
     },
     {
@@ -726,16 +799,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "healthcare_privacy_controls_and_auditable_access",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "low",
-        "notes": "Entity-level overrides, PHI redaction. Last finding: case-sensitivity bypass."
+        "notes": "Entity-level PHI control stack with provider gating and redaction-scope gaps documented. Feature Review 14 deep re-review passed (SDD 180)."
       }
     },
     {
@@ -777,16 +856,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "incremental_ingestion_with_duplicate_suppression",
+          "durable_execution_and_memory_state",
+          "event_sourced_traceability",
+          "idempotent_reconciliation_patterns",
+          "state_quality_feedback_loops"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "medium",
-        "notes": "Ingestion idempotency and duplicate-suppression thresholds are now governed with replay-gated validation."
+        "notes": "Ingestion idempotency, duplicate suppression, and quality-threshold enforcement path re-reviewed with concrete runtime evidence. Feature Review 15 deep re-review passed (SDD 181)."
       }
     },
     {
@@ -831,16 +916,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "grounded_retrieval_with_citation_and_safety_controls",
+          "durable_execution_and_memory_state",
+          "event_sourced_traceability",
+          "idempotent_reconciliation_patterns",
+          "state_quality_feedback_loops"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 3,
         "capability_target": 3,
         "research_debt_score": null,
-        "notes": "Governed retrieval baseline now includes scoped query policy, citation requirements, and adversarial policy-block replay coverage."
+        "notes": "Policy-scoped retrieval, citation controls, and adversarial replay coverage re-reviewed with mode-promotion gaps documented. Feature Review 16 deep re-review passed (SDD 182)."
       }
     },
     {
@@ -886,7 +977,12 @@
         "external_patterns": [
           "microsoft_graph_webhooks_plus_delta_sync",
           "cross_surface_workload_partitioning",
-          "least_privilege_delegated_scopes"
+          "least_privilege_delegated_scopes",
+          "graph_webhooks_and_delta_sync_for_productivity_surfaces",
+          "least_privilege_connector_scopes",
+          "webhook_plus_delta_sync_patterns",
+          "connector_health_retry_observability",
+          "provider_volatility_circuit_breakers"
         ]
       },
       "source_refs": {
@@ -894,7 +990,7 @@
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": null,
-        "notes": "Mail, Calendar, Planner, To Do, SharePoint. Last finding: ensureValidToken in reconcile. Research benchmark refreshed for current operating cycle."
+        "notes": "Mail/Calendar/Planner/To Do/SharePoint connector surface re-reviewed with retry/webhook hardening actions defined. Feature Review 17 deep re-review passed (SDD 183)."
       }
     },
     {
@@ -935,16 +1031,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "role_based_multi_operator_access_controls",
+          "assistant_in_context_user_workflows",
+          "meeting_and_task_summary_assistance",
+          "template_driven_onboarding_and_activation",
+          "operator_digest_with_actionable_next_steps"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": null,
         "capability_level": 0,
         "capability_target": 1,
         "research_debt_score": null,
-        "notes": "Not present for current single-operator deployment; keep deferred/frozen until explicit multi-operator requirement is approved."
+        "notes": "Single-operator reality and deferred multi-user architecture prerequisites re-validated. Feature Review 18 deep re-review passed (SDD 184)."
       }
     },
     {
@@ -985,16 +1087,22 @@
       },
       "dependencies": ["schema_versioning", "config_migration"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "backward_compatible_upgrade_paths_and_safe_rollouts",
+          "versioned_contract_registry",
+          "schema_compatibility_with_upcasters",
+          "ownership_enforced_at_merge",
+          "adr_backed_change_history"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Implemented schema-versioning + upcasters, migration-aware startup controls, and evolution governance checks."
+        "notes": "Compatibility/deprecation controls and migration-state safeguards re-reviewed with sunset-replay expansion actions defined. Feature Review 19 deep re-review passed (SDD 185)."
       }
     },
     {
@@ -1035,16 +1143,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "adaptive_operator_preferences_with_controlled_memory",
+          "assistant_in_context_user_workflows",
+          "meeting_and_task_summary_assistance",
+          "template_driven_onboarding_and_activation",
+          "operator_digest_with_actionable_next_steps"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": null,
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Governed: style guide, draft style, correction signals, cold-start archetypes, voice extraction. Missing: per-context style adaptation."
+        "notes": "Style, memory, calibration, archetype, and voice-extraction loops re-reviewed with context-adaptive gaps documented. Feature Review 20 deep re-review passed (SDD 186)."
       }
     },
     {
@@ -1085,16 +1199,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "versioned_prompt_catalog_with_rollback_and_approval",
+          "versioned_contract_registry",
+          "schema_compatibility_with_upcasters",
+          "ownership_enforced_at_merge",
+          "adr_backed_change_history"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Implemented prompt registry config + runtime loader/fallback events and schema coverage tests."
+        "notes": "Prompt version registry loader/fallback behavior re-reviewed with promotion-gate and integrity controls prioritized. Feature Review 21 deep re-review passed (SDD 187)."
       }
     },
     {
@@ -1140,7 +1260,12 @@
         "external_patterns": [
           "idempotent_task_reconciliation_with_etag_guards",
           "human_approval_before_cross_system_writeback",
-          "sync_conflict_ledger_and_retry_window"
+          "sync_conflict_ledger_and_retry_window",
+          "idempotent_cross_system_reconciliation_with_conflict_handling",
+          "durable_execution_and_memory_state",
+          "event_sourced_traceability",
+          "idempotent_reconciliation_patterns",
+          "state_quality_feedback_loops"
         ]
       },
       "source_refs": {
@@ -1148,7 +1273,7 @@
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": null,
-        "notes": "Planner/To Do sync, dedup. Last finding: graphFetchWithRetry upgrade. Research benchmark refreshed for current operating cycle."
+        "notes": "Cross-system drift detection, proposal dedup, and operator approval gates re-reviewed with deterministic-ID action plan defined. Feature Review 22 deep re-review passed (SDD 188)."
       }
     },
     {
@@ -1194,7 +1319,12 @@
         "external_patterns": [
           "event_sourced_scheduler_with_idempotent_dispatch",
           "priority_queue_with_pause_resume_semantics",
-          "stale_job_escalation_with_owner_ack"
+          "stale_job_escalation_with_owner_ack",
+          "priority_queue_scheduler_with_pause_resume_and_escalation",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
         ]
       },
       "source_refs": {
@@ -1202,7 +1332,7 @@
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "low",
-        "notes": "Cron matching, 6 gates, auto-dispatch. Last finding: DOW=7 Sunday (Cycle 11, fixed). Research benchmark refreshed for current operating cycle."
+        "notes": "Cron parsing, six-gate dispatch loop, and maintenance job controls re-reviewed with jitter/concurrency hardening actions defined. Feature Review 23 deep re-review passed (SDD 189)."
       }
     },
     {
@@ -1243,16 +1373,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "schema_version_contracts_with_upcaster_chain",
+          "versioned_contract_registry",
+          "schema_compatibility_with_upcasters",
+          "ownership_enforced_at_merge",
+          "adr_backed_change_history"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Implemented schema-version upcasting, migration manifest/state validation, and compatibility policy surfaces."
+        "notes": "Migration manifest/state and upcaster chain controls re-reviewed with coverage-gate expansion actions defined. Feature Review 24 deep re-review passed (SDD 190)."
       }
     },
     {
@@ -1293,16 +1429,22 @@
       },
       "dependencies": ["event_sourcing", "governance_choke_point"],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "autonomous_recovery_with_human_escalation_thresholds",
+          "policy_as_code_fail_closed_defaults",
+          "eval_driven_release_controls",
+          "human_approval_for_high_impact_changes",
+          "audit_reason_codes_and_traceability"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": "graduated",
         "capability_level": 4,
         "capability_target": 4,
         "research_debt_score": "low",
-        "notes": "Self-Improving: circuit breakers, provider health, config drift, zombie drafts, noise reduction, dynamic autonomy. Target met."
+        "notes": "Circuit-breaker, drift, autonomy, engagement, and zombie-draft recovery controls re-reviewed with policy externalization actions defined. Feature Review 25 deep re-review passed (SDD 191)."
       }
     },
     {
@@ -1349,7 +1491,12 @@
         "external_patterns": [
           "ms_graph_change_notifications_for_incremental_sync",
           "document_connector_retry_with_idempotency_keys",
-          "least_privilege_scoped_document_access"
+          "least_privilege_scoped_document_access",
+          "enterprise_document_connector_with_least_privilege_access",
+          "least_privilege_connector_scopes",
+          "webhook_plus_delta_sync_patterns",
+          "connector_health_retry_observability",
+          "provider_volatility_circuit_breakers"
         ]
       },
       "source_refs": {
@@ -1357,7 +1504,7 @@
         "capability_level": null,
         "capability_target": null,
         "research_debt_score": "low",
-        "notes": "Governed: SharePoint connector now runs with document-quality policy, connector friction telemetry, and operator-safe write controls. Next: content extraction + document intelligence layers."
+        "notes": "SharePoint route safety, friction telemetry, and operator-gated writes re-reviewed with document-intelligence next steps defined. Feature Review 26 deep re-review passed (SDD 192)."
       }
     },
     {
@@ -1398,16 +1545,22 @@
       },
       "dependencies": [],
       "research_profile": {
-        "last_benchmark_date": null,
+        "last_benchmark_date": "2026-02-27",
         "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
-        "external_patterns": []
+        "external_patterns": [
+          "unified_task_lifecycle_with_owner_and_due_date_accountability",
+          "assistant_in_context_user_workflows",
+          "meeting_and_task_summary_assistance",
+          "template_driven_onboarding_and_activation",
+          "operator_digest_with_actionable_next_steps"
+        ]
       },
       "source_refs": {
         "feature_maturity_level": null,
         "capability_level": 3,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Governed: GTD actions, waiting-for, Planner/To Do sync, reconciliation. Missing: auto-prioritization based on context."
+        "notes": "Planner/To Do/GTD/commitment lifecycle and sync approval flow re-reviewed with prioritization and identity-mapping actions defined. Feature Review 27 deep re-review passed (SDD 193)."
       }
     }
   ]
