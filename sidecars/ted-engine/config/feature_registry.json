@@ -130,9 +130,9 @@
       "owner": "council.governance",
       "backup_owner": "operator.primary",
       "module_class": "policy",
-      "lifecycle_state": "proposed",
-      "maturity_score": 1,
-      "fragility_score": 70,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 48,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -166,11 +166,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "proposed",
-        "capability_level": null,
-        "capability_target": null,
+        "feature_maturity_level": "graduated",
+        "capability_level": 3,
+        "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Identified in research. Not yet implemented."
+        "notes": "Implemented migration runner + startup path with blocked/failed/migrated events and dry-run tests."
       }
     },
     {
@@ -180,9 +180,9 @@
       "owner": "council.governance",
       "backup_owner": "operator.primary",
       "module_class": "policy",
-      "lifecycle_state": "proposed",
-      "maturity_score": 1,
-      "fragility_score": 70,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 46,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -216,11 +216,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "proposed",
-        "capability_level": null,
-        "capability_target": null,
+        "feature_maturity_level": "graduated",
+        "capability_level": 3,
+        "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Lethal trifecta mitigation. Not yet implemented."
+        "notes": "Implemented untrusted-content isolation prompts, hard-ban/output-contract enforcement, and contamination replay assertions."
       }
     },
     {
@@ -266,7 +266,7 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": null,
+        "feature_maturity_level": "incubating",
         "capability_level": 3,
         "capability_target": 3,
         "research_debt_score": null,
@@ -480,9 +480,9 @@
       "owner": "council.governance",
       "backup_owner": "operator.primary",
       "module_class": "policy",
-      "lifecycle_state": "proposed",
+      "lifecycle_state": "incubating",
       "maturity_score": 2,
-      "fragility_score": 70,
+      "fragility_score": 62,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -516,11 +516,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "proposed",
+        "feature_maturity_level": "incubating",
         "capability_level": 2,
         "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Functional: 7 golden fixtures at startup. Missing: continuous evaluation, LLM-as-Judge, quality trends."
+        "notes": "Functional multi-grader evaluation pipeline with golden fixtures/canaries and drift signals; needs expanded continuous eval breadth."
       }
     },
     {
@@ -920,7 +920,7 @@
         "capability_level": 0,
         "capability_target": 1,
         "research_debt_score": null,
-        "notes": "Not Present: single operator only. Architectural planning needed but not urgent for current use case."
+        "notes": "Not present for current single-operator deployment; keep deferred/frozen until explicit multi-operator requirement is approved."
       }
     },
     {
@@ -930,9 +930,9 @@
       "owner": "council.contracts",
       "backup_owner": "operator.primary",
       "module_class": "policy",
-      "lifecycle_state": "incubating",
-      "maturity_score": 1,
-      "fragility_score": 82,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 54,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -966,11 +966,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": null,
-        "capability_level": 1,
-        "capability_target": 3,
+        "feature_maturity_level": "graduated",
+        "capability_level": 3,
+        "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Basic: config drift reconciliation exists but no schema versioning, no migration runner, no upcasters."
+        "notes": "Implemented schema-versioning + upcasters, migration-aware startup controls, and evolution governance checks."
       }
     },
     {
@@ -1030,9 +1030,9 @@
       "owner": "council.contracts",
       "backup_owner": "operator.primary",
       "module_class": "policy",
-      "lifecycle_state": "proposed",
-      "maturity_score": 1,
-      "fragility_score": 70,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 52,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -1066,11 +1066,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "proposed",
-        "capability_level": null,
-        "capability_target": null,
+        "feature_maturity_level": "graduated",
+        "capability_level": 3,
+        "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Identified in research. Not yet implemented."
+        "notes": "Implemented prompt registry config + runtime loader/fallback events and schema coverage tests."
       }
     },
     {
@@ -1180,9 +1180,9 @@
       "owner": "council.contracts",
       "backup_owner": "operator.primary",
       "module_class": "policy",
-      "lifecycle_state": "proposed",
-      "maturity_score": 1,
-      "fragility_score": 70,
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 50,
       "qa_contracts": {
         "test_suites": [
           "sidecars/ted-engine/tests/config-schemas.test.mjs",
@@ -1216,11 +1216,11 @@
         "external_patterns": []
       },
       "source_refs": {
-        "feature_maturity_level": "proposed",
-        "capability_level": null,
-        "capability_target": null,
+        "feature_maturity_level": "graduated",
+        "capability_level": 3,
+        "capability_target": 4,
         "research_debt_score": null,
-        "notes": "Identified in research. Not yet implemented."
+        "notes": "Implemented schema-version upcasting, migration manifest/state validation, and compatibility policy surfaces."
       }
     },
     {

@@ -82,10 +82,13 @@ function fallbackSnapshotFromRegistry(registry) {
         feature_id: feature.feature_id,
         name: feature.name,
         plane: feature.plane,
+        lifecycle_state: feature.lifecycle_state,
         fragility_score: feature.fragility_score,
         maturity_score: feature.maturity_score,
         usage_signals: {
+          invocation_count_30d: feature?.usage_signals?.invocation_count_30d ?? 0,
           adoption_ratio_30d: feature?.usage_signals?.adoption_ratio_30d ?? 0,
+          success_rate_30d: feature?.usage_signals?.success_rate_30d ?? null,
         },
         state: {
           research_required: feature?.maturity_score <= 2 || feature?.fragility_score >= 70,

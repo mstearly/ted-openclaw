@@ -89,38 +89,38 @@
     },
     {
       "name": "schema_versioning",
-      "level": "proposed",
+      "level": "graduated",
       "since_cycle": 13,
       "last_finding_cycle": null,
-      "notes": "Identified in research. Not yet implemented."
+      "notes": "Implemented schema-version upcasting, migration manifest/state validation, and compatibility policy surfaces."
     },
     {
       "name": "config_migration",
-      "level": "proposed",
+      "level": "graduated",
       "since_cycle": 13,
       "last_finding_cycle": null,
-      "notes": "Identified in research. Not yet implemented."
+      "notes": "Implemented migration runner + startup gate path with migration events and dry-run coverage."
     },
     {
       "name": "prompt_registry",
-      "level": "proposed",
+      "level": "graduated",
       "since_cycle": 13,
       "last_finding_cycle": null,
-      "notes": "Identified in research. Not yet implemented."
+      "notes": "Implemented prompt registry config + runtime loader/fallback events with schema test coverage."
     },
     {
       "name": "content_isolation",
-      "level": "proposed",
+      "level": "graduated",
       "since_cycle": 13,
       "last_finding_cycle": null,
-      "notes": "Lethal trifecta mitigation. Not yet implemented."
+      "notes": "Implemented untrusted-content isolation + output contract and hard-ban governance controls."
     },
     {
       "name": "evaluation_pipeline",
-      "level": "proposed",
+      "level": "incubating",
       "since_cycle": 13,
       "last_finding_cycle": null,
-      "notes": "Expansion from 7 to 20+ fixtures. Not yet implemented."
+      "notes": "Functional multi-grader evaluation + canaries + drift checks. Next step: broader continuous fixture coverage."
     }
   ]
 }

@@ -124,6 +124,32 @@ describe("feature governance engines", () => {
     expect(Array.isArray(queue.queue.value)).toBe(true);
   });
 
+  test("proposed unused M0 feature is bucketed to backlog monitor", () => {
+    const policy = loadJson("../config/feature_decision_policy.json");
+    const queue = buildFeaturePriorityQueue({
+      snapshot: {
+        features: [
+          {
+            feature_id: "future_multi_user",
+            name: "future_multi_user",
+            plane: "experience",
+            lifecycle_state: "proposed",
+            fragility_score: 90,
+            maturity_score: 0,
+            usage_signals: { invocation_count_30d: 0, adoption_ratio_30d: 0 },
+            state: { research_required: false },
+          },
+        ],
+      },
+      policy,
+    });
+
+    expect(queue.queue.risk.some((entry) => entry.feature_id === "future_multi_user")).toBe(false);
+    expect(queue.queue.backlog.some((entry) => entry.feature_id === "future_multi_user")).toBe(
+      true,
+    );
+  });
+
   test("build feature operating status marks stale jobs", () => {
     const policy = loadJson("../config/feature_operating_cadence_policy.json");
     const status = buildFeatureOperatingStatus({

@@ -881,7 +881,17 @@ function getDecisionBucket(feature, score, thresholds) {
   const adoption = isFiniteNumber(feature?.usage_signals?.adoption_ratio_30d)
     ? feature.usage_signals.adoption_ratio_30d
     : 1;
+  const lifecycle = typeof feature?.lifecycle_state === "string" ? feature.lifecycle_state : "";
+  const invocations = isFiniteNumber(feature?.usage_signals?.invocation_count_30d)
+    ? feature.usage_signals.invocation_count_30d
+    : 0;
   const researchRequired = feature?.state?.research_required === true;
+
+  // Proposed, unused M0 features are roadmap placeholders; they should not be treated as active
+  // operational risk until scoped for implementation.
+  if (lifecycle === "proposed" && maturity === 0 && invocations === 0) {
+    return "BACKLOG_MONITOR";
+  }
 
   if (fragility >= (thresholds.freezeFragilityScore || 70)) {
     return "RISK_REMEDIATION_NOW";

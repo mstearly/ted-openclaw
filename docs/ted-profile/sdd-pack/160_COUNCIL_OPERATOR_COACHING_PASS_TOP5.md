@@ -1,7 +1,7 @@
 # SDD 160 - Council Operator Coaching Pass: How To Use DFA-OS Tools + Top 5 Actions
 
 Date: 2026-02-27
-Status: Operator-ready
+Status: Operator-ready (superseded by SDD 161 for latest queue and executed disposition)
 Parents: SDD 158, SDD 159
 
 ## 1. Council review of today's build
