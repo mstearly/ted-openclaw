@@ -121,6 +121,7 @@
     "test:sidecar": "vitest run --config vitest.sidecar.config.ts",
     "test:sidecar:watch": "vitest --config vitest.sidecar.config.ts",
     "test:ui": "pnpm --dir ui test",
+    "test:ui:browser:local": "bash scripts/ui-browser-runtime.sh",
     "test:voicecall:closedloop": "vitest run extensions/voice-call/src/manager.test.ts extensions/voice-call/src/media-stream.test.ts src/plugins/voice-call.plugin.test.ts --maxWorkers=1",
     "test:watch": "vitest",
     "tui": "node scripts/run-node.mjs tui",

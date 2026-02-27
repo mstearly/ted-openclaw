@@ -134,21 +134,29 @@ function clickByText(container: HTMLElement, label: string) {
   button?.click();
 }
 
+function renderInDocument(props: TedViewProps): HTMLDivElement {
+  const container = document.createElement("div");
+  document.body.append(container);
+  render(renderExecutionWavesControlCard(props), container);
+  return container;
+}
+
 describe("ted workflow execution controls", () => {
   const originalAlert = window.alert;
 
   beforeEach(() => {
     window.alert = vi.fn();
+    document.body.innerHTML = "";
   });
 
   afterEach(() => {
     window.alert = originalAlert;
+    document.body.innerHTML = "";
   });
 
   it("loads workflows from the execution control plane", () => {
     const props = createExecutionWaveProps();
-    const container = document.createElement("div");
-    render(renderExecutionWavesControlCard(props), container);
+    const container = renderInDocument(props);
 
     clickByText(container, "Workflows");
     expect(props.onLoadWorkflows).toHaveBeenCalledTimes(1);
@@ -156,8 +164,7 @@ describe("ted workflow execution controls", () => {
 
   it("runs workflow dry-run for selected workflow id", () => {
     const props = createExecutionWaveProps();
-    const container = document.createElement("div");
-    render(renderExecutionWavesControlCard(props), container);
+    const container = renderInDocument(props);
 
     const workflowIdInput = container.querySelector<HTMLInputElement>("#ted-wave-workflow-id");
     expect(workflowIdInput).not.toBeNull();
@@ -172,8 +179,7 @@ describe("ted workflow execution controls", () => {
 
   it("runs risk lint with inline workflow JSON", () => {
     const props = createExecutionWaveProps();
-    const container = document.createElement("div");
-    render(renderExecutionWavesControlCard(props), container);
+    const container = renderInDocument(props);
 
     const workflowJson = container.querySelector<HTMLTextAreaElement>("#ted-wave-workflow-json");
     expect(workflowJson).not.toBeNull();
@@ -203,8 +209,7 @@ describe("ted workflow execution controls", () => {
 
   it("loads friction summary for selected workflow id", () => {
     const props = createExecutionWaveProps();
-    const container = document.createElement("div");
-    render(renderExecutionWavesControlCard(props), container);
+    const container = renderInDocument(props);
 
     const workflowIdInput = container.querySelector<HTMLInputElement>("#ted-wave-outcomes-job-id");
     expect(workflowIdInput).not.toBeNull();
@@ -222,8 +227,7 @@ describe("ted workflow execution controls", () => {
 
   it("loads replay corpus and runs replay for adversarial scenarios", () => {
     const props = createExecutionWaveProps();
-    const container = document.createElement("div");
-    render(renderExecutionWavesControlCard(props), container);
+    const container = renderInDocument(props);
 
     const replayInclude = container.querySelector<HTMLSelectElement>("#ted-wave-replay-include");
     const replayScenarioIds = container.querySelector<HTMLInputElement>(

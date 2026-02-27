@@ -47,20 +47,27 @@
 
 ---
 
-## 4. Active Blocker
+## 4. Local Runtime Resolution
 
-Browser-based UI suite cannot execute in this host due missing system runtime library for Playwright Chromium:
+Browser-based UI suite host blocker is now mitigated without requiring root package install:
 
-1. Missing shared library: `libnspr4.so`.
-2. Impact: `ui/src/ui/views/ted.workflow.browser.test.ts` is committed and ready, but runtime execution is currently blocked by host dependency, not test code.
+1. Added rootless runtime bootstrap script:
+   - `scripts/ui-browser-runtime.sh`
+2. Added local command:
+   - `pnpm test:ui:browser:local`
+3. Script behavior:
+   - detects missing Playwright Chromium shared libs via `ldd`,
+   - downloads mapped Ubuntu packages with `apt-get download`,
+   - extracts shared libraries into user cache,
+   - runs browser tests with `LD_LIBRARY_PATH` pointed at extracted runtime libs.
 
 ---
 
 ## 5. Next Wave Recommendation
 
-1. Resolve browser host dependency (`libnspr4`) in CI/dev environment.
-2. Run `ui` browser test suite and promote Plan 13 browser controls to required status checks.
-3. Proceed to `Q13-4` enforcement gates once browser run is green.
+1. Validate `ted-workflow-browser-gate` on CI runners with `playwright install --with-deps`.
+2. Promote Plan 13 browser controls to required status checks after first green run.
+3. Proceed to `Q13-4` enforcement gates after CI/browser promotion is active.
 
 ---
 
@@ -70,9 +77,9 @@ Implemented:
 
 1. CI task `ted-workflow-browser-gate` added in `.github/workflows/ci.yml`.
 2. Task command installs Playwright Chromium runtime with dependencies and runs:
-   - `ui/src/ui/views/ted.workflow.browser.test.ts`
+   - `src/ui/views/ted.workflow.browser.test.ts`
 
-Current local blocker remains:
+Current status:
 
-1. This workstation cannot execute browser tests due missing `libnspr4.so` and no passwordless sudo for host dependency install.
-2. CI environments with dependency install support are now the primary execution path for browser-gate activation.
+1. CI remains the canonical browser-gate.
+2. Local host now has a rootless fallback path to execute the same browser gate command.

@@ -196,7 +196,7 @@ jobs:
             command: pnpm --dir ui exec vitest run --config vitest.node.config.ts src/ui/views/ted.workflow.node.test.ts
           - runtime: node
             task: ted-workflow-browser-gate
-            command: pnpm --dir ui exec playwright install --with-deps chromium && pnpm --dir ui test -- ui/src/ui/views/ted.workflow.browser.test.ts
+            command: pnpm --dir ui exec playwright install --with-deps chromium && pnpm --dir ui exec vitest run --config vitest.config.ts src/ui/views/ted.workflow.browser.test.ts
           - runtime: node
             task: protocol
             command: pnpm protocol:check
