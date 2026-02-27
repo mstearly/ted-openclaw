@@ -47,6 +47,8 @@ import type {
   TedReplayCorpusResponse,
   TedReplayRunResponse,
   TedReplayRunsResponse,
+  TedFeatureHealthResponse,
+  TedFeatureOpportunitiesResponse,
   TedPolicyDocument,
   TedPolicyImpactPreview,
   TedPolicyKey,
@@ -303,6 +305,12 @@ export type TedViewProps = {
   replayRuns: TedReplayRunsResponse | null;
   replayRunsLoading: boolean;
   replayRunsError: string | null;
+  featureHealth: TedFeatureHealthResponse | null;
+  featureHealthLoading: boolean;
+  featureHealthError: string | null;
+  featureOpportunities: TedFeatureOpportunitiesResponse | null;
+  featureOpportunitiesLoading: boolean;
+  featureOpportunitiesError: string | null;
   onLoadLlmRoutingPolicy: () => void;
   onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) => void;
   onTestLlmProvider: (payload: {
@@ -371,6 +379,12 @@ export type TedViewProps = {
     };
   }) => void;
   onLoadReplayRuns: (params?: { limit?: number; include_details?: boolean }) => void;
+  onLoadFeatureHealth: (params?: {
+    force?: boolean;
+    include_history?: boolean;
+    history_limit?: number;
+  }) => void;
+  onLoadFeatureOpportunities: (params?: { force?: boolean; top_n?: number }) => void;
   // Phase 6: Meetings + Commitments + GTD
   meetingsUpcoming: TedMeetingUpcomingResponse | null;
   meetingsLoading: boolean;
@@ -3603,6 +3617,69 @@ export function renderExecutionWavesControlCard(
                 </div>
                 <pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(
                   props.frictionRuns.events.slice(0, 12),
+                  null,
+                  2,
+                )}</pre>
+              `
+            : nothing
+        }
+      </div>
+
+      <div style="margin-top: 12px; border-top: 1px solid var(--color-border); padding-top: 12px;">
+        <div class="card-sub" style="font-weight: 600; margin-bottom: 6px;">Feature Health and Opportunity Loop</div>
+        <div class="row" style="gap:8px; flex-wrap:wrap;">
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.featureHealthLoading}
+            @click=${() => props.onLoadFeatureHealth({ include_history: false })}
+          >
+            ${props.featureHealthLoading ? "Loading..." : "Feature Health"}
+          </button>
+          <button
+            class="btn btn--sm ghost"
+            ?disabled=${props.featureOpportunitiesLoading}
+            @click=${() => props.onLoadFeatureOpportunities({ top_n: 10 })}
+          >
+            ${props.featureOpportunitiesLoading ? "Loading..." : "Opportunities"}
+          </button>
+          <button
+            class="btn btn--sm"
+            ?disabled=${props.featureHealthLoading || props.featureOpportunitiesLoading}
+            @click=${() => {
+              props.onLoadFeatureHealth({ force: true, include_history: false });
+              props.onLoadFeatureOpportunities({ force: true, top_n: 10 });
+            }}
+          >
+            Recompute
+          </button>
+        </div>
+        ${props.featureHealthError ? html`<div class="callout danger" style="margin-top:8px;">${props.featureHealthError}</div>` : nothing}
+        ${props.featureOpportunitiesError ? html`<div class="callout danger" style="margin-top:8px;">${props.featureOpportunitiesError}</div>` : nothing}
+        ${
+          props.featureHealth
+            ? html`
+                <div class="callout ${props.featureHealth.totals.frozen > 0 ? "warn" : ""}" style="margin-top:8px;">
+                  features=${props.featureHealth.totals.features} · frozen=${props.featureHealth.totals.frozen} ·
+                  research_required=${props.featureHealth.totals.research_required} ·
+                  low_usage=${props.featureHealth.totals.low_usage}
+                </div>
+                <pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(
+                  props.featureHealth.features.slice(0, 6),
+                  null,
+                  2,
+                )}</pre>
+              `
+            : nothing
+        }
+        ${
+          props.featureOpportunities
+            ? html`
+                <div class="muted" style="margin-top:8px;">
+                  ${props.featureOpportunities.total_candidates} low-usage candidate(s), showing
+                  ${props.featureOpportunities.opportunities.length}.
+                </div>
+                <pre class="mono" style="margin-top: 8px; white-space: pre-wrap;">${JSON.stringify(
+                  props.featureOpportunities.opportunities,
                   null,
                   2,
                 )}</pre>

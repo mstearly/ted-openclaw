@@ -32,6 +32,8 @@ import type {
   TedReplayCorpusResponse,
   TedReplayRunResponse,
   TedReplayRunsResponse,
+  TedFeatureHealthResponse,
+  TedFeatureOpportunitiesResponse,
   TedMailListResponse,
   TedMailMessage,
   TedMorningBriefResponse,
@@ -273,6 +275,12 @@ export type TedWorkbenchState = {
   tedReplayRuns: TedReplayRunsResponse | null;
   tedReplayRunsLoading: boolean;
   tedReplayRunsError: string | null;
+  tedFeatureHealth: TedFeatureHealthResponse | null;
+  tedFeatureHealthLoading: boolean;
+  tedFeatureHealthError: string | null;
+  tedFeatureOpportunities: TedFeatureOpportunitiesResponse | null;
+  tedFeatureOpportunitiesLoading: boolean;
+  tedFeatureOpportunitiesError: string | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -2002,6 +2010,52 @@ export async function loadTedReplayRuns(
     state.tedReplayRunsError = err instanceof Error ? err.message : String(err);
   } finally {
     state.tedReplayRunsLoading = false;
+  }
+}
+
+export async function loadTedFeatureHealth(
+  state: TedWorkbenchState,
+  params?: { force?: boolean; include_history?: boolean; history_limit?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedFeatureHealthLoading) {
+    return;
+  }
+  state.tedFeatureHealthLoading = true;
+  state.tedFeatureHealthError = null;
+  try {
+    const result = await requestTedWithTimeout<TedFeatureHealthResponse>(
+      state.client,
+      "ted.ops.feature.health",
+      params || {},
+    );
+    state.tedFeatureHealth = result;
+  } catch (err) {
+    state.tedFeatureHealthError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedFeatureHealthLoading = false;
+  }
+}
+
+export async function loadTedFeatureOpportunities(
+  state: TedWorkbenchState,
+  params?: { force?: boolean; top_n?: number },
+): Promise<void> {
+  if (!state.client || !state.connected || state.tedFeatureOpportunitiesLoading) {
+    return;
+  }
+  state.tedFeatureOpportunitiesLoading = true;
+  state.tedFeatureOpportunitiesError = null;
+  try {
+    const result = await requestTedWithTimeout<TedFeatureOpportunitiesResponse>(
+      state.client,
+      "ted.ops.feature.opportunities",
+      params || {},
+    );
+    state.tedFeatureOpportunities = result;
+  } catch (err) {
+    state.tedFeatureOpportunitiesError = err instanceof Error ? err.message : String(err);
+  } finally {
+    state.tedFeatureOpportunitiesLoading = false;
   }
 }
 

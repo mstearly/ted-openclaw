@@ -7099,6 +7099,73 @@ ${recommendedKpis.map((kpi) => `- ${kpi}`).join("\n")}
     },
   );
 
+  api.registerGatewayMethod(
+    "ted.ops.feature.health",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { force?: unknown; include_history?: unknown; history_limit?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (payloadIn.force === true) {
+          query.set("force", "1");
+        }
+        if (payloadIn.include_history === true) {
+          query.set("include_history", "1");
+        }
+        if (
+          typeof payloadIn.history_limit === "number" &&
+          Number.isFinite(payloadIn.history_limit)
+        ) {
+          query.set(
+            "history_limit",
+            String(Math.max(1, Math.min(200, Math.floor(payloadIn.history_limit)))),
+          );
+        }
+        const routePath = `/ops/feature-health${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted feature health failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
+  api.registerGatewayMethod(
+    "ted.ops.feature.opportunities",
+    async ({ params, respond }: GatewayRequestHandlerOptions) => {
+      try {
+        const payloadIn =
+          params && typeof params === "object" && !Array.isArray(params)
+            ? (params as { force?: unknown; top_n?: unknown })
+            : {};
+        const query = new URLSearchParams();
+        if (payloadIn.force === true) {
+          query.set("force", "1");
+        }
+        if (typeof payloadIn.top_n === "number" && Number.isFinite(payloadIn.top_n)) {
+          query.set("top_n", String(Math.max(1, Math.min(50, Math.floor(payloadIn.top_n)))));
+        }
+        const routePath = `/ops/feature-opportunities${query.size > 0 ? `?${query.toString()}` : ""}`;
+        const pluginConfig = (api.pluginConfig ?? {}) as TedSidecarPluginConfig;
+        const baseUrl = resolveBaseUrl(pluginConfig);
+        const timeoutMs = resolveTimeoutMs(pluginConfig);
+        const payload = await callAuthenticatedTedGetRoute(baseUrl, timeoutMs, routePath);
+        respond(true, payload);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        api.logger.warn(`ted feature opportunities failed: ${message}`);
+        respond(false, { error: message });
+      }
+    },
+  );
+
   // ─── C10-023: Missing gateway methods for sidecar routes ────────────────────
 
   // --- Graph: calendar list (GET) ---

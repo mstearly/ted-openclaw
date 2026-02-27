@@ -580,6 +580,12 @@ export function renderApp(state: AppViewState) {
                 replayRuns: state.tedReplayRuns,
                 replayRunsLoading: state.tedReplayRunsLoading,
                 replayRunsError: state.tedReplayRunsError,
+                featureHealth: state.tedFeatureHealth,
+                featureHealthLoading: state.tedFeatureHealthLoading,
+                featureHealthError: state.tedFeatureHealthError,
+                featureOpportunities: state.tedFeatureOpportunities,
+                featureOpportunitiesLoading: state.tedFeatureOpportunitiesLoading,
+                featureOpportunitiesError: state.tedFeatureOpportunitiesError,
                 onLoadLlmRoutingPolicy: () => void state.loadTedLlmRoutingPolicy(),
                 onSaveLlmRoutingPolicy: (payload: Record<string, unknown>) =>
                   void state.saveTedLlmRoutingPolicy(payload),
@@ -671,6 +677,13 @@ export function renderApp(state: AppViewState) {
                 }) => void state.runTedReplay(params),
                 onLoadReplayRuns: (params?: { limit?: number; include_details?: boolean }) =>
                   void state.loadTedReplayRuns(params),
+                onLoadFeatureHealth: (params?: {
+                  force?: boolean;
+                  include_history?: boolean;
+                  history_limit?: number;
+                }) => void state.loadTedFeatureHealth(params),
+                onLoadFeatureOpportunities: (params?: { force?: boolean; top_n?: number }) =>
+                  void state.loadTedFeatureOpportunities(params),
                 meetingsUpcoming: state.tedMeetingsUpcoming,
                 meetingsLoading: state.tedMeetingsLoading,
                 meetingsError: state.tedMeetingsError,

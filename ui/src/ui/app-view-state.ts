@@ -413,6 +413,12 @@ export type AppViewState = {
   tedReplayRuns: import("./types.ts").TedReplayRunsResponse | null;
   tedReplayRunsLoading: boolean;
   tedReplayRunsError: string | null;
+  tedFeatureHealth: import("./types.ts").TedFeatureHealthResponse | null;
+  tedFeatureHealthLoading: boolean;
+  tedFeatureHealthError: string | null;
+  tedFeatureOpportunities: import("./types.ts").TedFeatureOpportunitiesResponse | null;
+  tedFeatureOpportunitiesLoading: boolean;
+  tedFeatureOpportunitiesError: string | null;
   // Phase 6: Meetings + Commitments + GTD
   tedMeetingsUpcoming: TedMeetingUpcomingResponse | null;
   tedMeetingsLoading: boolean;
@@ -860,6 +866,12 @@ export type AppViewState = {
     };
   }) => Promise<void>;
   loadTedReplayRuns: (params?: { limit?: number; include_details?: boolean }) => Promise<void>;
+  loadTedFeatureHealth: (params?: {
+    force?: boolean;
+    include_history?: boolean;
+    history_limit?: number;
+  }) => Promise<void>;
+  loadTedFeatureOpportunities: (params?: { force?: boolean; top_n?: number }) => Promise<void>;
   loadTedMeetingsUpcoming: () => Promise<void>;
   loadTedCommitments: () => Promise<void>;
   loadTedActions: () => Promise<void>;

@@ -1392,6 +1392,74 @@ export interface TedReplayRunsResponse {
   include_details: boolean;
 }
 
+export interface TedFeatureHealthResponse {
+  generated_at: string;
+  lookback_days: number;
+  totals: {
+    features: number;
+    frozen: number;
+    escalated: number;
+    research_required: number;
+    low_usage: number;
+  };
+  features: Array<{
+    feature_id: string;
+    name: string;
+    plane: string;
+    lifecycle_state: string;
+    maturity_score: number;
+    fragility_score: number;
+    previous_fragility_score: number;
+    fragility_delta: number;
+    qa_refs: number;
+    dependency_count: number;
+    metrics: {
+      replay_failure_ratio: number;
+      harmful_friction_ratio: number;
+      override_rate: number;
+      test_depth_gap: number;
+      dependency_volatility: number;
+    };
+    usage_signals: {
+      invocation_count_30d: number;
+      adoption_ratio_30d: number;
+      success_rate_30d: number | null;
+    };
+    state: {
+      freeze: boolean;
+      escalation: boolean;
+      low_usage: boolean;
+      research_required: boolean;
+    };
+    recommendations: {
+      activation_experiment: string | null;
+    };
+  }>;
+  policy: {
+    fragility: Record<string, unknown>;
+    usage: Record<string, unknown>;
+    research: Record<string, unknown>;
+  };
+  history?: Array<Record<string, unknown>>;
+}
+
+export interface TedFeatureOpportunitiesResponse {
+  generated_at: string;
+  total_candidates: number;
+  opportunities: Array<{
+    feature_id: string;
+    name: string;
+    plane: string;
+    maturity_score: number;
+    fragility_score: number;
+    adoption_ratio_30d: number;
+    invocation_count_30d: number;
+    opportunity_score: number;
+    observed_friction: string;
+    activation_experiment: string;
+  }>;
+}
+
 // ── Deal Workflow Types ──────────────────────────────────────────────
 
 export type TedDealType = "SNF_ALF" | "SOFTWARE" | "ANCILLARY_HEALTHCARE";

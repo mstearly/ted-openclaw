@@ -176,6 +176,8 @@ import {
   loadTedReplayCorpus,
   runTedReplay,
   loadTedReplayRuns,
+  loadTedFeatureHealth,
+  loadTedFeatureOpportunities,
 } from "./controllers/ted.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
@@ -618,6 +620,13 @@ export class OpenClawApp extends LitElement {
   @state() tedReplayRuns: import("./types.ts").TedReplayRunsResponse | null = null;
   @state() tedReplayRunsLoading = false;
   @state() tedReplayRunsError: string | null = null;
+  @state() tedFeatureHealth: import("./types.ts").TedFeatureHealthResponse | null = null;
+  @state() tedFeatureHealthLoading = false;
+  @state() tedFeatureHealthError: string | null = null;
+  @state() tedFeatureOpportunities: import("./types.ts").TedFeatureOpportunitiesResponse | null =
+    null;
+  @state() tedFeatureOpportunitiesLoading = false;
+  @state() tedFeatureOpportunitiesError: string | null = null;
   // Phase 6: Meetings + Commitments + GTD
   @state() tedMeetingsUpcoming: import("./types.ts").TedMeetingUpcomingResponse | null = null;
   @state() tedMeetingsLoading = false;
@@ -1258,6 +1267,18 @@ export class OpenClawApp extends LitElement {
 
   async loadTedReplayRuns(params?: { limit?: number; include_details?: boolean }) {
     await loadTedReplayRuns(this, params);
+  }
+
+  async loadTedFeatureHealth(params?: {
+    force?: boolean;
+    include_history?: boolean;
+    history_limit?: number;
+  }) {
+    await loadTedFeatureHealth(this, params);
+  }
+
+  async loadTedFeatureOpportunities(params?: { force?: boolean; top_n?: number }) {
+    await loadTedFeatureOpportunities(this, params);
   }
 
   async loadTedMeetingsUpcoming() {
