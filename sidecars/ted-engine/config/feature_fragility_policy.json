@@ -1,0 +1,24 @@
+{
+  "_config_version": 1,
+  "_artifact": "feature_fragility_policy",
+  "_description": "Wave C fragility scoring policy for DFA-OS feature health evaluation.",
+  "window": {
+    "lookback_days": 30
+  },
+  "thresholds": {
+    "freeze_score": 70,
+    "escalation_score": 85
+  },
+  "weights": {
+    "base_registry": 0.4,
+    "replay_failures": 0.15,
+    "harmful_friction": 0.15,
+    "override_rate": 0.1,
+    "dependency_volatility": 0.1,
+    "test_depth_gap": 0.1
+  },
+  "scaling": {
+    "max_dependencies": 8,
+    "target_qa_refs": 6
+  }
+}

@@ -325,6 +325,16 @@
       "required_fields": ["generated_at", "runs", "total_count", "include_details"],
       "content_type": "application/json"
     },
+    "GET /ops/feature-health": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "lookback_days", "totals", "features", "policy"],
+      "content_type": "application/json"
+    },
+    "GET /ops/feature-opportunities": {
+      "status_codes": [200],
+      "required_fields": ["generated_at", "total_candidates", "opportunities"],
+      "content_type": "application/json"
+    },
     "GET /ops/rollout-policy": {
       "status_codes": [200],
       "required_fields": [

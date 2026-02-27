@@ -6,6 +6,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as baselineSchemaMigration from "./migrations/001_baseline_schema_versions.mjs";
 import {
+  buildFeatureSignalMatcher,
+  buildLowUsageOpportunities,
+  computeFeatureHealthSnapshot,
+  validateFeatureFragilityPolicy,
+  validateFeatureUsagePolicy,
+  validateResearchTriggerPolicy,
+} from "./modules/feature_health.mjs";
+import {
+  validateFeatureCoverage,
+  validateFeatureRegistry,
+  validateFeatureRegistrySchema,
+} from "./modules/feature_registry.mjs";
+import {
   buildMigrationExecutionPlan,
   validateMigrationManifest,
 } from "./modules/migration_registry.mjs";
@@ -202,6 +215,23 @@ const rolloutPolicyConfigPath = path.join(__dirname, "config", "rollout_policy.j
 const schedulerConfigPath = path.join(__dirname, "config", "scheduler_config.json");
 const mobileAlertPolicyConfigPath = path.join(__dirname, "config", "mobile_alert_policy.json");
 const compatibilityPolicyConfigPath = path.join(__dirname, "config", "compatibility_policy.json");
+const featureRegistryConfigPath = path.join(__dirname, "config", "feature_registry.json");
+const featureRegistrySchemaConfigPath = path.join(
+  __dirname,
+  "config",
+  "feature_registry_schema.json",
+);
+const featureFragilityPolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "feature_fragility_policy.json",
+);
+const featureUsagePolicyConfigPath = path.join(__dirname, "config", "feature_usage_policy.json");
+const researchTriggerPolicyConfigPath = path.join(
+  __dirname,
+  "config",
+  "research_trigger_policy.json",
+);
 const migrationManifestConfigPath = path.join(__dirname, "config", "migration_manifest.json");
 const retrofitBaselineLockConfigPath = path.join(
   __dirname,
@@ -275,6 +305,11 @@ const evalMatrixRunsPath = path.join(evalMatrixDir, "matrix_runs.jsonl");
 const replayDir = path.join(artifactsDir, "replay");
 const replayRunsPath = path.join(replayDir, "replay_runs.jsonl");
 const replayEvidencePath = path.join(replayDir, "release_evidence.jsonl");
+const governanceDir = path.join(artifactsDir, "governance");
+const featureHealthPath = path.join(governanceDir, "feature_health.jsonl");
+const featureUsagePath = path.join(governanceDir, "feature_usage.jsonl");
+const featureOpportunitiesPath = path.join(governanceDir, "feature_opportunities.jsonl");
+const researchTriggersPath = path.join(governanceDir, "research_triggers.jsonl");
 // Codex Builder Lane — improvement proposals + learning
 const improvementDir = path.join(artifactsDir, "improvement");
 const improvementLedgerPath = path.join(improvementDir, "proposals.jsonl");
@@ -305,6 +340,7 @@ fs.mkdirSync(frictionDir, { recursive: true });
 fs.mkdirSync(graphDeltaDir, { recursive: true });
 fs.mkdirSync(evalMatrixDir, { recursive: true });
 fs.mkdirSync(replayDir, { recursive: true });
+fs.mkdirSync(governanceDir, { recursive: true });
 if (!fs.existsSync(improvementDir)) {
   fs.mkdirSync(improvementDir, { recursive: true });
 }
@@ -346,6 +382,94 @@ const graphLastErrorByProfile = new Map();
 const _externalMcpToolsCache = new Map();
 const EXTERNAL_MCP_TOOLS_CACHE_TTL_MS = 30 * 1000;
 const DEFAULT_EXTERNAL_MCP_TIMEOUT_MS = 8000;
+let _featureSignalMatcher = { match: () => [] };
+
+function loadJsonConfigWithFallback(filePath, fallback) {
+  const parsed = readJsonFile(filePath);
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : fallback;
+}
+
+function loadFeatureRegistryConfig() {
+  return loadJsonConfigWithFallback(featureRegistryConfigPath, { features: [] });
+}
+
+function loadFeatureFragilityPolicy() {
+  return loadJsonConfigWithFallback(featureFragilityPolicyConfigPath, {
+    window: { lookback_days: 30 },
+    thresholds: { freeze_score: 70, escalation_score: 85 },
+    weights: {
+      base_registry: 0.4,
+      replay_failures: 0.15,
+      harmful_friction: 0.15,
+      override_rate: 0.1,
+      dependency_volatility: 0.1,
+      test_depth_gap: 0.1,
+    },
+    scaling: { max_dependencies: 8, target_qa_refs: 6 },
+  });
+}
+
+function loadFeatureUsagePolicy() {
+  return loadJsonConfigWithFallback(featureUsagePolicyConfigPath, {
+    window: { lookback_days: 30 },
+    thresholds: {
+      low_usage_max_invocations: 8,
+      low_usage_max_adoption_ratio: 0.25,
+      target_invocations_30d: 40,
+      min_success_sample_size: 5,
+    },
+    opportunity: { top_n: 10 },
+  });
+}
+
+function loadResearchTriggerPolicy() {
+  return loadJsonConfigWithFallback(researchTriggerPolicyConfigPath, {
+    thresholds: { fragility_score: 70, maturity_score: 2, low_usage_adoption_ratio: 0.2 },
+    triggers: { maturity_gap_requires_research: true, low_usage_requires_research: true },
+    strategic_feature_ids: [],
+  });
+}
+
+function refreshFeatureSignalMatcher() {
+  try {
+    _featureSignalMatcher = buildFeatureSignalMatcher(loadFeatureRegistryConfig());
+  } catch {
+    _featureSignalMatcher = { match: () => [] };
+  }
+  return _featureSignalMatcher;
+}
+
+function inferFeatureUsageStatus(eventType, payload) {
+  const normalizedType = typeof eventType === "string" ? eventType : "";
+  if (normalizedType.endsWith(".failed") || normalizedType.includes("blocked")) {
+    return "failed";
+  }
+  if (payload && typeof payload === "object" && (payload.error || payload.ok === false)) {
+    return "failed";
+  }
+  return "ok";
+}
+
+function recordFeatureUsageFromEvent(eventType, source, payload, timestamp) {
+  const matcher = _featureSignalMatcher || { match: () => [] };
+  const featureIds = typeof matcher.match === "function" ? matcher.match(eventType) : [];
+  if (!Array.isArray(featureIds) || featureIds.length === 0) {
+    return;
+  }
+  const status = inferFeatureUsageStatus(eventType, payload);
+  for (const featureId of featureIds) {
+    appendJsonlLine(featureUsagePath, {
+      kind: "feature_usage",
+      feature_id: featureId,
+      event_type: eventType,
+      source: typeof source === "string" ? source : "unknown",
+      status,
+      timestamp,
+    });
+  }
+}
+
+refreshFeatureSignalMatcher();
 
 // Ops state persisted to ops_ledger (JC-087d) — replay on startup
 function replayOpsState() {
@@ -436,6 +560,11 @@ const MONITORED_CONFIGS = [
   "graph_sync_strategy.json",
   "roadmap_master.json",
   "module_lifecycle_policy.json",
+  "feature_registry.json",
+  "feature_registry_schema.json",
+  "feature_fragility_policy.json",
+  "feature_usage_policy.json",
+  "research_trigger_policy.json",
   "compatibility_policy.json",
   "retrofit_rf0_baseline_lock.json",
 ];
@@ -1264,6 +1393,11 @@ function appendEvent(eventType, source, payload, traceId) {
     payload: payload && typeof payload === "object" ? payload : {},
   };
   fs.appendFileSync(eventLogPath, JSON.stringify(event) + "\n", "utf8");
+  try {
+    recordFeatureUsageFromEvent(eventType, source, event.payload, event.timestamp);
+  } catch {
+    /* feature usage tracking is best-effort and must not block event writes */
+  }
   return event.event_id;
 }
 
@@ -1278,6 +1412,7 @@ function validateStartupIntegrity() {
     configs_ok: 0,
     errors: [],
   };
+  let featureCoverageSnapshot = null;
 
   // Validate JSONL ledgers — check each exists and last line is valid JSON
   const ledgerPaths = [
@@ -1311,6 +1446,10 @@ function validateStartupIntegrity() {
     evalMatrixRunsPath,
     replayRunsPath,
     replayEvidencePath,
+    featureHealthPath,
+    featureUsagePath,
+    featureOpportunitiesPath,
+    researchTriggersPath,
     improvementLedgerPath,
     meetingsPrepPath,
     meetingsDebriefPath,
@@ -1355,6 +1494,11 @@ function validateStartupIntegrity() {
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
     compatibilityPolicyConfigPath,
+    featureRegistryConfigPath,
+    featureRegistrySchemaConfigPath,
+    featureFragilityPolicyConfigPath,
+    featureUsagePolicyConfigPath,
+    researchTriggerPolicyConfigPath,
     replayGateContractConfigPath,
     rolloutPolicyConfigPath,
     migrationManifestConfigPath,
@@ -1382,6 +1526,11 @@ function validateStartupIntegrity() {
     esignProviderPolicyConfigPath,
     mobileAlertPolicyConfigPath,
     compatibilityPolicyConfigPath,
+    featureRegistryConfigPath,
+    featureRegistrySchemaConfigPath,
+    featureFragilityPolicyConfigPath,
+    featureUsagePolicyConfigPath,
+    researchTriggerPolicyConfigPath,
     migrationManifestConfigPath,
     retrofitBaselineLockConfigPath,
     hardBansConfigPath,
@@ -1552,6 +1701,102 @@ function validateStartupIntegrity() {
         }
       }
 
+      if (cp === featureRegistryConfigPath) {
+        const featureRegistryValidation = validateFeatureRegistry(parsed);
+        if (!featureRegistryValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_registry validation failed: ${featureRegistryValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: featureRegistryValidation.errors,
+            warnings: featureRegistryValidation.warnings || [],
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+        const coverageValidation = validateFeatureCoverage(parsed);
+        if (!coverageValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature coverage validation failed: ${coverageValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: coverageValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        } else {
+          featureCoverageSnapshot = coverageValidation.stats || null;
+        }
+      }
+
+      if (cp === featureRegistrySchemaConfigPath) {
+        const featureRegistrySchemaValidation = validateFeatureRegistrySchema(parsed);
+        if (!featureRegistrySchemaValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_registry_schema validation failed: ${featureRegistrySchemaValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: featureRegistrySchemaValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === featureFragilityPolicyConfigPath) {
+        const fragilityPolicyValidation = validateFeatureFragilityPolicy(parsed);
+        if (!fragilityPolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_fragility_policy validation failed: ${fragilityPolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: fragilityPolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === featureUsagePolicyConfigPath) {
+        const usagePolicyValidation = validateFeatureUsagePolicy(parsed);
+        if (!usagePolicyValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `feature_usage_policy validation failed: ${usagePolicyValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: usagePolicyValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
+      if (cp === researchTriggerPolicyConfigPath) {
+        const researchTriggerValidation = validateResearchTriggerPolicy(parsed);
+        if (!researchTriggerValidation.ok) {
+          results.errors.push({
+            type: "config",
+            path: cp,
+            error: `research_trigger_policy validation failed: ${researchTriggerValidation.errors
+              .map((entry) => entry.code)
+              .join(", ")}`,
+            details: researchTriggerValidation.errors,
+            critical: criticalConfigs.has(cp),
+          });
+          configValid = false;
+        }
+      }
+
       if (cp === replayGateContractConfigPath) {
         const replayGateValidation = validateReplayGateContract(parsed);
         if (!replayGateValidation.ok) {
@@ -1657,6 +1902,15 @@ function validateStartupIntegrity() {
   // Log the validation event
   try {
     appendEvent("system.startup_validation", "server", results);
+    if (featureCoverageSnapshot) {
+      appendEvent("feature.maturity.evaluated", "startup_validation", {
+        generated_at: new Date().toISOString(),
+        feature_count: featureCoverageSnapshot.features_checked || 0,
+        qa_refs: featureCoverageSnapshot.qa_refs || 0,
+        security_refs: featureCoverageSnapshot.security_refs || 0,
+        runtime_signal_refs: featureCoverageSnapshot.runtime_signal_refs || 0,
+      });
+    }
   } catch {
     /* non-fatal — event log itself might be the problem */
   }
@@ -1676,6 +1930,7 @@ function validateStartupIntegrity() {
     );
   }
 
+  refreshFeatureSignalMatcher();
   _lastStartupValidation = results;
   return results;
 }
@@ -1717,6 +1972,106 @@ function getEventLogStats() {
     last_event_at: lastTimestamp,
     event_type_counts: typeCounts,
   };
+}
+
+function evaluateFeatureHealthNow() {
+  const registry = loadFeatureRegistryConfig();
+  const fragilityPolicy = loadFeatureFragilityPolicy();
+  const usagePolicy = loadFeatureUsagePolicy();
+  const researchTriggerPolicy = loadResearchTriggerPolicy();
+  const generatedAt = new Date().toISOString();
+
+  const snapshot = computeFeatureHealthSnapshot({
+    registry,
+    fragilityPolicy,
+    usagePolicy,
+    researchTriggerPolicy,
+    replayRuns: readJsonlLines(replayRunsPath),
+    frictionEvents: readJsonlLines(jobFrictionLedgerPath),
+    eventLog: readJsonlLines(eventLogPath),
+    usageEvents: readJsonlLines(featureUsagePath),
+    generatedAt,
+  });
+
+  appendJsonlLine(featureHealthPath, snapshot);
+  appendEvent("feature.fragility.evaluated", "/ops/feature-health", {
+    generated_at: snapshot.generated_at,
+    totals: snapshot.totals,
+  });
+
+  const triggered = snapshot.features.filter((feature) => feature?.state?.research_required);
+  for (const feature of triggered) {
+    const triggerRecord = {
+      kind: "feature_research_trigger",
+      feature_id: feature.feature_id,
+      fragility_score: feature.fragility_score,
+      maturity_score: feature.maturity_score,
+      adoption_ratio_30d: feature.usage_signals?.adoption_ratio_30d ?? null,
+      triggered_at: generatedAt,
+    };
+    appendJsonlLine(researchTriggersPath, triggerRecord);
+    appendEvent("feature.research.triggered", "/ops/feature-health", triggerRecord);
+  }
+
+  return snapshot;
+}
+
+function parsePositiveInt(value, fallback, max) {
+  const n = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    return fallback;
+  }
+  return Math.max(1, Math.min(max, n));
+}
+
+function featureHealthEndpoint(parsed, res, route) {
+  const force = parsed.searchParams.get("force") === "1";
+  const includeHistory = parsed.searchParams.get("include_history") === "1";
+  const historyLimit = parsePositiveInt(parsed.searchParams.get("history_limit"), 20, 200);
+
+  const snapshot = force
+    ? evaluateFeatureHealthNow()
+    : (() => {
+        const lines = readJsonlLines(featureHealthPath);
+        return lines.length > 0 ? lines[lines.length - 1] : evaluateFeatureHealthNow();
+      })();
+
+  const response = {
+    ...snapshot,
+    policy: {
+      fragility: loadFeatureFragilityPolicy(),
+      usage: loadFeatureUsagePolicy(),
+      research: loadResearchTriggerPolicy(),
+    },
+  };
+  if (includeHistory) {
+    const history = readJsonlLines(featureHealthPath);
+    response.history = history.slice(-historyLimit);
+  }
+  sendJson(res, 200, response);
+  logLine(`GET ${route} -> 200 (features=${snapshot?.totals?.features || 0})`);
+}
+
+function featureOpportunitiesEndpoint(parsed, res, route) {
+  const force = parsed.searchParams.get("force") === "1";
+  const topN = parsePositiveInt(parsed.searchParams.get("top_n"), 10, 50);
+  const snapshot = force
+    ? evaluateFeatureHealthNow()
+    : (() => {
+        const lines = readJsonlLines(featureHealthPath);
+        return lines.length > 0 ? lines[lines.length - 1] : evaluateFeatureHealthNow();
+      })();
+
+  const usagePolicy = loadFeatureUsagePolicy();
+  const opportunities = buildLowUsageOpportunities(snapshot, { usagePolicy, topN });
+  appendJsonlLine(featureOpportunitiesPath, opportunities);
+  appendEvent("feature.usage.low_detected", "/ops/feature-opportunities", {
+    generated_at: opportunities.generated_at,
+    total_candidates: opportunities.total_candidates,
+    returned: opportunities.opportunities.length,
+  });
+  sendJson(res, 200, opportunities);
+  logLine(`GET ${route} -> 200 (opportunities=${opportunities.opportunities.length})`);
 }
 
 // Event normalizers (JC-092a)
@@ -1943,6 +2298,8 @@ function normalizeRoutePolicyKey(route) {
     [/^\/ops\/replay\/corpus$/, "/ops/replay/corpus"],
     [/^\/ops\/replay\/run$/, "/ops/replay/run"],
     [/^\/ops\/replay\/runs$/, "/ops/replay/runs"],
+    [/^\/ops\/feature-health$/, "/ops/feature-health"],
+    [/^\/ops\/feature-opportunities$/, "/ops/feature-opportunities"],
   ];
   for (const [pattern, key] of dynamicPatterns) {
     if (pattern.test(route)) {
@@ -2232,6 +2589,8 @@ executionBoundaryPolicy.set("/ops/outcomes/job/{job_id}", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/corpus", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/run", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/replay/runs", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/feature-health", "WORKFLOW_ONLY");
+executionBoundaryPolicy.set("/ops/feature-opportunities", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/rollout-policy", "WORKFLOW_ONLY");
 executionBoundaryPolicy.set("/ops/compatibility-policy", "WORKFLOW_ONLY");
 // Sprint 2 (SDD 72): Evaluation pipeline
@@ -24437,6 +24796,14 @@ const server = http.createServer(async (req, res) => {
       replayRunsEndpoint(parsed, res, route);
       return;
     }
+    if (method === "GET" && route === "/ops/feature-health") {
+      featureHealthEndpoint(parsed, res, route);
+      return;
+    }
+    if (method === "GET" && route === "/ops/feature-opportunities") {
+      featureOpportunitiesEndpoint(parsed, res, route);
+      return;
+    }
     if (method === "GET" && route === "/ops/rollout-policy") {
       rolloutPolicyEndpoint(parsed, res, route);
       return;
@@ -24857,6 +25224,11 @@ try {
 
 // ─── Sprint 1 (SDD 72): Pre-Upgrade Startup Validation ───
 validateStartupIntegrity();
+try {
+  evaluateFeatureHealthNow();
+} catch (err) {
+  logLine(`FEATURE_HEALTH_BOOTSTRAP_WARN: ${err?.message || String(err)}`);
+}
 
 server.listen(PORT, HOST, () => {
   logLine(`ted-engine listening on http://${HOST}:${PORT}`);

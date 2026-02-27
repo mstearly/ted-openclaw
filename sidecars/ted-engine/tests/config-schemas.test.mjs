@@ -12,6 +12,11 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, test, expect } from "vitest";
+import {
+  validateFeatureFragilityPolicy,
+  validateFeatureUsagePolicy,
+  validateResearchTriggerPolicy,
+} from "../modules/feature_health.mjs";
 import { validateMigrationManifest } from "../modules/migration_registry.mjs";
 import { validateReplayGateContract } from "../modules/replay_gate_contract.mjs";
 import {
@@ -451,6 +456,27 @@ describe("roadmap and lifecycle governance configs", () => {
     expect(result.ok).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
+
+  test("feature_fragility_policy.json passes structural validation", () => {
+    const policy = configs.get("feature_fragility_policy.json");
+    const result = validateFeatureFragilityPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("feature_usage_policy.json passes structural validation", () => {
+    const policy = configs.get("feature_usage_policy.json");
+    const result = validateFeatureUsagePolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("research_trigger_policy.json passes structural validation", () => {
+    const policy = configs.get("research_trigger_policy.json");
+    const result = validateResearchTriggerPolicy(policy);
+    expect(result.ok).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────
@@ -486,6 +512,11 @@ describe("Required config files exist", () => {
     "connector_admission_policy.json",
     "esign_provider_policy.json",
     "mobile_alert_policy.json",
+    "feature_registry.json",
+    "feature_registry_schema.json",
+    "feature_fragility_policy.json",
+    "feature_usage_policy.json",
+    "research_trigger_policy.json",
     "compatibility_policy.json",
     "retrofit_rf0_baseline_lock.json",
   ];

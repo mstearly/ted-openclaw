@@ -150,6 +150,12 @@
       "mcp.external.revalidation.run": "MCP connector revalidation scaffold executed",
       "mcp.external.revalidation.status.queried": "Operator queried MCP revalidation run status"
     },
+    "feature": {
+      "feature.maturity.evaluated": "Feature coverage and maturity mapping evaluated during startup validation",
+      "feature.fragility.evaluated": "Feature fragility scoring snapshot computed and persisted",
+      "feature.research.triggered": "Feature crossed research-trigger threshold and requires external benchmark review",
+      "feature.usage.low_detected": "Low-usage high-value features identified for activation experiments"
+    },
     "policy": {
       "policy.config.changed": "Policy config changed (hard_bans, autonomy, urgency, etc.)",
       "policy.config.snapshot": "Policy config snapshot on startup",

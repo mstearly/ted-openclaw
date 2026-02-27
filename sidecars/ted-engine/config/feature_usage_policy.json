@@ -1,0 +1,17 @@
+{
+  "_config_version": 1,
+  "_artifact": "feature_usage_policy",
+  "_description": "Wave D usage signal policy for low-usage opportunity detection.",
+  "window": {
+    "lookback_days": 30
+  },
+  "thresholds": {
+    "low_usage_max_invocations": 8,
+    "low_usage_max_adoption_ratio": 0.25,
+    "target_invocations_30d": 40,
+    "min_success_sample_size": 5
+  },
+  "opportunity": {
+    "top_n": 10
+  }
+}

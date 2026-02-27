@@ -1,0 +1,21 @@
+{
+  "_config_version": 1,
+  "_artifact": "research_trigger_policy",
+  "_description": "Wave E policy defining when external research must be triggered for feature changes.",
+  "thresholds": {
+    "fragility_score": 70,
+    "maturity_score": 2,
+    "low_usage_adoption_ratio": 0.2
+  },
+  "triggers": {
+    "maturity_gap_requires_research": true,
+    "low_usage_requires_research": true
+  },
+  "strategic_feature_ids": [
+    "m365_integration",
+    "reconciliation_engine",
+    "scheduler",
+    "builder_lane",
+    "governance_choke_point"
+  ]
+}
