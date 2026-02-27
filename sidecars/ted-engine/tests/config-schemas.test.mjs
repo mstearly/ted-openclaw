@@ -155,6 +155,15 @@ describe("event_schema.json — structure", () => {
     }
     expect(total).toBeGreaterThanOrEqual(200);
   });
+
+  test("discovery and ingestion quality events are defined", () => {
+    expect(eventSchema.event_types.discovery["discovery.quality.evaluated"]).toBeDefined();
+    expect(eventSchema.event_types.ingestion["ingestion.quality.evaluated"]).toBeDefined();
+    expect(eventSchema.event_types.ingestion["ingestion.duplicate.blocked"]).toBeDefined();
+    expect(eventSchema.event_types.knowledge["knowledge.retrieval.query.executed"]).toBeDefined();
+    expect(eventSchema.event_types.knowledge["knowledge.retrieval.policy.blocked"]).toBeDefined();
+    expect(eventSchema.event_types.knowledge["knowledge.retrieval.no_results"]).toBeDefined();
+  });
 });
 
 // ─────────────────────────────────────────────────────────

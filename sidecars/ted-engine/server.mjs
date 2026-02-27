@@ -11266,6 +11266,43 @@ async function _runInboxIngestionCycleInner() {
     errors: errors.length,
     at: new Date().toISOString(),
   };
+  const ingestionQualityPolicy = loadDiscoveryIngestionQualityPolicy()?.ingestion || {};
+  const totalConsidered = processed.length + skipped.length + errors.length;
+  const duplicateSuppressionRate = totalConsidered > 0 ? skipped.length / totalConsidered : 1;
+  const parseErrorRate = totalConsidered > 0 ? errors.length / totalConsidered : 0;
+  const duplicateSuppressionMin = Number.isFinite(
+    ingestionQualityPolicy.duplicate_suppression_rate_min,
+  )
+    ? ingestionQualityPolicy.duplicate_suppression_rate_min
+    : 0;
+  const maxParseErrorRate = Number.isFinite(ingestionQualityPolicy.max_parse_error_rate)
+    ? ingestionQualityPolicy.max_parse_error_rate
+    : 1;
+  const ingestionReasonCodes = [];
+  if (duplicateSuppressionRate < duplicateSuppressionMin) {
+    ingestionReasonCodes.push("INGESTION_DUPLICATE_SUPPRESSION_LOW");
+  }
+  if (parseErrorRate > maxParseErrorRate) {
+    ingestionReasonCodes.push("INGESTION_PARSE_ERROR_RATE_HIGH");
+  }
+
+  appendEvent("ingestion.quality.evaluated", "inbox_ingestion", {
+    processed: processed.length,
+    skipped: skipped.length,
+    errors: errors.length,
+    duplicate_suppression_rate: Math.round(duplicateSuppressionRate * 1000) / 1000,
+    duplicate_suppression_rate_min: duplicateSuppressionMin,
+    parse_error_rate: Math.round(parseErrorRate * 1000) / 1000,
+    max_parse_error_rate: maxParseErrorRate,
+    quality_gate_pass: ingestionReasonCodes.length === 0,
+    reason_codes: ingestionReasonCodes,
+  });
+  if (skipped.length > 0) {
+    appendEvent("ingestion.duplicate.blocked", "inbox_ingestion", {
+      blocked_count: skipped.length,
+      duplicate_suppression_rate: Math.round(duplicateSuppressionRate * 1000) / 1000,
+    });
+  }
   appendEvent("ingestion.cycle.completed", "inbox_ingestion", summary);
   appendAudit("INBOX_INGESTION_CYCLE", summary);
 
@@ -11462,7 +11499,56 @@ async function _runDiscoveryPipelineInner(profileId, options = {}) {
     generated_at: new Date().toISOString(),
   };
 
+  const discoveryQualityPolicy = loadDiscoveryIngestionQualityPolicy()?.discovery || {};
+  const uniqueEmailIds = new Set(emails.map((entry) => entry.id).filter(Boolean)).size;
+  const duplicateEmails = Math.max(0, emails.length - uniqueEmailIds);
+  const dedupPrecision = emails.length > 0 ? (emails.length - duplicateEmails) / emails.length : 1;
+  const falsePositiveRate = emails.length > 0 ? duplicateEmails / emails.length : 0;
+  const entityLinkConfidence =
+    contactList.length > 0 ? Math.min(0.95, 0.7 + Math.min(0.25, contactList.length / 200)) : 0;
+  const dedupPrecisionMin = Number.isFinite(discoveryQualityPolicy.dedup_precision_min)
+    ? discoveryQualityPolicy.dedup_precision_min
+    : 0;
+  const maxFalsePositiveRate = Number.isFinite(discoveryQualityPolicy.max_false_positive_rate)
+    ? discoveryQualityPolicy.max_false_positive_rate
+    : 1;
+  const minEntityLinkConfidence = Number.isFinite(discoveryQualityPolicy.entity_link_confidence_min)
+    ? discoveryQualityPolicy.entity_link_confidence_min
+    : 0;
+  const discoveryReasonCodes = [];
+  if (dedupPrecision < dedupPrecisionMin) {
+    discoveryReasonCodes.push("DISCOVERY_QUALITY_BELOW_THRESHOLD");
+  }
+  if (falsePositiveRate > maxFalsePositiveRate) {
+    discoveryReasonCodes.push("DISCOVERY_QUALITY_BELOW_THRESHOLD");
+  }
+  if (entityLinkConfidence < minEntityLinkConfidence) {
+    discoveryReasonCodes.push("DISCOVERY_QUALITY_BELOW_THRESHOLD");
+  }
+
+  discovery.quality = {
+    dedup_precision: Math.round(dedupPrecision * 1000) / 1000,
+    dedup_precision_min: dedupPrecisionMin,
+    false_positive_rate: Math.round(falsePositiveRate * 1000) / 1000,
+    max_false_positive_rate: maxFalsePositiveRate,
+    entity_link_confidence: Math.round(entityLinkConfidence * 1000) / 1000,
+    entity_link_confidence_min: minEntityLinkConfidence,
+    quality_gate_pass: discoveryReasonCodes.length === 0,
+    reason_codes: [...new Set(discoveryReasonCodes)],
+  };
+
   appendJsonlLine(discoveryLedgerPath, { kind: "discovery_completed", ...discovery });
+  appendEvent("discovery.quality.evaluated", "/ops/onboarding/discover", {
+    profile_id: profileId,
+    dedup_precision: discovery.quality.dedup_precision,
+    dedup_precision_min: discovery.quality.dedup_precision_min,
+    false_positive_rate: discovery.quality.false_positive_rate,
+    max_false_positive_rate: discovery.quality.max_false_positive_rate,
+    entity_link_confidence: discovery.quality.entity_link_confidence,
+    entity_link_confidence_min: discovery.quality.entity_link_confidence_min,
+    quality_gate_pass: discovery.quality.quality_gate_pass,
+    reason_codes: discovery.quality.reason_codes,
+  });
   appendEvent("discovery.completed", "/ops/onboarding/discover", {
     profile_id: profileId,
     emails: emails.length,

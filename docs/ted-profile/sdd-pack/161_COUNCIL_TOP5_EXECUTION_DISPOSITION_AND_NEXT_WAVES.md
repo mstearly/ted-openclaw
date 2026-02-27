@@ -162,6 +162,9 @@ Council executed the next implementation loop for the top research-before-build 
      - `sidecars/ted-engine/config/feature_registry.json`
      - `sidecars/ted-engine/config/feature_maturity.json`
      - `sidecars/ted-engine/config/capability_maturity.json`
+5. Added runtime quality instrumentation hooks:
+   - `discovery.quality.evaluated` now emitted from discovery run outcomes.
+   - `ingestion.quality.evaluated` and `ingestion.duplicate.blocked` now emitted from inbox ingestion cycle summaries and suppression signals.
 
 Queue impact after T5-C2:
 
@@ -188,7 +191,7 @@ Executed checks:
 4. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/migration-runner.test.mjs`
    - result: 15 files passed, 1883 tests passed, 0 failed.
 5. `pnpm test:sidecar -- sidecars/ted-engine/tests/feature-governance.test.mjs sidecars/ted-engine/tests/config-schemas.test.mjs sidecars/ted-engine/tests/feature-registry.test.mjs sidecars/ted-engine/tests/contracts.test.mjs`
-   - result: 15 files passed, 1896 tests passed, 0 failed.
+   - result: 15 files passed, 1897 tests passed, 0 failed.
 
 ## 5. Next executable waves (recommended)
 
