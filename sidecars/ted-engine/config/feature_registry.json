@@ -1,0 +1,1377 @@
+{
+  "_config_version": 1,
+  "_artifact": "feature_registry",
+  "_description": "Unified council feature registry linking maturity, fragility, governance policy context, and feature-level QA/security placeholders.",
+  "_generated_by": "scripts/ted-profile/seed-feature-registry.mjs",
+  "_generated_at": "2026-02-27T10:16:26.214Z",
+  "policy_context": {
+    "policy_precedence": [
+      "safety_compliance",
+      "connector_admission",
+      "context_lifecycle",
+      "transport_optimization",
+      "experience_routing"
+    ],
+    "release_gate_kpis": [
+      "latency_p95",
+      "context_overflow_rate",
+      "alert_ack_sla",
+      "auth_failure_rate",
+      "operator_override_rate",
+      "time_to_first_value"
+    ],
+    "module_classes": ["policy", "workflow", "connector", "domain_engine"]
+  },
+  "features": [
+    {
+      "feature_id": "builder_lane",
+      "name": "builder_lane",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 40,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:builder_lane:unit"
+        ],
+        "replay_scenarios": ["replay:builder_lane:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["improvement.*", "governance.rubber_stamping.detected"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["governance_choke_point", "event_sourcing"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "graduated",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": "low",
+        "notes": "Complete implementation. Last finding: rubber-stamping detection (Cycle QA, fixed)."
+      }
+    },
+    {
+      "feature_id": "calendar_awareness",
+      "name": "calendar_awareness",
+      "plane": "experience",
+      "owner": "council.experience",
+      "backup_owner": "operator.primary",
+      "module_class": "workflow",
+      "lifecycle_state": "mature",
+      "maturity_score": 3,
+      "fragility_score": 50,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:calendar_awareness:unit"
+        ],
+        "replay_scenarios": ["replay:calendar_awareness:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/operator_profile.json"
+        ],
+        "owasp_llm_top10": ["LLM02", "LLM04"]
+      },
+      "runtime_signals": {
+        "events": ["calendar.*", "meeting.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 3,
+        "capability_target": 3,
+        "research_debt_score": null,
+        "notes": "Governed: read events with attendees/body, meeting prep/debrief, enriched normalization. Target met."
+      }
+    },
+    {
+      "feature_id": "config_migration",
+      "name": "config_migration",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "proposed",
+      "maturity_score": 1,
+      "fragility_score": 70,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:config_migration:unit"
+        ],
+        "replay_scenarios": ["replay:config_migration:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["config.migration.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["schema_versioning"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "proposed",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "Identified in research. Not yet implemented."
+      }
+    },
+    {
+      "feature_id": "content_isolation",
+      "name": "content_isolation",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "proposed",
+      "maturity_score": 1,
+      "fragility_score": 70,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:content_isolation:unit"
+        ],
+        "replay_scenarios": ["replay:content_isolation:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["governance.hard_ban.*", "governance.output_contract.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "proposed",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "Lethal trifecta mitigation. Not yet implemented."
+      }
+    },
+    {
+      "feature_id": "deal_tracking",
+      "name": "deal_tracking",
+      "plane": "experience",
+      "owner": "council.experience",
+      "backup_owner": "operator.primary",
+      "module_class": "workflow",
+      "lifecycle_state": "mature",
+      "maturity_score": 3,
+      "fragility_score": 50,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:deal_tracking:unit"
+        ],
+        "replay_scenarios": ["replay:deal_tracking:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/operator_profile.json"
+        ],
+        "owasp_llm_top10": ["LLM02", "LLM04"]
+      },
+      "runtime_signals": {
+        "events": ["deal.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 3,
+        "capability_target": 3,
+        "research_debt_score": null,
+        "notes": "Governed: deal pipeline, stage management, stale owner tracking, retrospective, auto-brief. Target met."
+      }
+    },
+    {
+      "feature_id": "discovery_pipeline",
+      "name": "discovery_pipeline",
+      "plane": "state",
+      "owner": "council.state",
+      "backup_owner": "operator.primary",
+      "module_class": "domain_engine",
+      "lifecycle_state": "incubating",
+      "maturity_score": 2,
+      "fragility_score": 76,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:discovery_pipeline:unit"
+        ],
+        "replay_scenarios": ["replay:discovery_pipeline:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/rollout_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM03", "LLM08"]
+      },
+      "runtime_signals": {
+        "events": ["discovery.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "incubating",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": "medium",
+        "notes": "90d email + 60d calendar scan. Needs: incremental discovery, better deal matching."
+      }
+    },
+    {
+      "feature_id": "document_management",
+      "name": "document_management",
+      "plane": "experience",
+      "owner": "council.experience",
+      "backup_owner": "operator.primary",
+      "module_class": "workflow",
+      "lifecycle_state": "graduated",
+      "maturity_score": 2,
+      "fragility_score": 63,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:document_management:unit"
+        ],
+        "replay_scenarios": ["replay:document_management:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/operator_profile.json"
+        ],
+        "owasp_llm_top10": ["LLM02", "LLM04"]
+      },
+      "runtime_signals": {
+        "events": ["filing.*", "sharepoint.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 2,
+        "capability_target": 3,
+        "research_debt_score": null,
+        "notes": "Functional: SharePoint browse/search/upload. Missing: content extraction, document intelligence, data room integration."
+      }
+    },
+    {
+      "feature_id": "draft_state_machine",
+      "name": "draft_state_machine",
+      "plane": "state",
+      "owner": "council.state",
+      "backup_owner": "operator.primary",
+      "module_class": "domain_engine",
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 60,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:draft_state_machine:unit"
+        ],
+        "replay_scenarios": ["replay:draft_state_machine:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/rollout_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM03", "LLM08"]
+      },
+      "runtime_signals": {
+        "events": ["draft.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["event_sourcing"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "graduated",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "6-state lifecycle. Last finding: req.destroy ordering (Cycle 11, fixed)."
+      }
+    },
+    {
+      "feature_id": "email_handling",
+      "name": "email_handling",
+      "plane": "experience",
+      "owner": "council.experience",
+      "backup_owner": "operator.primary",
+      "module_class": "workflow",
+      "lifecycle_state": "mature",
+      "maturity_score": 3,
+      "fragility_score": 58,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:email_handling:unit"
+        ],
+        "replay_scenarios": ["replay:email_handling:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/operator_profile.json"
+        ],
+        "owasp_llm_top10": ["LLM02", "LLM04"]
+      },
+      "runtime_signals": {
+        "events": ["mail.*", "draft.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 3,
+        "capability_target": 4,
+        "research_debt_score": null,
+        "notes": "Governed: ingestion, triage, draft generation, send via Graph. Missing: semantic search across email history."
+      }
+    },
+    {
+      "feature_id": "evaluation_pipeline",
+      "name": "evaluation_pipeline",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "proposed",
+      "maturity_score": 2,
+      "fragility_score": 70,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:evaluation_pipeline:unit"
+        ],
+        "replay_scenarios": ["replay:evaluation_pipeline:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["evaluation.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["event_sourcing", "governance_choke_point"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "proposed",
+        "capability_level": 2,
+        "capability_target": 4,
+        "research_debt_score": null,
+        "notes": "Functional: 7 golden fixtures at startup. Missing: continuous evaluation, LLM-as-Judge, quality trends."
+      }
+    },
+    {
+      "feature_id": "event_sourcing",
+      "name": "event_sourcing",
+      "plane": "state",
+      "owner": "council.state",
+      "backup_owner": "operator.primary",
+      "module_class": "domain_engine",
+      "lifecycle_state": "mature",
+      "maturity_score": 4,
+      "fragility_score": 25,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:event_sourcing:unit"
+        ],
+        "replay_scenarios": ["replay:event_sourcing:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/rollout_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM03", "LLM08"]
+      },
+      "runtime_signals": {
+        "events": ["audit.action", "policy.config.changed", "system.startup_validation"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "mature",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": "low",
+        "notes": "Core architecture. 218 event types, 35 ledgers, dual-write. No findings in 4+ cycles."
+      }
+    },
+    {
+      "feature_id": "governance_choke_point",
+      "name": "governance_choke_point",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "mature",
+      "maturity_score": 4,
+      "fragility_score": 45,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:governance_choke_point:unit"
+        ],
+        "replay_scenarios": ["replay:governance_choke_point:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["governance.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "mature",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "Single sidecar. Execution boundary policy. No bypass. No findings in 4+ cycles."
+      }
+    },
+    {
+      "feature_id": "governance_safety",
+      "name": "governance_safety",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "mature",
+      "maturity_score": 4,
+      "fragility_score": 45,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:governance_safety:unit"
+        ],
+        "replay_scenarios": ["replay:governance_safety:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["governance.*", "trust.validation.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 4,
+        "capability_target": 4,
+        "research_debt_score": null,
+        "notes": "Self-Improving: Builder Lane proposes governance changes, rubber-stamping detection, constitution check. Target met."
+      }
+    },
+    {
+      "feature_id": "hipaa_compliance",
+      "name": "hipaa_compliance",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 40,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:hipaa_compliance:unit"
+        ],
+        "replay_scenarios": ["replay:hipaa_compliance:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["governance.entity_check.*", "governance.output_contract.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "graduated",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": "low",
+        "notes": "Entity-level overrides, PHI redaction. Last finding: case-sensitivity bypass."
+      }
+    },
+    {
+      "feature_id": "ingestion_pipeline",
+      "name": "ingestion_pipeline",
+      "plane": "state",
+      "owner": "council.state",
+      "backup_owner": "operator.primary",
+      "module_class": "domain_engine",
+      "lifecycle_state": "incubating",
+      "maturity_score": 2,
+      "fragility_score": 76,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:ingestion_pipeline:unit"
+        ],
+        "replay_scenarios": ["replay:ingestion_pipeline:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/rollout_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM03", "LLM08"]
+      },
+      "runtime_signals": {
+        "events": ["ingestion.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "incubating",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": "medium",
+        "notes": "Inbox ingestion, dedup. Needs: more robust error handling, semantic dedup."
+      }
+    },
+    {
+      "feature_id": "knowledge_retrieval",
+      "name": "knowledge_retrieval",
+      "plane": "state",
+      "owner": "council.state",
+      "backup_owner": "operator.primary",
+      "module_class": "domain_engine",
+      "lifecycle_state": "incubating",
+      "maturity_score": 1,
+      "fragility_score": 82,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:knowledge_retrieval:unit"
+        ],
+        "replay_scenarios": ["replay:knowledge_retrieval:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/rollout_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM03", "LLM08"]
+      },
+      "runtime_signals": {
+        "events": ["extraction.*", "memory.preference.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 1,
+        "capability_target": 3,
+        "research_debt_score": null,
+        "notes": "Basic: structured ledger queries only. No semantic search, no RAG, no vector store. Significant gap."
+      }
+    },
+    {
+      "feature_id": "m365_integration",
+      "name": "m365_integration",
+      "plane": "connector",
+      "owner": "council.connectors",
+      "backup_owner": "operator.primary",
+      "module_class": "connector",
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 60,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:m365_integration:unit"
+        ],
+        "replay_scenarios": ["replay:m365_integration:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/connector_admission_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM07", "LLM10"]
+      },
+      "runtime_signals": {
+        "events": ["graph.*", "planner.*", "todo.*"],
+        "slos": ["connector.auth_failure_rate<=0.02", "connector.retry_recovery_rate>=0.9"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["governance_choke_point"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "graduated",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "Mail, Calendar, Planner, To Do, SharePoint. Last finding: ensureValidToken in reconcile."
+      }
+    },
+    {
+      "feature_id": "multi_user",
+      "name": "multi_user",
+      "plane": "experience",
+      "owner": "council.experience",
+      "backup_owner": "operator.primary",
+      "module_class": "workflow",
+      "lifecycle_state": "proposed",
+      "maturity_score": 0,
+      "fragility_score": 83,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:multi_user:unit"
+        ],
+        "replay_scenarios": ["replay:multi_user:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/operator_profile.json"
+        ],
+        "owasp_llm_top10": ["LLM02", "LLM04"]
+      },
+      "runtime_signals": {
+        "events": ["memory.preference.*", "workflow.registry.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 0,
+        "capability_target": 1,
+        "research_debt_score": null,
+        "notes": "Not Present: single operator only. Architectural planning needed but not urgent for current use case."
+      }
+    },
+    {
+      "feature_id": "non_destructive_evolution",
+      "name": "non_destructive_evolution",
+      "plane": "contract",
+      "owner": "council.contracts",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "incubating",
+      "maturity_score": 1,
+      "fragility_score": 82,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:non_destructive_evolution:unit"
+        ],
+        "replay_scenarios": ["replay:non_destructive_evolution:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/output_contracts.json"
+        ],
+        "owasp_llm_top10": ["LLM05", "LLM09"]
+      },
+      "runtime_signals": {
+        "events": ["policy.deprecation.notice_served", "config.migrated"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["schema_versioning", "config_migration"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 1,
+        "capability_target": 3,
+        "research_debt_score": null,
+        "notes": "Basic: config drift reconciliation exists but no schema versioning, no migration runner, no upcasters."
+      }
+    },
+    {
+      "feature_id": "personalization",
+      "name": "personalization",
+      "plane": "experience",
+      "owner": "council.experience",
+      "backup_owner": "operator.primary",
+      "module_class": "workflow",
+      "lifecycle_state": "mature",
+      "maturity_score": 3,
+      "fragility_score": 58,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:personalization:unit"
+        ],
+        "replay_scenarios": ["replay:personalization:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/operator_profile.json"
+        ],
+        "owasp_llm_top10": ["LLM02", "LLM04"]
+      },
+      "runtime_signals": {
+        "events": ["memory.preference.*", "improvement.calibration.response"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 3,
+        "capability_target": 4,
+        "research_debt_score": null,
+        "notes": "Governed: style guide, draft style, correction signals, cold-start archetypes, voice extraction. Missing: per-context style adaptation."
+      }
+    },
+    {
+      "feature_id": "prompt_registry",
+      "name": "prompt_registry",
+      "plane": "contract",
+      "owner": "council.contracts",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "proposed",
+      "maturity_score": 1,
+      "fragility_score": 70,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:prompt_registry:unit"
+        ],
+        "replay_scenarios": ["replay:prompt_registry:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/output_contracts.json"
+        ],
+        "owasp_llm_top10": ["LLM05", "LLM09"]
+      },
+      "runtime_signals": {
+        "events": ["prompt.registry.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "proposed",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "Identified in research. Not yet implemented."
+      }
+    },
+    {
+      "feature_id": "reconciliation_engine",
+      "name": "reconciliation_engine",
+      "plane": "state",
+      "owner": "council.state",
+      "backup_owner": "operator.primary",
+      "module_class": "domain_engine",
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 60,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:reconciliation_engine:unit"
+        ],
+        "replay_scenarios": ["replay:reconciliation_engine:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/rollout_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM03", "LLM08"]
+      },
+      "runtime_signals": {
+        "events": ["sync.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["m365_integration"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "graduated",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "Planner/To Do sync, dedup. Last finding: graphFetchWithRetry upgrade."
+      }
+    },
+    {
+      "feature_id": "scheduler",
+      "name": "scheduler",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "graduated",
+      "maturity_score": 3,
+      "fragility_score": 40,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:scheduler:unit"
+        ],
+        "replay_scenarios": ["replay:scheduler:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["scheduler.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["draft_state_machine", "self_healing"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "graduated",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": "low",
+        "notes": "Cron matching, 6 gates, auto-dispatch. Last finding: DOW=7 Sunday (Cycle 11, fixed)."
+      }
+    },
+    {
+      "feature_id": "schema_versioning",
+      "name": "schema_versioning",
+      "plane": "contract",
+      "owner": "council.contracts",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "proposed",
+      "maturity_score": 1,
+      "fragility_score": 70,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:schema_versioning:unit"
+        ],
+        "replay_scenarios": ["replay:schema_versioning:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/output_contracts.json"
+        ],
+        "owasp_llm_top10": ["LLM05", "LLM09"]
+      },
+      "runtime_signals": {
+        "events": ["config.migrated", "contracts.startup_validation"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "proposed",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "Identified in research. Not yet implemented."
+      }
+    },
+    {
+      "feature_id": "self_healing",
+      "name": "self_healing",
+      "plane": "control",
+      "owner": "council.governance",
+      "backup_owner": "operator.primary",
+      "module_class": "policy",
+      "lifecycle_state": "graduated",
+      "maturity_score": 4,
+      "fragility_score": 40,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:self_healing:unit"
+        ],
+        "replay_scenarios": ["replay:self_healing:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/module_lifecycle_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM01", "LLM06"]
+      },
+      "runtime_signals": {
+        "events": ["self_healing.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["governance_block_spike", "override_rate_spike"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["event_sourcing", "governance_choke_point"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "graduated",
+        "capability_level": 4,
+        "capability_target": 4,
+        "research_debt_score": "low",
+        "notes": "Self-Improving: circuit breakers, provider health, config drift, zombie drafts, noise reduction, dynamic autonomy. Target met."
+      }
+    },
+    {
+      "feature_id": "sharepoint_integration",
+      "name": "sharepoint_integration",
+      "plane": "connector",
+      "owner": "council.connectors",
+      "backup_owner": "operator.primary",
+      "module_class": "connector",
+      "lifecycle_state": "incubating",
+      "maturity_score": 2,
+      "fragility_score": 71,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:sharepoint_integration:unit"
+        ],
+        "replay_scenarios": ["replay:sharepoint_integration:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/connector_admission_policy.json"
+        ],
+        "owasp_llm_top10": ["LLM07", "LLM10"]
+      },
+      "runtime_signals": {
+        "events": ["sharepoint.*"],
+        "slos": ["connector.auth_failure_rate<=0.02", "connector.retry_recovery_rate>=0.9"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": ["m365_integration"],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": "incubating",
+        "capability_level": null,
+        "capability_target": null,
+        "research_debt_score": null,
+        "notes": "7 routes. Needs: content extraction, document intelligence."
+      }
+    },
+    {
+      "feature_id": "task_management",
+      "name": "task_management",
+      "plane": "experience",
+      "owner": "council.experience",
+      "backup_owner": "operator.primary",
+      "module_class": "workflow",
+      "lifecycle_state": "mature",
+      "maturity_score": 3,
+      "fragility_score": 58,
+      "qa_contracts": {
+        "test_suites": [
+          "sidecars/ted-engine/tests/config-schemas.test.mjs",
+          "sidecars/ted-engine/tests/contracts.test.mjs",
+          "feature:task_management:unit"
+        ],
+        "replay_scenarios": ["replay:task_management:baseline"],
+        "browser_gates": ["ui/src/ui/views/ted.workflow.browser.test.ts"]
+      },
+      "security_controls": {
+        "policy_refs": [
+          "sidecars/ted-engine/config/hard_bans.json",
+          "sidecars/ted-engine/config/operator_profile.json"
+        ],
+        "owasp_llm_top10": ["LLM02", "LLM04"]
+      },
+      "runtime_signals": {
+        "events": ["planner.task.*", "todo.task.*", "commitment.*", "gtd.*"],
+        "slos": ["error_rate<=0.05", "p95_latency_ms<=2500"],
+        "alerts": ["latency_breach", "failure_ratio_breach"]
+      },
+      "usage_signals": {
+        "invocation_count_30d": null,
+        "adoption_ratio_30d": null,
+        "success_rate_30d": null
+      },
+      "dependencies": [],
+      "research_profile": {
+        "last_benchmark_date": null,
+        "trigger_conditions": ["fragility_ge_70", "maturity_le_2_with_user_impact"],
+        "external_patterns": []
+      },
+      "source_refs": {
+        "feature_maturity_level": null,
+        "capability_level": 3,
+        "capability_target": 4,
+        "research_debt_score": null,
+        "notes": "Governed: GTD actions, waiting-for, Planner/To Do sync, reconciliation. Missing: auto-prioritization based on context."
+      }
+    }
+  ]
+}

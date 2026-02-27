@@ -2,6 +2,16 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  validateFeatureFragilityPolicy,
+  validateFeatureUsagePolicy,
+  validateResearchTriggerPolicy,
+} from "../../sidecars/ted-engine/modules/feature_health.mjs";
+import {
+  validateFeatureCoverage,
+  validateFeatureRegistry,
+  validateFeatureRegistrySchema,
+} from "../../sidecars/ted-engine/modules/feature_registry.mjs";
 import { validateMigrationManifest } from "../../sidecars/ted-engine/modules/migration_registry.mjs";
 import { validateReplayGateContract } from "../../sidecars/ted-engine/modules/replay_gate_contract.mjs";
 import {
@@ -42,6 +52,20 @@ function parseArgs(argv) {
     compatibilityPolicy: path.join(
       repoRoot,
       "sidecars/ted-engine/config/compatibility_policy.json",
+    ),
+    featureRegistry: path.join(repoRoot, "sidecars/ted-engine/config/feature_registry.json"),
+    featureRegistrySchema: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/feature_registry_schema.json",
+    ),
+    featureFragilityPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/feature_fragility_policy.json",
+    ),
+    featureUsagePolicy: path.join(repoRoot, "sidecars/ted-engine/config/feature_usage_policy.json"),
+    researchTriggerPolicy: path.join(
+      repoRoot,
+      "sidecars/ted-engine/config/research_trigger_policy.json",
     ),
     replayGateContract: path.join(repoRoot, "sidecars/ted-engine/config/replay_gate_contract.json"),
     rolloutPolicy: path.join(repoRoot, "sidecars/ted-engine/config/rollout_policy.json"),
@@ -84,6 +108,26 @@ function parseArgs(argv) {
     }
     if (arg === "--compatibility-policy") {
       out.compatibilityPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-registry") {
+      out.featureRegistry = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-registry-schema") {
+      out.featureRegistrySchema = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-fragility-policy") {
+      out.featureFragilityPolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--feature-usage-policy") {
+      out.featureUsagePolicy = path.resolve(repoRoot, argv[++i] || "");
+      continue;
+    }
+    if (arg === "--research-trigger-policy") {
+      out.researchTriggerPolicy = path.resolve(repoRoot, argv[++i] || "");
       continue;
     }
     if (arg === "--replay-gate-contract") {
@@ -167,6 +211,36 @@ function main() {
       kind: "compatibility policy",
       path: args.compatibilityPolicy,
       validator: validateCompatibilityPolicy,
+    },
+    {
+      kind: "feature registry",
+      path: args.featureRegistry,
+      validator: validateFeatureRegistry,
+    },
+    {
+      kind: "feature coverage",
+      path: args.featureRegistry,
+      validator: validateFeatureCoverage,
+    },
+    {
+      kind: "feature registry schema",
+      path: args.featureRegistrySchema,
+      validator: validateFeatureRegistrySchema,
+    },
+    {
+      kind: "feature fragility policy",
+      path: args.featureFragilityPolicy,
+      validator: validateFeatureFragilityPolicy,
+    },
+    {
+      kind: "feature usage policy",
+      path: args.featureUsagePolicy,
+      validator: validateFeatureUsagePolicy,
+    },
+    {
+      kind: "research trigger policy",
+      path: args.researchTriggerPolicy,
+      validator: validateResearchTriggerPolicy,
     },
     {
       kind: "replay gate contract",

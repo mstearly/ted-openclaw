@@ -192,6 +192,9 @@ jobs:
             task: context-semantics-gate
             command: pnpm test:context-semantics-gate
           - runtime: node
+            task: feature-registry-gate
+            command: node scripts/ted-profile/validate-feature-registry.mjs && node scripts/ted-profile/validate-feature-coverage.mjs
+          - runtime: node
             task: ted-workflow-qa-guard
             command: pnpm --dir ui exec vitest run --config vitest.node.config.ts src/ui/views/ted.workflow.node.test.ts
           - runtime: node
